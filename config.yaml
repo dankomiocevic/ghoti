@@ -1,0 +1,14 @@
+# Example config file for Ghoti
+
+slot_000:
+  kind: simple_memory
+
+slot_001:
+  kind: simple_memory
+
+slot_002:
+  kind: simple_memory
+
+slot_003:
+  kind: timeout_memory
+  timeout: 60
