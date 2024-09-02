@@ -1,5 +1,8 @@
 # ![Logo](images/logo.png) Ghoti
 
+[![Go Report](https://goreportcard.com/badge/github.com/dankomiocevic/ghoti)](https://goreportcard.com/report/github.com/dankomiocevic/ghoti)
+[![Codecov](https://img.shields.io/codecov/c/github/dankomiocevic/ghoti)](https://app.codecov.io/gh/dankomiocevic/ghoti)
+
 Ghoti is a fast and simple service that helps distributed systems by centralizing some key information that is really hard to work with when it is distributed.
 Distributed systems are complicated, there are too many moving parts and sometimes a simple task becomes really complex.
 
