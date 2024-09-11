@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 
+	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 	"github.com/spf13/viper"
 )
@@ -10,12 +11,14 @@ import (
 type Config struct {
 	TcpAddr string
 	Slots   [1000]slots.Slot
+	Users   map[string]auth.User
 }
 
 func DefaultConfig() *Config {
 	return &Config{
 		TcpAddr: "localhost:9090",
 		Slots:   [1000]slots.Slot{},
+		Users:   make(map[string]auth.User),
 	}
 }
 
@@ -33,8 +36,20 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal server config: %w", err)
 	}
 
+	config.LoadUsers()
 	config.ConfigureSlots()
 	return config, nil
+}
+
+func (c *Config) LoadUsers() {
+	if viper.IsSet("users") {
+		usersMap := viper.GetStringMap("users")
+		for key, value := range usersMap {
+			pass := fmt.Sprintf("%v", value)
+			u, _ := auth.GetUser(key, pass)
+			c.Users[key] = u
+		}
+	}
 }
 
 func (c *Config) ConfigureSlots() {
