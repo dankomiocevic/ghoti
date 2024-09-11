@@ -36,20 +36,30 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal server config: %w", err)
 	}
 
-	config.LoadUsers()
 	config.ConfigureSlots()
+
+	e := config.LoadUsers()
+	if e != nil {
+		return nil, e
+	}
+
 	return config, nil
 }
 
-func (c *Config) LoadUsers() {
+func (c *Config) LoadUsers() error {
 	if viper.IsSet("users") {
 		usersMap := viper.GetStringMap("users")
 		for key, value := range usersMap {
 			pass := fmt.Sprintf("%v", value)
-			u, _ := auth.GetUser(key, pass)
+			u, e := auth.GetUser(key, pass)
+			if e != nil {
+				return e
+			}
+
 			c.Users[key] = u
 		}
 	}
+	return nil
 }
 
 func (c *Config) ConfigureSlots() {

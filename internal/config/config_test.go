@@ -84,6 +84,19 @@ func TestUserSetup(t *testing.T) {
 	}
 }
 
+func TestEmptyPassword(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("users.pepe", "")
+
+	config := DefaultConfig()
+	e := config.LoadUsers()
+
+	if e == nil {
+		t.Fatalf("User creation must fail with no password")
+	}
+}
+
 func TestMultipleUsersSetup(t *testing.T) {
 	viper.Reset()
 
