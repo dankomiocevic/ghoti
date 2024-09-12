@@ -9,4 +9,6 @@ import (
 type Connection struct {
 	NetworkConn net.Conn
 	LoggedUser  auth.User
+	IsLogged    bool
+	Username    string
 }

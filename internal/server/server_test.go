@@ -227,10 +227,50 @@ func TestLogin(t *testing.T) {
 	defer s.Stop()
 	defer conn.Close()
 
-	// Login with "pepe:passw0rd"
-	response := sendData(t, conn, "lcGVwZTpwYXNzdzByZA==\n")
+	// Login as pepe/passw0rd
+	sendData(t, conn, "upepe\n")
+	response := sendData(t, conn, "ppassw0rd\n")
 
-	if response != "vOK\n" {
+	if response != "vpepe\n" {
 		t.Fatalf("unexpected server response: %s", response)
+	}
+}
+
+func TestUser(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	// Login as pepe/passw0rd
+	response := sendData(t, conn, "upepe\n")
+
+	if response != "vpepe\n" {
+		t.Fatalf("Server did not return the username: %s", response)
+	}
+}
+
+func TestInvalidUsername(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	// Login as pepe/passw0rd
+	response := sendData(t, conn, "upepe!\n")
+
+	if response != "e\n" {
+		t.Fatalf("Server did not return error")
+	}
+}
+
+func TestEmptyPassword(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	// Login as pepe/passw0rd
+	response := sendData(t, conn, "p\n")
+
+	if response != "e\n" {
+		t.Fatalf("Server did not return error")
 	}
 }

@@ -15,7 +15,8 @@ type Message struct {
 var SupportedCommands = map[string]bool{
 	"r": true,
 	"w": true,
-	"l": true,
+	"u": true,
+	"p": true,
 }
 
 func ParseMessage(size int, buf []byte) (*Message, error) {
@@ -38,7 +39,7 @@ func ParseMessage(size int, buf []byte) (*Message, error) {
 		return nil, errors.New("Command not supported")
 	}
 
-	if command == "l" {
+	if command == "u" || command == "p" {
 		return &Message{Command: []byte(command)[0], Slot: 0, Value: input[1:]}, nil
 	}
 

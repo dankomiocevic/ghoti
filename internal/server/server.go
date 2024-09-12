@@ -15,6 +15,7 @@ import (
 type Server struct {
 	listener   net.Listener
 	slotsArray [1000]slots.Slot
+	usersArray map[string]auth.User
 	quit       chan interface{}
 	wg         sync.WaitGroup
 }
@@ -30,6 +31,7 @@ func NewServer(config *config.Config) *Server {
 	}
 	s.listener = l
 	s.slotsArray = config.Slots
+	s.usersArray = config.Users
 	s.wg.Add(1)
 
 	go s.serve()
@@ -51,7 +53,7 @@ func (s *Server) serve() {
 		} else {
 			s.wg.Add(1)
 			go func() {
-				s.handleUserConnection(Connection{NetworkConn: conn, LoggedUser: auth.User{}})
+				s.handleUserConnection(Connection{NetworkConn: conn, LoggedUser: auth.User{}, Username: "", IsLogged: false})
 				s.wg.Done()
 			}()
 		}
@@ -82,14 +84,39 @@ func (s *Server) handleUserConnection(conn Connection) {
 			continue
 		}
 
-		if msg.Command == 'l' {
-			user, err := auth.Login(msg.Value)
+		if msg.Command == 'u' {
+			err := auth.ValidateUsername(msg.Value)
+			if err != nil {
+				c.Write([]byte("e\n"))
+				// TODO: Close connection
+			} else {
+				conn.LoggedUser = auth.User{}
+				conn.Username = msg.Value
+				conn.IsLogged = false
+
+				var sb strings.Builder
+				sb.WriteString("v")
+				sb.WriteString(conn.Username)
+				sb.WriteString("\n")
+				c.Write([]byte(sb.String()))
+			}
+			continue
+		}
+
+		if msg.Command == 'p' {
+			user, err := auth.GetUser(conn.Username, msg.Value)
 			if err != nil {
 				c.Write([]byte("e\n"))
 				// TODO: Close connection
 			} else {
 				conn.LoggedUser = user
-				c.Write([]byte("vOK\n"))
+				conn.IsLogged = true
+
+				var sb strings.Builder
+				sb.WriteString("v")
+				sb.WriteString(conn.Username)
+				sb.WriteString("\n")
+				c.Write([]byte(sb.String()))
 			}
 			continue
 		}
