@@ -29,6 +29,8 @@ func generateConfig() *config.Config {
 	slot_three, _ := slots.GetSlot(viper.Sub("slot_001"))
 	c.Slots[3] = slot_three
 
+	viper.Set("users.pepe", "passw0rd")
+
 	return c
 }
 
@@ -214,6 +216,21 @@ func TestReadTimeout(t *testing.T) {
 	response := sendData(t, conn, "r003\n")
 
 	if response != "v003HelloTimeout\n" {
+		t.Fatalf("unexpected server response: %s", response)
+	}
+}
+
+// Tests for login
+
+func TestLogin(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	// Login with "pepe:passw0rd"
+	response := sendData(t, conn, "lcGVwZTpwYXNzdzByZA==\n")
+
+	if response != "vOK\n" {
 		t.Fatalf("unexpected server response: %s", response)
 	}
 }

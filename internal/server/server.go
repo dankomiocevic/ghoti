@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/config"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 )
@@ -50,7 +51,7 @@ func (s *Server) serve() {
 		} else {
 			s.wg.Add(1)
 			go func() {
-				s.handleUserConnection(conn)
+				s.handleUserConnection(Connection{NetworkConn: conn, LoggedUser: auth.User{}})
 				s.wg.Done()
 			}()
 		}
@@ -63,9 +64,10 @@ func (s *Server) Stop() {
 	s.wg.Wait()
 }
 
-func (s *Server) handleUserConnection(c net.Conn) {
-	defer c.Close()
+func (s *Server) handleUserConnection(conn Connection) {
+	defer conn.NetworkConn.Close()
 
+	c := conn.NetworkConn
 	buf := make([]byte, 41)
 
 	for {
@@ -77,6 +79,18 @@ func (s *Server) handleUserConnection(c net.Conn) {
 		msg, err := ParseMessage(size, buf)
 		if err != nil {
 			c.Write([]byte("e\n"))
+			continue
+		}
+
+		if msg.Command == 'l' {
+			user, err := auth.Login(msg.Value)
+			if err != nil {
+				c.Write([]byte("e\n"))
+				// TODO: Close connection
+			} else {
+				conn.LoggedUser = user
+				c.Write([]byte("vOK\n"))
+			}
 			continue
 		}
 
@@ -95,7 +109,7 @@ func (s *Server) handleUserConnection(c net.Conn) {
 				continue
 			}
 		} else if msg.Command == 'q' {
-
+			// TODO: Close connection
 		} else {
 			value = current_slot.Read()
 		}

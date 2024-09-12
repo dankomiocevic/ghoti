@@ -12,6 +12,12 @@ type Message struct {
 	Value   string
 }
 
+var SupportedCommands = map[string]bool{
+	"r": true,
+	"w": true,
+	"l": true,
+}
+
 func ParseMessage(size int, buf []byte) (*Message, error) {
 	if buf[size-1] != '\n' {
 		return nil, errors.New("Message is malformed")
@@ -28,8 +34,12 @@ func ParseMessage(size int, buf []byte) (*Message, error) {
 
 	command := input[:1]
 
-	if command != "r" && command != "w" {
+	if SupportedCommands[command] != true {
 		return nil, errors.New("Command not supported")
+	}
+
+	if command == "l" {
+		return &Message{Command: []byte(command)[0], Slot: 0, Value: input[1:]}, nil
 	}
 
 	slot, err := strconv.Atoi(input[1:4])
