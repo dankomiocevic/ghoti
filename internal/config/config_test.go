@@ -66,3 +66,63 @@ func TestConfigureUnknownType(t *testing.T) {
 		t.Fatalf("slot zero should not be configured")
 	}
 }
+
+func TestUserSetup(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("users.pepe", "SomePassword")
+
+	config := DefaultConfig()
+	config.LoadUsers()
+
+	if config.Users["pepe"].Name != "pepe" {
+		t.Fatalf("user name must be pepe")
+	}
+
+	if config.Users["pepe"].Password != "SomePassword" {
+		t.Fatalf("User pepe password must be SomePassword")
+	}
+}
+
+func TestEmptyPassword(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("users.pepe", "")
+
+	config := DefaultConfig()
+	e := config.LoadUsers()
+
+	if e == nil {
+		t.Fatalf("User creation must fail with no password")
+	}
+}
+
+func TestMultipleUsersSetup(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("users.pepe", "SomePassword")
+	viper.Set("users.bob", "OtherPassword")
+
+	config := DefaultConfig()
+	config.LoadUsers()
+
+	if len(config.Users) != 2 {
+		t.Fatal("number of users created is wrong")
+	}
+
+	if config.Users["pepe"].Name != "pepe" {
+		t.Fatalf("user name must be pepe")
+	}
+
+	if config.Users["bob"].Name != "bob" {
+		t.Fatalf("user name must be bob")
+	}
+
+	if config.Users["pepe"].Password != "SomePassword" {
+		t.Fatalf("User pepe password must be SomePassword")
+	}
+
+	if config.Users["bob"].Password != "OtherPassword" {
+		t.Fatalf("User bob password must be OtherPassword")
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/config"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 )
@@ -14,6 +15,7 @@ import (
 type Server struct {
 	listener   net.Listener
 	slotsArray [1000]slots.Slot
+	usersMap   map[string]auth.User
 	quit       chan interface{}
 	wg         sync.WaitGroup
 }
@@ -29,6 +31,7 @@ func NewServer(config *config.Config) *Server {
 	}
 	s.listener = l
 	s.slotsArray = config.Slots
+	s.usersMap = config.Users
 	s.wg.Add(1)
 
 	go s.serve()
@@ -50,7 +53,7 @@ func (s *Server) serve() {
 		} else {
 			s.wg.Add(1)
 			go func() {
-				s.handleUserConnection(conn)
+				s.handleUserConnection(Connection{NetworkConn: conn, LoggedUser: auth.User{}, Username: "", IsLogged: false})
 				s.wg.Done()
 			}()
 		}
@@ -63,9 +66,10 @@ func (s *Server) Stop() {
 	s.wg.Wait()
 }
 
-func (s *Server) handleUserConnection(c net.Conn) {
-	defer c.Close()
+func (s *Server) handleUserConnection(conn Connection) {
+	defer conn.NetworkConn.Close()
 
+	c := conn.NetworkConn
 	buf := make([]byte, 41)
 
 	for {
@@ -80,6 +84,48 @@ func (s *Server) handleUserConnection(c net.Conn) {
 			continue
 		}
 
+		if msg.Command == 'u' {
+			err := auth.ValidateUsername(msg.Value)
+			if err != nil {
+				c.Write([]byte("e\n"))
+				// TODO: Close connection
+			} else {
+				conn.LoggedUser = auth.User{}
+				conn.Username = msg.Value
+				conn.IsLogged = false
+
+				var sb strings.Builder
+				sb.WriteString("v")
+				sb.WriteString(conn.Username)
+				sb.WriteString("\n")
+				c.Write([]byte(sb.String()))
+			}
+			continue
+		}
+
+		if msg.Command == 'p' {
+			user, err := auth.GetUser(conn.Username, msg.Value)
+			if err != nil {
+				c.Write([]byte("e\n"))
+				// TODO: Close connection
+			} else {
+				if s.usersMap[user.Name].Password != user.Password {
+					c.Write([]byte("e\n"))
+					// TODO: Close connection
+				} else {
+					conn.LoggedUser = user
+					conn.IsLogged = true
+
+					var sb strings.Builder
+					sb.WriteString("v")
+					sb.WriteString(conn.Username)
+					sb.WriteString("\n")
+					c.Write([]byte(sb.String()))
+				}
+			}
+			continue
+		}
+
 		current_slot := s.slotsArray[msg.Slot]
 		if current_slot == nil {
 			c.Write([]byte("e\n"))
@@ -88,6 +134,11 @@ func (s *Server) handleUserConnection(c net.Conn) {
 
 		var value string
 		if msg.Command == 'w' {
+			if !current_slot.CanWrite(&conn.LoggedUser) {
+				c.Write([]byte("e\n"))
+				continue
+			}
+
 			value, err = current_slot.Write(msg.Value, c)
 
 			if err != nil {
@@ -95,9 +146,14 @@ func (s *Server) handleUserConnection(c net.Conn) {
 				continue
 			}
 		} else if msg.Command == 'q' {
-
-		} else {
-			value = current_slot.Read()
+			// TODO: Close connection
+		} else if msg.Command == 'r' {
+			if current_slot.CanRead(&conn.LoggedUser) {
+				value = current_slot.Read()
+			} else {
+				c.Write([]byte("e\n"))
+				continue
+			}
 		}
 
 		var sb strings.Builder
