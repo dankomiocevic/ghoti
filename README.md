@@ -1,7 +1,10 @@
 # ![Logo](images/logo.png) Ghoti
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/dankomiocevic/ghoti.svg)](https://pkg.go.dev/github.com/dankomiocevic/ghoti)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fdankomiocevic%2Fghoti.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fdankomiocevic%2Fghoti?ref=badge_shield)
 [![Go Report](https://goreportcard.com/badge/github.com/dankomiocevic/ghoti)](https://goreportcard.com/report/github.com/dankomiocevic/ghoti)
 [![Codecov](https://img.shields.io/codecov/c/github/dankomiocevic/ghoti)](https://app.codecov.io/gh/dankomiocevic/ghoti)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dankomiocevic/ghoti/badge)](https://securityscorecards.dev/viewer/?uri=github.com/dankomiocevic/ghoti)
 
 Ghoti is a fast and simple service that helps distributed systems by centralizing some key information that is really hard to work with when it is distributed.
 Distributed systems are complicated, there are too many moving parts and sometimes a simple task becomes really complex.
