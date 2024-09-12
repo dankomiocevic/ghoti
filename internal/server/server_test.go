@@ -28,8 +28,17 @@ func generateConfig() *config.Config {
 	viper.Set("slot_001.timeout", 60)
 	slot_three, _ := slots.GetSlot(viper.Sub("slot_001"))
 	c.Slots[3] = slot_three
+	viper.Set("slot_004.kind", "simple_memory")
+	viper.Set("slot_004.users.pepe", "r")
+	viper.Set("slot_004.users.bob", "w")
+	viper.Set("slot_004.users.sam", "a")
+	slot_four, _ := slots.GetSlot(viper.Sub("slot_004"))
+	c.Slots[4] = slot_four
 
 	viper.Set("users.pepe", "passw0rd")
+	viper.Set("users.bob", "otherPassw0rd")
+	viper.Set("users.sam", "samPassw0rd")
+	c.LoadUsers()
 
 	return c
 }
@@ -272,5 +281,107 @@ func TestEmptyPassword(t *testing.T) {
 
 	if response != "e\n" {
 		t.Fatalf("Server did not return error")
+	}
+}
+
+func TestWrongPassword(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	// Login as pepe/passw0rd
+	response := sendData(t, conn, "p123\n")
+
+	if response != "e\n" {
+		t.Fatalf("Server did not return error")
+	}
+}
+
+func TestAccessForbidden(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	// Read on Slot 4 that is password protected
+	response := sendData(t, conn, "r004\n")
+
+	if response != "e\n" {
+		t.Fatalf("Server did not return an error")
+	}
+
+	// Write on Slot 4 that is password protected
+	response_two := sendData(t, conn, "w004Something\n")
+
+	if response_two != "e\n" {
+		t.Fatalf("Server did not return an error")
+	}
+}
+
+func TestReadOnly(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	sendData(t, conn, "upepe\n")
+	sendData(t, conn, "ppassw0rd\n")
+
+	// Read on Slot 4 that is password protected
+	response := sendData(t, conn, "r004\n")
+
+	if response != "v004\n" {
+		t.Fatalf("Server did not return the value: %s", response)
+	}
+
+	// Write on Slot 4 that is password protected
+	response_two := sendData(t, conn, "w004Something\n")
+
+	if response_two != "e\n" {
+		t.Fatalf("Server did not return an error")
+	}
+}
+
+func TestWriteOnly(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	sendData(t, conn, "ubob\n")
+	sendData(t, conn, "potherPassw0rd\n")
+
+	// Read on Slot 4 that is password protected
+	response := sendData(t, conn, "r004\n")
+
+	if response != "e\n" {
+		t.Fatalf("Server did not return an error")
+	}
+
+	// Write on Slot 4 that is password protected
+	response_two := sendData(t, conn, "w004Something\n")
+
+	if response_two != "v004Something\n" {
+		t.Fatalf("Server did not return the value: %s", response_two)
+	}
+}
+
+func TestAllAccess(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	sendData(t, conn, "usam\n")
+	sendData(t, conn, "psamPassw0rd\n")
+
+	// Write on Slot 4 that is password protected
+	response_two := sendData(t, conn, "w004SomethingSam\n")
+
+	if response_two != "v004SomethingSam\n" {
+		t.Fatalf("Server did not return the value: %s", response_two)
+	}
+
+	// Read on Slot 4 that is password protected
+	response := sendData(t, conn, "r004\n")
+
+	if response != "v004SomethingSam\n" {
+		t.Fatalf("Server did not return the value: %s", response)
 	}
 }

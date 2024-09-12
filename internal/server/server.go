@@ -15,7 +15,7 @@ import (
 type Server struct {
 	listener   net.Listener
 	slotsArray [1000]slots.Slot
-	usersArray map[string]auth.User
+	usersMap   map[string]auth.User
 	quit       chan interface{}
 	wg         sync.WaitGroup
 }
@@ -31,7 +31,7 @@ func NewServer(config *config.Config) *Server {
 	}
 	s.listener = l
 	s.slotsArray = config.Slots
-	s.usersArray = config.Users
+	s.usersMap = config.Users
 	s.wg.Add(1)
 
 	go s.serve()
@@ -109,14 +109,19 @@ func (s *Server) handleUserConnection(conn Connection) {
 				c.Write([]byte("e\n"))
 				// TODO: Close connection
 			} else {
-				conn.LoggedUser = user
-				conn.IsLogged = true
+				if s.usersMap[user.Name].Password != user.Password {
+					c.Write([]byte("e\n"))
+					// TODO: Close connection
+				} else {
+					conn.LoggedUser = user
+					conn.IsLogged = true
 
-				var sb strings.Builder
-				sb.WriteString("v")
-				sb.WriteString(conn.Username)
-				sb.WriteString("\n")
-				c.Write([]byte(sb.String()))
+					var sb strings.Builder
+					sb.WriteString("v")
+					sb.WriteString(conn.Username)
+					sb.WriteString("\n")
+					c.Write([]byte(sb.String()))
+				}
 			}
 			continue
 		}
@@ -129,6 +134,11 @@ func (s *Server) handleUserConnection(conn Connection) {
 
 		var value string
 		if msg.Command == 'w' {
+			if !current_slot.CanWrite(&conn.LoggedUser) {
+				c.Write([]byte("e\n"))
+				continue
+			}
+
 			value, err = current_slot.Write(msg.Value, c)
 
 			if err != nil {
@@ -137,8 +147,13 @@ func (s *Server) handleUserConnection(conn Connection) {
 			}
 		} else if msg.Command == 'q' {
 			// TODO: Close connection
-		} else {
-			value = current_slot.Read()
+		} else if msg.Command == 'r' {
+			if current_slot.CanRead(&conn.LoggedUser) {
+				value = current_slot.Read()
+			} else {
+				c.Write([]byte("e\n"))
+				continue
+			}
 		}
 
 		var sb strings.Builder
