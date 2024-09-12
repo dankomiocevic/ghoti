@@ -175,6 +175,63 @@ It has the same configuration as the previous slot:
 | timeout        | Time to wait for a confirmation on the clients that the message was received. |
 | dereg_tries    | Number of messages that are tried on a client until is de-registered. |
 
+## Auth
+
+Ghoti allows to have an authentication mechanism to allow different actors to interact only with specific slots. This means that you can configure who access which slots and who is able to read or write on it.
+
+First, you need to define your client services or users on the configuration:
+
+```yaml
+users:
+  my_service: "my_password"
+  other_service: "another_password"
+  upstream: "123456"
+```
+
+The clients can now login using the `u` and `p` commands:
+
+```
+send   > umy_service
+receive< vmy_service
+send   > pmy_password
+receive< vmy_service
+```
+
+The server will respond with the `v` value returning the username of the logged in user or `e` if there is an error. It is recommended using this feature only through a secure connection, on a very secure network or through TTL because the passwords will not be encoded.
+
+Now, all the interactions with the server will be throught the autenticated user.
+
+After defining the users, we can update the slots with the specific permissions:
+
+```yaml
+slot_001:
+  kind: simple_memory
+  users:
+    my_service: "r"
+    other_service: "w"
+    upstream: "a"
+
+slot_002:
+  kind: simple_memory
+  users:
+    my_service: "a"
+
+slot_003:
+  kind: simple_memory
+```
+
+There are three possible configurations for the access:
+- r: read only
+- w: write only
+- a: all access
+
+With this configuration, the client `my_service` can ready both slots 001 and 002 but can only write on the slot 002.
+
+**IMPORTANT**:
+When a slot has no defined list of users, then it will have anonymous access by default. This means that the slot can be accessed by anyone with or without logging in.
+
+For example, the slot 003 in the configuration can be accessed by anyone, even if is not logged in.
+
 ## Cluster configuration 
 
 Usually Ghoti clusters have no more than 3 instances. The clients will connect simultaneously to all the instances, this way they can recover instantly if there is an issue.
