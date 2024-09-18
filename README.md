@@ -178,6 +178,25 @@ It has the same configuration as the previous slot:
 | timeout        | Time to wait for a confirmation on the clients that the message was received. |
 | dereg_tries    | Number of messages that are tried on a client until is de-registered. |
 
+
+### Ticker (watchdog)
+
+This is a classic slot used in embedded circuits and microcontrollers, the slot contains an integer value, the way this works is that the slot will tick once a second making its value go down by one until it reaches zero.
+If any client writes to this slot and sets a value (integer value), it will start decrementing that value once a second until it reaches zero again.
+
+In other words, if a client writes `600` on this slot, then waits 9 minutes and reads the value, the value will be `60`. After one more minute, the value will be zero.
+
+There is no configuration needed for this slot.
+
+
+### Atomic counter slot
+
+This slot contains an integer number and allows to increment or decrement its value. Only one process can increment or decrement the value at a time.
+
+To increment, you need to write a positive integer number, to decrement, a negative integer number. The slot cannot go beyond 
+
+There is no configuration needed for this slot.
+
 ## Auth
 
 Ghoti allows to have an authentication mechanism to allow different actors to interact only with specific slots. This means that you can configure who access which slots and who is able to read or write on it.
