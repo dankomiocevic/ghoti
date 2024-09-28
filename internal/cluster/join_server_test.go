@@ -8,22 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/mock"
 )
-
-type MockedCluster struct {
-	mock.Mock
-}
-
-func (m *MockedCluster) Start() error {
-	return nil
-}
-
-func (m *MockedCluster) Join(node string, addr string) error {
-	args := m.Called(node, addr)
-	return args.Error(0)
-}
 
 func runServer(t *testing.T, config *ClusterConfig, cluster Cluster) MembershipManager {
 	// configure the join Server
