@@ -3,6 +3,7 @@ package cluster
 import (
 	"testing"
 
+	"github.com/hashicorp/raft"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -17,6 +18,11 @@ func (m *MockedCluster) Start() error {
 func (m *MockedCluster) Join(node string, addr string) error {
 	args := m.Called(node, addr)
 	return args.Error(0)
+}
+
+func (m *MockedCluster) State() raft.RaftState {
+	args := m.Called()
+	return args.Get(0).(raft.RaftState)
 }
 
 func TestJoinServer(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 type Cluster interface {
 	Start() error
 	Join(string, string) error
+	State() raft.RaftState
 }
 
 type RaftCluster struct {
@@ -21,7 +22,7 @@ type RaftCluster struct {
 }
 
 func NewCluster(config ClusterConfig) Cluster {
-	return &RaftCluster{}
+	return &RaftCluster{config: config}
 }
 
 func (c *RaftCluster) Start() error {
@@ -61,6 +62,10 @@ func (c *RaftCluster) Start() error {
 	}
 
 	return nil
+}
+
+func (c *RaftCluster) State() raft.RaftState {
+	return c.raft.State()
 }
 
 func (c *RaftCluster) Join(nodeID string, addr string) error {
