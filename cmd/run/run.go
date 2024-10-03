@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
 	"github.com/dankomiocevic/ghoti/internal/server"
 
@@ -39,6 +40,14 @@ func run(_ *cobra.Command, _ []string) {
 
 	if err := config.Verify(); err != nil {
 		panic(err)
+	}
+
+	if len(config.Cluster.Node) < 1 {
+		c, err := cluster.NewCluster(config.Cluster)
+		if err != nil {
+			panic(err)
+		}
+		c.Start()
 	}
 
 	s := server.NewServer(config)
