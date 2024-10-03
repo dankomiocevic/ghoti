@@ -56,19 +56,34 @@ func LoadConfig() (*Config, error) {
 
 func (c *Config) LoadCluster() error {
 	if viper.IsSet("cluster") {
-		c := cluster.ClusterConfig{}
+		c.Cluster = cluster.ClusterConfig{}
 		if !viper.IsSet("cluster.node") {
 			return fmt.Errorf("failed to load cluster node configuration, no node provided")
 		}
+		c.Cluster.Node = viper.GetString("cluster.node")
 
-		c.Node = viper.GetString("cluster.node")
-		if viper.IsSet("cluster.join") {
-			c.Join = viper.GetString("cluster.join")
-			if !viper.IsSet("cluster.user") || !viper.IsSet("cluster.pass") {
-				return fmt.Errorf("failed to load cluster node configuration, no user provided")
-			}
-			c.User = viper.GetString("cluster.user")
-			c.Pass = viper.GetString("cluster.pass")
+		if !viper.IsSet("cluster.bind") {
+			c.Cluster.Bind = "localhost:25873"
+		} else {
+			c.Cluster.Bind = viper.GetString("cluster.bind")
+		}
+
+		if !viper.IsSet("cluster.user") || !viper.IsSet("cluster.pass") {
+			return fmt.Errorf("failed to load cluster node configuration, no user provided")
+		}
+		c.Cluster.User = viper.GetString("cluster.user")
+		c.Cluster.Pass = viper.GetString("cluster.pass")
+
+		if !viper.IsSet("cluster.manager.type") {
+			return fmt.Errorf("failed to load cluster node configuration, no manager provided")
+		}
+
+		if viper.IsSet("cluster.manager.join") {
+			c.Cluster.ManagerJoin = viper.GetString("cluster.manager.join")
+		}
+
+		if viper.IsSet("cluster.manager.addr") {
+			c.Cluster.ManagerAddr = viper.GetString("cluster.manager.addr")
 		}
 	}
 

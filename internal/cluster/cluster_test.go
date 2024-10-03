@@ -9,10 +9,14 @@ import (
 )
 
 func TestClusterSingleNode(t *testing.T) {
-	config := ClusterConfig{Node: "node1", Join: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:1234", Bind: "localhost:1234"}
+	config := ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:1234", ManagerJoin: "", Bind: "localhost:1234"}
 
-	c := NewCluster(config)
-	err := c.Start()
+	c, err := NewCluster(config)
+	if err != nil {
+		t.Fatalf("failed to create new cluster: %s", err)
+	}
+
+	err = c.Start()
 
 	if err != nil {
 		t.Fatalf("failed to start cluster: %s", err)
@@ -20,7 +24,7 @@ func TestClusterSingleNode(t *testing.T) {
 
 	// Exponential retry until set as leader
 	baseDelay := 100 * time.Millisecond
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 7; i++ {
 		if c.State() == raft.Leader {
 			return
 		}
@@ -33,10 +37,14 @@ func TestClusterSingleNode(t *testing.T) {
 }
 
 func TestClusterMissingBind(t *testing.T) {
-	config := ClusterConfig{Node: "node1", Join: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:1234", Bind: ""}
+	config := ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:1234", Bind: ""}
 
-	c := NewCluster(config)
-	err := c.Start()
+	c, err := NewCluster(config)
+	if err != nil {
+		t.Fatalf("Failed to create cluster: %s", err)
+	}
+
+	err = c.Start()
 
 	if err == nil {
 		t.Fatalf("Cluster should have failed to initialize")

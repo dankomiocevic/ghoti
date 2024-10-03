@@ -11,23 +11,33 @@ import (
 
 type Cluster interface {
 	Start() error
-	Join(string, string) error
+	Join(string, string, string) error
+	Bootstrap() raft.Future
 	State() raft.RaftState
 }
 
 type RaftCluster struct {
-	config  ClusterConfig
-	raft    *raft.Raft
-	manager MembershipManager
+	config     ClusterConfig
+	raftConfig *raft.Config
+	transport  *raft.NetworkTransport
+	raft       *raft.Raft
+	manager    MembershipManager
 }
 
-func NewCluster(config ClusterConfig) Cluster {
-	return &RaftCluster{config: config}
+func NewCluster(config ClusterConfig) (Cluster, error) {
+	cluster := &RaftCluster{config: config}
+	manager, err := GetManager(&config, cluster)
+	if err != nil {
+		return nil, err
+	}
+
+	cluster.manager = manager
+	return cluster, nil
 }
 
 func (c *RaftCluster) Start() error {
-	config := raft.DefaultConfig()
-	config.LocalID = raft.ServerID(c.config.Node)
+	c.raftConfig = raft.DefaultConfig()
+	c.raftConfig.LocalID = raft.ServerID(c.config.Node)
 
 	addr, err := net.ResolveTCPAddr("tcp", c.config.Bind)
 	if err != nil {
@@ -38,28 +48,20 @@ func (c *RaftCluster) Start() error {
 	if err != nil {
 		return err
 	}
+	c.transport = transport
 
 	snapshots := raft.NewInmemSnapshotStore()
 	logStore := raft.NewInmemStore()
 	stableStore := raft.NewInmemStore()
 
-	ra, err := raft.NewRaft(config, nil, logStore, stableStore, snapshots, transport)
+	ra, err := raft.NewRaft(c.raftConfig, nil, logStore, stableStore, snapshots, transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}
 	c.raft = ra
 
-	if len(c.config.Join) < 1 {
-		configuration := raft.Configuration{
-			Servers: []raft.Server{
-				{
-					ID:      config.LocalID,
-					Address: transport.LocalAddr(),
-				},
-			},
-		}
-		ra.BootstrapCluster(configuration)
-	}
+	c.manager.Start()
+	defer c.manager.Close()
 
 	return nil
 }
@@ -68,7 +70,20 @@ func (c *RaftCluster) State() raft.RaftState {
 	return c.raft.State()
 }
 
-func (c *RaftCluster) Join(nodeID string, addr string) error {
+func (c *RaftCluster) Bootstrap() raft.Future {
+	configuration := raft.Configuration{
+		Servers: []raft.Server{
+			{
+				ID:      c.raftConfig.LocalID,
+				Address: c.transport.LocalAddr(),
+			},
+		},
+	}
+
+	return c.raft.BootstrapCluster(configuration)
+}
+
+func (c *RaftCluster) Join(nodeID string, addr string, join string) error {
 	configFuture := c.raft.GetConfiguration()
 	if err := configFuture.Error(); err != nil {
 		fmt.Printf("failed to get raft configuration: %v", err)
@@ -76,8 +91,8 @@ func (c *RaftCluster) Join(nodeID string, addr string) error {
 	}
 
 	for _, srv := range configFuture.Configuration().Servers {
-		if srv.ID == raft.ServerID(c.config.Join) || srv.Address == raft.ServerAddress(addr) {
-			if srv.Address == raft.ServerAddress(addr) && srv.ID == raft.ServerID(c.config.Join) {
+		if srv.ID == raft.ServerID(join) || srv.Address == raft.ServerAddress(addr) {
+			if srv.Address == raft.ServerAddress(addr) && srv.ID == raft.ServerID(join) {
 				fmt.Printf("node %s at %s already member of cluster, ignoring join request", nodeID, addr)
 				return nil
 			}

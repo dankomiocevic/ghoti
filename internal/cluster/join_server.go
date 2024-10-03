@@ -10,11 +10,24 @@ type joinServer struct {
 	addr    string
 	user    string
 	pass    string
+	join    string
 	cluster Cluster
 	ln      net.Listener
 }
 
+func (s *joinServer) IsStandalone() bool {
+	return true
+}
+
 func (s *joinServer) Start() error {
+	if len(s.join) < 1 {
+		future := s.cluster.Bootstrap()
+		err := future.Error()
+		if err != nil {
+			return err
+		}
+	}
+
 	server := http.Server{
 		Handler: s,
 	}
@@ -39,7 +52,6 @@ func (s *joinServer) Start() error {
 }
 
 func (s *joinServer) Close() {
-	s.ln.Close()
 	return
 }
 
@@ -80,7 +92,7 @@ func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := s.cluster.Join(nodeID, remoteAddr)
+	err := s.cluster.Join(nodeID, remoteAddr, s.join)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

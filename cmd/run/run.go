@@ -43,7 +43,10 @@ func run(_ *cobra.Command, _ []string) {
 	}
 
 	if len(config.Cluster.Node) < 1 {
-		c := cluster.NewCluster(config.Cluster)
+		c, err := cluster.NewCluster(config.Cluster)
+		if err != nil {
+			panic(err)
+		}
 		c.Start()
 	}
 

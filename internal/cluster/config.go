@@ -2,10 +2,10 @@ package cluster
 
 type ClusterConfig struct {
 	Node        string
-	Join        string
+	Bind        string
 	User        string
 	Pass        string
-	Bind        string
 	ManagerType string
 	ManagerAddr string
+	ManagerJoin string
 }

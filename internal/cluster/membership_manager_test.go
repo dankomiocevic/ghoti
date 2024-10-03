@@ -15,8 +15,8 @@ func (m *MockedCluster) Start() error {
 	return nil
 }
 
-func (m *MockedCluster) Join(node string, addr string) error {
-	args := m.Called(node, addr)
+func (m *MockedCluster) Join(node string, addr string, join string) error {
+	args := m.Called(node, addr, join)
 	return args.Error(0)
 }
 
@@ -25,12 +25,17 @@ func (m *MockedCluster) State() raft.RaftState {
 	return args.Get(0).(raft.RaftState)
 }
 
+func (m *MockedCluster) Bootstrap() raft.Future {
+	args := m.Called()
+	return args.Get(0).(raft.Future)
+}
+
 func TestJoinServer(t *testing.T) {
 	joinAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", Join: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: joinAddr}
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: joinAddr}
 
 	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555").Return(nil)
+	cluster.On("Join", "node2", "localhost:5555", joinAddr).Return(nil)
 
 	s, err := GetManager(config, cluster)
 	if err != nil {
@@ -44,10 +49,10 @@ func TestJoinServer(t *testing.T) {
 
 func TestUserTooShort(t *testing.T) {
 	joinAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", Join: "localhost:1234", User: "my", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: joinAddr}
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: joinAddr}
 
 	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555").Return(nil)
+	cluster.On("Join", "node2", "localhost:5555", joinAddr).Return(nil)
 
 	_, err := GetManager(config, cluster)
 	if err == nil {
@@ -57,10 +62,10 @@ func TestUserTooShort(t *testing.T) {
 
 func TestPassTooShort(t *testing.T) {
 	joinAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", Join: "localhost:1234", User: "my", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: joinAddr}
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: joinAddr}
 
 	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555").Return(nil)
+	cluster.On("Join", "node2", "localhost:5555", joinAddr).Return(nil)
 
 	_, err := GetManager(config, cluster)
 	if err == nil {
@@ -70,10 +75,10 @@ func TestPassTooShort(t *testing.T) {
 
 func TestWrongType(t *testing.T) {
 	joinAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", Join: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "wrong_type", ManagerAddr: joinAddr}
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "wrong_type", ManagerAddr: joinAddr}
 
 	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555").Return(nil)
+	cluster.On("Join", "node2", "localhost:5555", joinAddr).Return(nil)
 
 	_, err := GetManager(config, cluster)
 	if err == nil {
@@ -83,10 +88,10 @@ func TestWrongType(t *testing.T) {
 
 func TestNoType(t *testing.T) {
 	joinAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", Join: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "", ManagerAddr: joinAddr}
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "", ManagerAddr: joinAddr}
 
 	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555").Return(nil)
+	cluster.On("Join", "node2", "localhost:5555", joinAddr).Return(nil)
 
 	_, err := GetManager(config, cluster)
 	if err == nil {
