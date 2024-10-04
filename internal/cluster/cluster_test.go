@@ -36,6 +36,15 @@ func TestClusterSingleNode(t *testing.T) {
 	t.Fatalf("Single node cluster node not set as leader")
 }
 
+func TestClusterWrongConfig(t *testing.T) {
+	config := ClusterConfig{Node: "node1", ManagerJoin: "", User: "", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:1234", Bind: ""}
+
+	_, err := NewCluster(config)
+	if err == nil {
+		t.Fatalf("Cluster creation must fail")
+	}
+}
+
 func TestClusterMissingBind(t *testing.T) {
 	config := ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:1234", Bind: ""}
 

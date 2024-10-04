@@ -42,11 +42,11 @@ func runServer(t *testing.T, config *ClusterConfig, cluster Cluster) MembershipM
 
 // More of an integration test
 func TestJoin(t *testing.T) {
-	mgrAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+	mgrAddr := "localhost:5345"
+	config := &ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr, ManagerJoin: "", Bind: "localhost:5555"}
 
 	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555", "localhost:1234").Return(nil)
+	cluster.On("Join", "node2", "localhost:5555").Return(nil)
 	future := new(TestFuture)
 	future.On("Error").Return(nil)
 	cluster.On("Bootstrap").Return(future)
@@ -111,7 +111,7 @@ func TestWrongAuth(t *testing.T) {
 	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
 
 	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555", "localhost:1234").Return(nil)
+	cluster.On("Join", "node2", "localhost:5555").Return(nil)
 
 	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
 
@@ -140,11 +140,11 @@ func TestWrongData(t *testing.T) {
 	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
 
 	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555", "localhost:1234").Return(nil)
+	cluster.On("Join", "node2", "localhost:5555").Return(nil)
 
 	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
 
-	var requestData [5][]byte
+	var requestData [6][]byte
 	b, _ := json.Marshal(map[string]string{"id": "node2"})
 	requestData[0] = b
 	b, _ = json.Marshal(map[string]string{"addr": "node2"})
@@ -155,6 +155,8 @@ func TestWrongData(t *testing.T) {
 	requestData[3] = b
 	b = []byte("{}")
 	requestData[4] = b
+	b, _ = json.Marshal(map[string]string{"pepe": "localhost:5555", "addr": "node2"})
+	requestData[5] = b
 
 	for _, element := range requestData {
 		req := httptest.NewRequest("POST", fmt.Sprintf("http://%s/join", mgrAddr), bytes.NewReader(element))
@@ -179,7 +181,7 @@ func TestFailJoin(t *testing.T) {
 	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
 
 	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555", "localhost:1234").Return(fmt.Errorf("Something wrong"))
+	cluster.On("Join", "node2", "localhost:5555").Return(fmt.Errorf("Something wrong"))
 
 	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster, join: "localhost:1234"}
 
