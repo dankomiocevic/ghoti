@@ -1,28 +1,33 @@
 package cluster
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 )
 
 type joinServer struct {
-	addr    string
-	user    string
-	pass    string
-	join    string
-	cluster Cluster
-	ln      net.Listener
-}
-
-func (s *joinServer) IsStandalone() bool {
-	return true
+	addr        string
+	user        string
+	pass        string
+	join        string
+	nodeID      string
+	clusterBind string
+	cluster     Cluster
+	ln          net.Listener
 }
 
 func (s *joinServer) Start() error {
 	if len(s.join) < 1 {
 		future := s.cluster.Bootstrap()
 		err := future.Error()
+		if err != nil {
+			return err
+		}
+	} else {
+		err := requestToJoin(s.join, s.clusterBind, s.nodeID)
 		if err != nil {
 			return err
 		}
@@ -37,8 +42,6 @@ func (s *joinServer) Start() error {
 		return err
 	}
 	s.ln = ln
-
-	http.Handle("/", s)
 
 	go func() {
 		err := server.Serve(s.ln)
@@ -92,9 +95,37 @@ func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := s.cluster.Join(nodeID, remoteAddr, s.join)
+	err := s.cluster.Join(nodeID, remoteAddr)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+}
+
+func requestToJoin(joinAddr, raftAddr, nodeID string) error {
+	b, err := json.Marshal(map[string]string{"addr": raftAddr, "id": nodeID})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%s/join", joinAddr), bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.SetBasicAuth("my_user", "my_pass")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.Status != "200 OK" {
+		return fmt.Errorf("Failed to join cluster, response status: %s", resp.Status)
+	}
+
+	return nil
 }

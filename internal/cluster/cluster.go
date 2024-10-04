@@ -11,9 +11,10 @@ import (
 
 type Cluster interface {
 	Start() error
-	Join(string, string, string) error
+	Join(string, string) error
 	Bootstrap() raft.Future
 	State() raft.RaftState
+	Shutdown() raft.Future
 }
 
 type RaftCluster struct {
@@ -33,6 +34,10 @@ func NewCluster(config ClusterConfig) (Cluster, error) {
 
 	cluster.manager = manager
 	return cluster, nil
+}
+
+func (c *RaftCluster) Shutdown() raft.Future {
+	return c.raft.Shutdown()
 }
 
 func (c *RaftCluster) Start() error {
@@ -83,7 +88,7 @@ func (c *RaftCluster) Bootstrap() raft.Future {
 	return c.raft.BootstrapCluster(configuration)
 }
 
-func (c *RaftCluster) Join(nodeID string, addr string, join string) error {
+func (c *RaftCluster) Join(nodeID, addr string) error {
 	configFuture := c.raft.GetConfiguration()
 	if err := configFuture.Error(); err != nil {
 		fmt.Printf("failed to get raft configuration: %v", err)
@@ -91,8 +96,8 @@ func (c *RaftCluster) Join(nodeID string, addr string, join string) error {
 	}
 
 	for _, srv := range configFuture.Configuration().Servers {
-		if srv.ID == raft.ServerID(join) || srv.Address == raft.ServerAddress(addr) {
-			if srv.Address == raft.ServerAddress(addr) && srv.ID == raft.ServerID(join) {
+		if srv.ID == raft.ServerID(nodeID) || srv.Address == raft.ServerAddress(addr) {
+			if srv.Address == raft.ServerAddress(addr) && srv.ID == raft.ServerID(nodeID) {
 				fmt.Printf("node %s at %s already member of cluster, ignoring join request", nodeID, addr)
 				return nil
 			}
