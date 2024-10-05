@@ -61,6 +61,10 @@ func (c *Config) LoadCluster() error {
 			return fmt.Errorf("failed to load cluster node configuration, no node provided")
 		}
 		c.Cluster.Node = viper.GetString("cluster.node")
+		// TODO: Only letters, and numbers no spaces
+		if len(c.Cluster.Node) > 20 {
+			return fmt.Errorf("Cluster node name must be less than 20 characters")
+		}
 
 		if !viper.IsSet("cluster.bind") {
 			c.Cluster.Bind = "localhost:25873"
@@ -77,6 +81,7 @@ func (c *Config) LoadCluster() error {
 		if !viper.IsSet("cluster.manager.type") {
 			return fmt.Errorf("failed to load cluster node configuration, no manager provided")
 		}
+		c.Cluster.ManagerType = viper.GetString("cluster.manager.type")
 
 		if viper.IsSet("cluster.manager.join") {
 			c.Cluster.ManagerJoin = viper.GetString("cluster.manager.join")

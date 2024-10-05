@@ -126,3 +126,151 @@ func TestMultipleUsersSetup(t *testing.T) {
 		t.Fatalf("User bob password must be OtherPassword")
 	}
 }
+
+func TestClusterConfig(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("cluster.node", "some_node")
+	viper.Set("cluster.bind", "10.0.0.1:8765")
+	viper.Set("cluster.user", "pepe")
+	viper.Set("cluster.pass", "shadow")
+	viper.Set("cluster.manager.type", "join_server")
+	viper.Set("cluster.manager.join", "10.0.0.31:3456")
+	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+
+	config := DefaultConfig()
+	err := config.LoadCluster()
+	if err != nil {
+		t.Fatalf("cluster configuration failed to load: %s", err)
+	}
+
+	if config.Cluster.Bind != "10.0.0.1:8765" {
+		t.Fatalf("bind cluster configuration does not match: %s", config.Cluster.Bind)
+	}
+
+	if config.Cluster.User != "pepe" {
+		t.Fatalf("user cluster configuration does not match: %s", config.Cluster.User)
+	}
+
+	if config.Cluster.Pass != "shadow" {
+		t.Fatalf("pass cluster configuration does not match: %s", config.Cluster.Pass)
+	}
+
+	if config.Cluster.ManagerType != "join_server" {
+		t.Fatalf("cluster manager type does not match: %s", config.Cluster.ManagerType)
+	}
+
+	if config.Cluster.ManagerJoin != "10.0.0.31:3456" {
+		t.Fatalf("cluster manager join does not match: %s", config.Cluster.ManagerJoin)
+	}
+
+	if config.Cluster.ManagerAddr != "10.0.0.1:3456" {
+		t.Fatalf("cluster manager addr does not match: %s", config.Cluster.ManagerAddr)
+	}
+}
+
+func TestClusterMissingClusterUser(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("cluster.node", "some_node")
+	viper.Set("cluster.bind", "10.0.0.1:8765")
+	viper.Set("cluster.pass", "shadow")
+	viper.Set("cluster.manager.type", "join_server")
+	viper.Set("cluster.manager.join", "10.0.0.31:3456")
+	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+
+	config := DefaultConfig()
+	err := config.LoadCluster()
+	if err == nil {
+		t.Fatalf("cluster configuration must fail for missing user")
+	}
+}
+
+func TestClusterMissingClusterPass(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("cluster.node", "some_node")
+	viper.Set("cluster.bind", "10.0.0.1:8765")
+	viper.Set("cluster.user", "pepe")
+	viper.Set("cluster.manager.type", "join_server")
+	viper.Set("cluster.manager.join", "10.0.0.31:3456")
+	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+
+	config := DefaultConfig()
+	err := config.LoadCluster()
+	if err == nil {
+		t.Fatalf("cluster configuration must fail for missing pass")
+	}
+}
+
+func TestClusterMissingNodeName(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("cluster.bind", "10.0.0.1:8765")
+	viper.Set("cluster.user", "pepe")
+	viper.Set("cluster.pass", "shadow")
+	viper.Set("cluster.manager.type", "join_server")
+	viper.Set("cluster.manager.join", "10.0.0.31:3456")
+	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+
+	config := DefaultConfig()
+	err := config.LoadCluster()
+	if err == nil {
+		t.Fatalf("cluster configuration must fail for missing pass")
+	}
+}
+
+func TestClusterNodeNameTooLong(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("cluster.node", "abcdefghijklmnopqrstuvwxyz1234567890")
+	viper.Set("cluster.bind", "10.0.0.1:8765")
+	viper.Set("cluster.user", "pepe")
+	viper.Set("cluster.pass", "shadow")
+	viper.Set("cluster.manager.type", "join_server")
+	viper.Set("cluster.manager.join", "10.0.0.31:3456")
+	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+
+	config := DefaultConfig()
+	err := config.LoadCluster()
+	if err == nil {
+		t.Fatalf("cluster configuration must fail for missing pass")
+	}
+}
+func TestClusterMissingManagerType(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("cluster.node", "some_node")
+	viper.Set("cluster.bind", "10.0.0.1:8765")
+	viper.Set("cluster.user", "pepe")
+	viper.Set("cluster.pass", "shadow")
+	viper.Set("cluster.manager.join", "10.0.0.31:3456")
+	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+
+	config := DefaultConfig()
+	err := config.LoadCluster()
+	if err == nil {
+		t.Fatalf("cluster configuration must fail for missing pass")
+	}
+}
+
+func TestClusterDefaultBind(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("cluster.node", "some_node")
+	viper.Set("cluster.user", "pepe")
+	viper.Set("cluster.pass", "shadow")
+	viper.Set("cluster.manager.type", "join_server")
+	viper.Set("cluster.manager.join", "10.0.0.31:3456")
+	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+
+	config := DefaultConfig()
+	err := config.LoadCluster()
+	if err != nil {
+		t.Fatalf("error creating cluster configuration: %s", err)
+	}
+
+	if config.Cluster.Bind != "localhost:25873" {
+		t.Fatalf("bind cluster default configuration does not match: %s", config.Cluster.Bind)
+	}
+}
