@@ -15,7 +15,7 @@ func NewBenchmarkCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "benchmark",
 		Short: "Benchmark the Ghoti server",
-		Long:  "Run an set of benchrmarks agains a Ghoti server.",
+		Long:  "Run an set of benchrmarks against a Ghoti server.",
 		Run:   run,
 		Args:  cobra.NoArgs,
 	}
