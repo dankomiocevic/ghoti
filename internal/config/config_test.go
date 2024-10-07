@@ -101,7 +101,7 @@ func TestMultipleUsersSetup(t *testing.T) {
 	viper.Reset()
 
 	viper.Set("users.pepe", "SomePassword")
-	viper.Set("users.bob", "OtherPassword")
+	viper.Set("users.bobby", "OtherPassword")
 
 	config := DefaultConfig()
 	config.LoadUsers()
@@ -114,16 +114,16 @@ func TestMultipleUsersSetup(t *testing.T) {
 		t.Fatalf("user name must be pepe")
 	}
 
-	if config.Users["bob"].Name != "bob" {
-		t.Fatalf("user name must be bob")
+	if config.Users["bobby"].Name != "bobby" {
+		t.Fatalf("user name must be bobby")
 	}
 
 	if config.Users["pepe"].Password != "SomePassword" {
 		t.Fatalf("User pepe password must be SomePassword")
 	}
 
-	if config.Users["bob"].Password != "OtherPassword" {
-		t.Fatalf("User bob password must be OtherPassword")
+	if config.Users["bobby"].Password != "OtherPassword" {
+		t.Fatalf("User bobby password must be OtherPassword")
 	}
 }
 

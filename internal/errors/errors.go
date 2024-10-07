@@ -8,8 +8,9 @@ import (
 )
 
 type ErrorCode struct {
-	name string
-	id   string
+	name     string
+	id       string
+	response string
 }
 
 //go:embed README.md
@@ -29,6 +30,10 @@ func (e ErrorCode) String() string {
 	return e.id
 }
 
+func (e ErrorCode) Response() string {
+	return e.response
+}
+
 func loadValues() map[string]ErrorCode {
 	r := regexp.MustCompile(`## \d\d\d: [A-Z_]*`)
 	matches := r.FindAllString(readme, -1)
@@ -37,8 +42,9 @@ func loadValues() map[string]ErrorCode {
 	for _, v := range matches {
 		id := fmt.Sprint(v[3:6])
 		name := fmt.Sprint(v[8:len(v)])
+		response := fmt.Sprintf("e%s\n", id)
 
-		e := ErrorCode{name: name, id: id}
+		e := ErrorCode{name: name, id: id, response: response}
 		m[name] = e
 	}
 

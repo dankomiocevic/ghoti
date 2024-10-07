@@ -46,8 +46,60 @@ e000nodeA
 
 This example shows that the `nodeA` is the node that should be contacted instead. Depending on how the cluster was created and how the client was configured, this information will be available for the client to identify the correct address for the node.
 
-### 001: PARSE_ERROR
+## 001: PARSE_ERROR
 
 Error when parsing the message.
 
 This means that the received message does not follow the communication protocol. Please review the main README or Documentation to identify valid messages.
+
+## 002: WRONG_USER
+
+The user is empty or contains invalid characters.
+
+This could be because the username was empty or that the username contains special characters. The username can only contain letters, numbers or underscore.
+
+## 003: WRONG_PASS
+
+The password is empty.
+
+This could be because the password sent is an empty string or because there was a invalid username defined before.
+
+## 004: WRONG_LOGIN
+
+There is no username and password matching.
+
+There is no user and password in the configuration that matches the login information being sent.
+
+## 005: MISSING_SLOT
+
+There is no slot specified in the command.
+
+The command was sent with an invalid slot defined.
+
+## 006: WRITE_PERMISSION
+
+The user does not have permission to write in this slot.
+
+The requested slot doesn't have write permissions enabled for the current logged in user. If there is no logged in user, then the slot has not open-write permissions.
+
+## 007: WRITE_FAILED
+
+The write operation on this slot failed.
+
+Depending on the type of slot, the write operation can fail because of multiple reasons.
+
+## 008: READ_PERMISSION
+
+The user does not have permission to read in this slot.
+
+The requested slot doesn't have read permissions enabled for the current logged in user. If there is no logged in user, then the slot has not open-read permissions.
+
+## 009: WRONG_FORMAT
+
+The message sent does not have the right format.
+
+The message that was received does not match the expectations for a valid message, for more information please refer to the documentation or the repository README to check the message formatting rules.
+
+The user does not have permission to read in this slot.
+
+The requested slot doesn't have read permissions enabled for the current logged in user. If there is no logged in user, then the slot has not open-read permissions.

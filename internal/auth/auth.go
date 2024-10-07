@@ -11,7 +11,7 @@ type User struct {
 }
 
 func ValidateUsername(name string) error {
-	if len(name) == 0 {
+	if len(name) < 4 {
 		return fmt.Errorf("there is no user name defined")
 	}
 
@@ -25,7 +25,7 @@ func ValidateUsername(name string) error {
 }
 
 func GetUser(name string, password string) (User, error) {
-	if len(password) == 0 {
+	if len(password) < 4 {
 		return User{}, fmt.Errorf("there is no password defined")
 	}
 
