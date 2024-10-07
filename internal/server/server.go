@@ -9,6 +9,7 @@ import (
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/config"
+	"github.com/dankomiocevic/ghoti/internal/errors"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 )
 
@@ -80,14 +81,16 @@ func (s *Server) handleUserConnection(conn Connection) {
 
 		msg, err := ParseMessage(size, buf)
 		if err != nil {
-			c.Write([]byte("e\n"))
+			res := errors.Error("WRONG_FORMAT")
+			c.Write([]byte(res.Response()))
 			continue
 		}
 
 		if msg.Command == 'u' {
 			err := auth.ValidateUsername(msg.Value)
 			if err != nil {
-				c.Write([]byte("e\n"))
+				res := errors.Error("WRONG_USER")
+				c.Write([]byte(res.Response()))
 				// TODO: Close connection
 			} else {
 				conn.LoggedUser = auth.User{}
@@ -106,11 +109,13 @@ func (s *Server) handleUserConnection(conn Connection) {
 		if msg.Command == 'p' {
 			user, err := auth.GetUser(conn.Username, msg.Value)
 			if err != nil {
-				c.Write([]byte("e\n"))
+				res := errors.Error("WRONG_PASS")
+				c.Write([]byte(res.Response()))
 				// TODO: Close connection
 			} else {
 				if s.usersMap[user.Name].Password != user.Password {
-					c.Write([]byte("e\n"))
+					res := errors.Error("WRONG_LOGIN")
+					c.Write([]byte(res.Response()))
 					// TODO: Close connection
 				} else {
 					conn.LoggedUser = user
@@ -128,21 +133,24 @@ func (s *Server) handleUserConnection(conn Connection) {
 
 		current_slot := s.slotsArray[msg.Slot]
 		if current_slot == nil {
-			c.Write([]byte("e\n"))
+			res := errors.Error("MISSING_SLOT")
+			c.Write([]byte(res.Response()))
 			continue
 		}
 
 		var value string
 		if msg.Command == 'w' {
 			if !current_slot.CanWrite(&conn.LoggedUser) {
-				c.Write([]byte("e\n"))
+				res := errors.Error("WRITE_PERMISSION")
+				c.Write([]byte(res.Response()))
 				continue
 			}
 
 			value, err = current_slot.Write(msg.Value, c)
 
 			if err != nil {
-				c.Write([]byte("e\n"))
+				res := errors.Error("WRITE_FAILED")
+				c.Write([]byte(res.Response()))
 				continue
 			}
 		} else if msg.Command == 'q' {
@@ -151,7 +159,8 @@ func (s *Server) handleUserConnection(conn Connection) {
 			if current_slot.CanRead(&conn.LoggedUser) {
 				value = current_slot.Read()
 			} else {
-				c.Write([]byte("e\n"))
+				res := errors.Error("READ_PERMISSION")
+				c.Write([]byte(res.Response()))
 				continue
 			}
 		}
