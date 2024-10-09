@@ -68,7 +68,7 @@ func (s *Server) Stop() {
 }
 
 func (s *Server) handleUserConnection(conn Connection) {
-	defer conn.NetworkConn.Close()
+	defer conn.Close()
 
 	c := conn.NetworkConn
 	buf := make([]byte, 41)
@@ -91,7 +91,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 			if err != nil {
 				res := errors.Error("WRONG_USER")
 				c.Write([]byte(res.Response()))
-				// TODO: Close connection
+				return
 			} else {
 				conn.LoggedUser = auth.User{}
 				conn.Username = msg.Value
@@ -111,12 +111,12 @@ func (s *Server) handleUserConnection(conn Connection) {
 			if err != nil {
 				res := errors.Error("WRONG_PASS")
 				c.Write([]byte(res.Response()))
-				// TODO: Close connection
+				return
 			} else {
 				if s.usersMap[user.Name].Password != user.Password {
 					res := errors.Error("WRONG_LOGIN")
 					c.Write([]byte(res.Response()))
-					// TODO: Close connection
+					return
 				} else {
 					conn.LoggedUser = user
 					conn.IsLogged = true
@@ -154,7 +154,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 				continue
 			}
 		} else if msg.Command == 'q' {
-			// TODO: Close connection
+			return
 		} else if msg.Command == 'r' {
 			if current_slot.CanRead(&conn.LoggedUser) {
 				value = current_slot.Read()

@@ -39,6 +39,10 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal server config: %w", err)
 	}
 
+	if viper.IsSet("addr") {
+		config.TcpAddr = viper.GetString("addr")
+	}
+
 	config.ConfigureSlots()
 
 	e := config.LoadUsers()

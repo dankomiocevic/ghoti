@@ -12,3 +12,7 @@ type Connection struct {
 	IsLogged    bool
 	Username    string
 }
+
+func (c *Connection) Close() error {
+	return c.NetworkConn.Close()
+}

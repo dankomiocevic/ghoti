@@ -22,11 +22,6 @@ func NewRootCommand() *cobra.Command {
 		viper.AddConfigPath(path)
 	}
 
-	err := viper.ReadInConfig()
-	if err != nil {
-		panic(err)
-	}
-
 	return &cobra.Command{
 		Use:   "ghoti",
 		Short: "A simple server to do simple things, but fast!",
