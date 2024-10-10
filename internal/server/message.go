@@ -10,6 +10,7 @@ type Message struct {
 	Command byte
 	Slot    int
 	Value   string
+	Raw     string
 }
 
 var SupportedCommands = map[string]bool{
@@ -54,5 +55,5 @@ func ParseMessage(size int, buf []byte) (*Message, error) {
 		value = input[4:]
 	}
 
-	return &Message{Command: []byte(command)[0], Slot: slot, Value: value}, nil
+	return &Message{Raw: input, Command: []byte(command)[0], Slot: slot, Value: value}, nil
 }

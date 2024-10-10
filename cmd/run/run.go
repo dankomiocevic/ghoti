@@ -3,6 +3,7 @@ package run
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -35,16 +36,27 @@ func NewRunCommand() *cobra.Command {
 func run(_ *cobra.Command, _ []string) {
 	config, err := config.LoadConfig()
 	if err != nil {
+		slog.Error("Error loading config",
+			slog.Any("error", err),
+		)
 		panic(err)
 	}
 
 	if err := config.Verify(); err != nil {
+		slog.Error("Error verifying config",
+			slog.Any("error", err),
+		)
 		panic(err)
 	}
+
+	createLogger(config)
 
 	if len(config.Cluster.Node) > 0 {
 		c, err := cluster.NewCluster(config.Cluster)
 		if err != nil {
+			slog.Error("Error starting cluster",
+				slog.Any("error", err),
+			)
 			panic(err)
 		}
 		c.Start()
@@ -56,5 +68,11 @@ func run(_ *cobra.Command, _ []string) {
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
 	<-done
-	fmt.Println("Shutting down server..")
+	slog.Info("Shutting down server")
+}
+
+func createLogger(conf *config.Config) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	slog.SetDefault(logger)
 }
