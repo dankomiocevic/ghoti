@@ -68,7 +68,7 @@ func run(_ *cobra.Command, _ []string) {
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
 	<-done
-	fmt.Println("Shutting down server..")
+	slog.Info("Shutting down server")
 }
 
 func createLogger(conf *config.Config) {
