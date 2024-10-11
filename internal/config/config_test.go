@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -237,6 +238,7 @@ func TestClusterNodeNameTooLong(t *testing.T) {
 		t.Fatalf("cluster configuration must fail for missing pass")
 	}
 }
+
 func TestClusterMissingManagerType(t *testing.T) {
 	viper.Reset()
 
@@ -272,5 +274,61 @@ func TestClusterDefaultBind(t *testing.T) {
 
 	if config.Cluster.Bind != "localhost:25873" {
 		t.Fatalf("bind cluster default configuration does not match: %s", config.Cluster.Bind)
+	}
+}
+
+func TestLoggingLevel(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("log.level", "warn")
+	config := DefaultConfig()
+
+	err := config.ConfigureLogging()
+	if err != nil {
+		t.Fatalf("error loading logging configuration: %s", err)
+	}
+
+	if config.Logging.Level != slog.LevelWarn {
+		t.Fatalf("Wrong logging level configured")
+	}
+}
+
+func TestLoggingWrongLevel(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("log.level", "pepe")
+	config := DefaultConfig()
+
+	err := config.ConfigureLogging()
+	if err == nil {
+		t.Fatalf("Logging configuration must fail with wrong level")
+	}
+}
+
+func TestLoggingFormat(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("log.format", "json")
+	config := DefaultConfig()
+
+	err := config.ConfigureLogging()
+	if err != nil {
+		t.Fatalf("error loading logging configuration: %s", err)
+	}
+
+	if config.Logging.Format != "json" {
+		t.Fatalf("Wrong logging format configured")
+	}
+}
+
+func TestLoggingWrongFormat(t *testing.T) {
+	viper.Reset()
+
+	viper.Set("log.format", "pepe")
+	config := DefaultConfig()
+
+	err := config.ConfigureLogging()
+	if err == nil {
+		t.Fatalf("Logging configuration must fail with wrong format")
 	}
 }
