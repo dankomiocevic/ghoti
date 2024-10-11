@@ -1,5 +1,9 @@
 # Example config file for Ghoti
 
+log:
+  level: debug
+  format: text
+
 slot_000:
   kind: simple_memory
 
