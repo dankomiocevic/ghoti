@@ -2,7 +2,6 @@
 package run
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -72,7 +71,17 @@ func run(_ *cobra.Command, _ []string) {
 }
 
 func createLogger(conf *config.Config) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	opts := &slog.HandlerOptions{
+		Level: conf.Logging.Level,
+	}
+
+	var logger *slog.Logger
+	switch conf.Logging.Format {
+	case "json":
+		logger = slog.New(slog.NewJSONHandler(os.Stdout, opts))
+	default:
+		logger = slog.New(slog.NewTextHandler(os.Stdout, opts))
+	}
 
 	slog.SetDefault(logger)
 }

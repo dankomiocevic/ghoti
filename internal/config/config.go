@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/cluster"
@@ -9,11 +10,29 @@ import (
 	"github.com/spf13/viper"
 )
 
+var SupportedLogLevels = map[string]slog.Level{
+	"debug": slog.LevelDebug,
+	"info":  slog.LevelDebug,
+	"warn":  slog.LevelWarn,
+	"error": slog.LevelError,
+}
+
+var SupportedLogFormat = map[string]bool{
+	"text": true,
+	"json": true,
+}
+
+type LoggingConfig struct {
+	Level  slog.Level
+	Format string
+}
+
 type Config struct {
 	TcpAddr string
 	Slots   [1000]slots.Slot
 	Users   map[string]auth.User
 	Cluster cluster.ClusterConfig
+	Logging LoggingConfig
 }
 
 func DefaultConfig() *Config {
@@ -22,6 +41,7 @@ func DefaultConfig() *Config {
 		Slots:   [1000]slots.Slot{},
 		Users:   make(map[string]auth.User),
 		Cluster: cluster.ClusterConfig{},
+		Logging: LoggingConfig{Level: slog.LevelInfo, Format: "text"},
 	}
 }
 
@@ -43,9 +63,14 @@ func LoadConfig() (*Config, error) {
 		config.TcpAddr = viper.GetString("addr")
 	}
 
+	e := config.ConfigureLogging()
+	if e != nil {
+		return nil, e
+	}
+
 	config.ConfigureSlots()
 
-	e := config.LoadUsers()
+	e = config.LoadUsers()
 	if e != nil {
 		return nil, e
 	}
@@ -123,6 +148,26 @@ func (c *Config) ConfigureSlots() {
 			c.Slots[i] = slot
 		}
 	}
+}
+
+func (c *Config) ConfigureLogging() error {
+	if viper.IsSet("log.level") {
+		logLevel := viper.GetString("log.level")
+		lvl, ok := SupportedLogLevels[logLevel]
+		if ok {
+			c.Logging.Level = lvl
+		} else {
+			return fmt.Errorf("Log level not supported: %s", c.Logging.Level)
+		}
+	}
+
+	if viper.IsSet("log.format") {
+		c.Logging.Format = viper.GetString("log.format")
+		if SupportedLogFormat[c.Logging.Format] != true {
+			return fmt.Errorf("Log format not supported: %s", c.Logging.Format)
+		}
+	}
+	return nil
 }
 
 func (c *Config) Verify() error {
