@@ -3,10 +3,12 @@ package server
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/config"
@@ -15,11 +17,12 @@ import (
 )
 
 type Server struct {
-	listener   net.Listener
-	slotsArray [1000]slots.Slot
-	usersMap   map[string]auth.User
-	quit       chan interface{}
-	wg         sync.WaitGroup
+	listener    net.Listener
+	slotsArray  [1000]slots.Slot
+	usersMap    map[string]auth.User
+	quit        chan interface{}
+	wg          sync.WaitGroup
+	connections *ConnectionManager
 }
 
 func NewServer(config *config.Config) *Server {
@@ -37,6 +40,7 @@ func NewServer(config *config.Config) *Server {
 	s.listener = l
 	s.slotsArray = config.Slots
 	s.usersMap = config.Users
+	s.connections = NewManager()
 	s.wg.Add(1)
 
 	go s.serve()
@@ -57,10 +61,15 @@ func (s *Server) serve() {
 				slog.Error("Error accepting connection", slog.Any("error", err))
 			}
 		} else {
-			slog.Debug("Connection received")
+			connection := s.connections.Add(conn)
+			slog.Debug("Connection received",
+				slog.String("id", connection.Id),
+				slog.String("remote_addr", conn.RemoteAddr().String()),
+			)
+
 			s.wg.Add(1)
 			go func() {
-				s.handleUserConnection(Connection{NetworkConn: conn, LoggedUser: auth.User{}, Username: "", IsLogged: false})
+				s.handleUserConnection(connection)
 				s.wg.Done()
 			}()
 		}
@@ -68,23 +77,64 @@ func (s *Server) serve() {
 }
 
 func (s *Server) Stop() {
+	slog.Debug("Closing main listener")
 	close(s.quit)
 	s.listener.Close()
+	connList := s.connections.DeleteAll()
+
+	for _, c := range connList {
+		slog.Debug("Closing connection",
+			slog.String("id", c.Id),
+			slog.String("remote_addr", c.NetworkConn.RemoteAddr().String()),
+		)
+
+		close(c.Quit)
+	}
+
 	s.wg.Wait()
 }
 
 func (s *Server) handleUserConnection(conn Connection) {
+	defer s.connections.Delete(conn.Id)
 	defer conn.Close()
-	slog.Debug("Handling user connection", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
+	slog.Debug("Handling user connection",
+		slog.String("remote_addr", conn.Id),
+		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+	)
 
 	c := conn.NetworkConn
 	buf := make([]byte, 41)
 
+	//TODO: Add this to config
+	timeoutDuration := 200 * time.Millisecond
+
 	for {
-		size, err := bufio.NewReader(c).Read(buf)
+		select {
+		case <-conn.Quit:
+			return
+		default:
+		}
+
+		reader := bufio.NewReader(c)
+		// Set the connection timeout in the future
+		c.SetReadDeadline(time.Now().Add(timeoutDuration))
+		size, err := reader.Read(buf)
 		if err != nil {
+			// If the error was a timeout, continue receiving data in
+			// next loop
+			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+				continue
+			}
+
+			if err == io.EOF {
+				return
+			}
+
 			slog.Error("Error receiving data from connection", slog.Any("error", err))
-			slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
+			slog.Debug("Disconnecting",
+				slog.String("id", conn.Id),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
 			return
 		}
 
@@ -101,6 +151,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 		} else {
 			slog.Debug("Received message",
 				slog.String("msg", msg.Raw),
+				slog.String("id", conn.Id),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
 		}
@@ -112,6 +163,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 				c.Write([]byte(res.Response()))
 				slog.Debug("Invalid user received",
 					slog.String("user", msg.Value),
+					slog.String("id", conn.Id),
 					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 				)
 				slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
@@ -128,6 +180,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 				c.Write([]byte(sb.String()))
 				slog.Debug("Username set for connection",
 					slog.String("user", conn.Username),
+					slog.String("id", conn.Id),
 					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 				)
 			}
@@ -140,15 +193,20 @@ func (s *Server) handleUserConnection(conn Connection) {
 				res := errors.Error("WRONG_PASS")
 				c.Write([]byte(res.Response()))
 				slog.Debug("Invalid password received",
+					slog.String("id", conn.Id),
 					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 				)
-				slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
+				slog.Debug("Disconnecting",
+					slog.String("id", conn.Id),
+					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+				)
 				return
 			} else {
 				if s.usersMap[user.Name].Password != user.Password {
 					res := errors.Error("WRONG_LOGIN")
 					c.Write([]byte(res.Response()))
 					slog.Warn("Invalid login received",
+						slog.String("id", conn.Id),
 						slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 					)
 					slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
@@ -164,6 +222,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 					c.Write([]byte(sb.String()))
 					slog.Debug("User logged in for connection",
 						slog.String("user", conn.Username),
+						slog.String("id", conn.Id),
 						slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 					)
 				}
@@ -177,6 +236,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 			c.Write([]byte(res.Response()))
 			slog.Debug("Missing slot",
 				slog.Int("slot", msg.Slot),
+				slog.String("id", conn.Id),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
 			continue
@@ -187,6 +247,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 			if !current_slot.CanWrite(&conn.LoggedUser) {
 				slog.Info("Connection trying to write on slot without permission",
 					slog.Int("slot", msg.Slot),
+					slog.String("id", conn.Id),
 					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 				)
 				res := errors.Error("WRITE_PERMISSION")
@@ -208,12 +269,14 @@ func (s *Server) handleUserConnection(conn Connection) {
 				slog.Debug("Value written in slot",
 					slog.Int("slot", msg.Slot),
 					slog.String("value", msg.Value),
+					slog.String("id", conn.Id),
 					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 				)
 			}
 
 		} else if msg.Command == 'q' {
 			slog.Debug("Client disconnected",
+				slog.String("id", conn.Id),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
 			return
@@ -223,6 +286,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 			} else {
 				slog.Info("Connection trying to read on slot without permission",
 					slog.Int("slot", msg.Slot),
+					slog.String("id", conn.Id),
 					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 				)
 				res := errors.Error("READ_PERMISSION")
@@ -240,6 +304,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 		slog.Debug("Value read from slot",
 			slog.Int("slot", msg.Slot),
 			slog.String("value", value),
+			slog.String("id", conn.Id),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 	}

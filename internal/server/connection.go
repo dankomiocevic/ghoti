@@ -7,6 +7,8 @@ import (
 )
 
 type Connection struct {
+	Id          string
+	Quit        chan interface{}
 	NetworkConn net.Conn
 	LoggedUser  auth.User
 	IsLogged    bool
