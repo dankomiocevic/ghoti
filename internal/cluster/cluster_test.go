@@ -9,7 +9,7 @@ import (
 )
 
 func TestClusterSingleNode(t *testing.T) {
-	config := ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:1234", ManagerJoin: "", Bind: "localhost:1234"}
+	config := ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:1234", ManagerJoin: "", Bind: "localhost:1235"}
 
 	c, err := NewCluster(config)
 	if err != nil {

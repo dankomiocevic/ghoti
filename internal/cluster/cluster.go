@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"time"
@@ -65,7 +66,10 @@ func (c *RaftCluster) Start() error {
 	}
 	c.raft = ra
 
-	c.manager.Start()
+	err = c.manager.Start()
+	if err != nil {
+		return err
+	}
 	defer c.manager.Close()
 
 	return nil
@@ -89,16 +93,26 @@ func (c *RaftCluster) Bootstrap() raft.Future {
 }
 
 func (c *RaftCluster) Join(nodeID, addr string) error {
+	slog.Info("Request to join cluster received",
+		slog.String("node_id", nodeID),
+		slog.String("node_addr", addr),
+	)
+
 	configFuture := c.raft.GetConfiguration()
 	if err := configFuture.Error(); err != nil {
-		fmt.Printf("failed to get raft configuration: %v", err)
+		slog.Error("Failed to get RAFT configuration",
+			slog.Any("error", err),
+		)
 		return err
 	}
 
 	for _, srv := range configFuture.Configuration().Servers {
 		if srv.ID == raft.ServerID(nodeID) || srv.Address == raft.ServerAddress(addr) {
 			if srv.Address == raft.ServerAddress(addr) && srv.ID == raft.ServerID(nodeID) {
-				fmt.Printf("node %s at %s already member of cluster, ignoring join request", nodeID, addr)
+				slog.Info("Node is already a member of cluster, ignoring join request",
+					slog.String("node_id", nodeID),
+					slog.String("node_addr", addr),
+				)
 				return nil
 			}
 
@@ -113,6 +127,9 @@ func (c *RaftCluster) Join(nodeID, addr string) error {
 	if f.Error() != nil {
 		return f.Error()
 	}
-	fmt.Printf("node %s at %s joined successfully", nodeID, addr)
+	slog.Info("Node joined the cluster successfuly",
+		slog.String("node_id", nodeID),
+		slog.String("node_addr", addr),
+	)
 	return nil
 }
