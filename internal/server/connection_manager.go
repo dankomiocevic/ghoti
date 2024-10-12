@@ -70,14 +70,18 @@ func (c *ConnectionManager) Delete(id string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	_, ok := c.connections[id]
-	if !ok {
-		return
-	}
-
 	slog.Debug("Removing connection",
 		slog.String("id", id),
 	)
+
+	_, ok := c.connections[id]
+	if !ok {
+		slog.Debug("Connection already deleted",
+			slog.String("id", id),
+		)
+
+		return
+	}
 
 	delete(c.connections, id)
 }

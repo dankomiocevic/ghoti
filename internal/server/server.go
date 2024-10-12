@@ -127,7 +127,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 			}
 
 			if err == io.EOF {
-				continue
+				return
 			}
 
 			slog.Error("Error receiving data from connection", slog.Any("error", err))
