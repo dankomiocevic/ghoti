@@ -50,18 +50,21 @@ func run(_ *cobra.Command, _ []string) {
 
 	createLogger(config)
 
+	var clus cluster.Cluster
 	if len(config.Cluster.Node) > 0 {
-		c, err := cluster.NewCluster(config.Cluster)
+		clus, err = cluster.NewCluster(config.Cluster)
 		if err != nil {
 			slog.Error("Error starting cluster",
 				slog.Any("error", err),
 			)
 			panic(err)
 		}
-		c.Start()
+		clus.Start()
+	} else {
+		clus = cluster.NewEmptyCluster()
 	}
 
-	s := server.NewServer(config)
+	s := server.NewServer(config, clus)
 	defer s.Stop()
 
 	done := make(chan os.Signal, 1)

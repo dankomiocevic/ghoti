@@ -19,6 +19,7 @@ var SupportedCommands = map[string]bool{
 	"u": true,
 	"p": true,
 	"j": true,
+	"q": true,
 }
 
 func ParseMessage(size int, buf []byte) (*Message, error) {
@@ -39,6 +40,10 @@ func ParseMessage(size int, buf []byte) (*Message, error) {
 
 	if SupportedCommands[command] != true {
 		return nil, errors.New("Command not supported")
+	}
+
+	if command == "q" {
+		return &Message{Command: []byte(command)[0], Slot: 0, Value: ""}, nil
 	}
 
 	if command == "u" || command == "p" {
