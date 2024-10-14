@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 
@@ -45,7 +46,7 @@ func generateConfig() *config.Config {
 
 func runServer(t *testing.T) (*Server, net.Conn) {
 	// start the TCP Server
-	s := NewServer(generateConfig())
+	s := NewServer(generateConfig(), cluster.NewEmptyCluster())
 
 	// wait for the TCP Server to start
 	time.Sleep(time.Duration(100) * time.Millisecond)

@@ -11,9 +11,12 @@ import (
 	"time"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
+	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
 	"github.com/dankomiocevic/ghoti/internal/errors"
 	"github.com/dankomiocevic/ghoti/internal/slots"
+
+	"github.com/hashicorp/raft"
 )
 
 type Server struct {
@@ -23,11 +26,13 @@ type Server struct {
 	quit        chan interface{}
 	wg          sync.WaitGroup
 	connections *ConnectionManager
+	cluster     cluster.Cluster
 }
 
-func NewServer(config *config.Config) *Server {
+func NewServer(config *config.Config, cluster cluster.Cluster) *Server {
 	s := &Server{
-		quit: make(chan interface{}),
+		quit:    make(chan interface{}),
+		cluster: cluster,
 	}
 
 	slog.Info("Starting server...")
@@ -154,6 +159,16 @@ func (s *Server) handleUserConnection(conn Connection) {
 				slog.String("id", conn.Id),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
+		}
+
+		if msg.Command != 'q' && s.cluster.State() != raft.Leader {
+			res := errors.Error("NOT_LEADER")
+			c.Write([]byte(res.Response()))
+			slog.Debug("Request made to node that was not leader",
+				slog.String("id", conn.Id),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+			continue
 		}
 
 		if msg.Command == 'u' {

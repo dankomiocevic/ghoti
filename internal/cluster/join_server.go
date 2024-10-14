@@ -35,7 +35,7 @@ func (s *joinServer) Start() error {
 		slog.Info("Requesting to join cluster",
 			slog.String("node_id", s.nodeID),
 		)
-		err := requestToJoin(s.join, s.clusterBind, s.nodeID)
+		err := requestToJoin(s.join, s.clusterBind, s.nodeID, s.user, s.pass)
 		if err != nil {
 			return err
 		}
@@ -82,7 +82,12 @@ func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 	user, pass, ok := r.BasicAuth()
 
 	if user != s.user || pass != s.pass {
-		slog.Warn("Request to join with wrong username/password")
+		slog.Warn("Request to join with wrong username/password",
+			"user", user,
+			"pass", pass,
+			"s_user", s.user,
+			"s_pass", s.pass,
+		)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -124,7 +129,7 @@ func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func requestToJoin(joinAddr, raftAddr, nodeID string) error {
+func requestToJoin(joinAddr, raftAddr, nodeID, user, pass string) error {
 	b, err := json.Marshal(map[string]string{"addr": raftAddr, "id": nodeID})
 	if err != nil {
 		return err
@@ -135,7 +140,7 @@ func requestToJoin(joinAddr, raftAddr, nodeID string) error {
 		return err
 	}
 	req.Header.Add("Content-Type", "application/json")
-	req.SetBasicAuth("my_user", "my_pass")
+	req.SetBasicAuth(user, pass)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
