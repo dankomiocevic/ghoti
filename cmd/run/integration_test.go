@@ -20,7 +20,9 @@ func TestSingleNode(t *testing.T) {
 		rootCmd.Execute()
 	}()
 
+	// Let the TCP server be ready
 	time.Sleep(time.Duration(100) * time.Millisecond)
+
 	// connect to the TCP Server
 	conn, err := net.Dial("tcp", ":9876")
 	if err != nil {

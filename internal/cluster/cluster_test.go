@@ -25,7 +25,7 @@ func TestClusterSingleNode(t *testing.T) {
 	// Exponential retry until set as leader
 	baseDelay := 100 * time.Millisecond
 	for i := 0; i < 7; i++ {
-		if c.State() == raft.Leader {
+		if c.state() == raft.Leader {
 			return
 		}
 

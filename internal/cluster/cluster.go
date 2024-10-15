@@ -14,8 +14,10 @@ type Cluster interface {
 	Start() error
 	Join(string, string) error
 	Bootstrap() raft.Future
-	State() raft.RaftState
+	IsLeader() bool
+	GetLeader() string
 	Shutdown() raft.Future
+	state() raft.RaftState
 }
 
 type RaftCluster struct {
@@ -39,6 +41,10 @@ func NewCluster(config ClusterConfig) (Cluster, error) {
 
 func (c *RaftCluster) Shutdown() raft.Future {
 	return c.raft.Shutdown()
+}
+
+func (c *RaftCluster) state() raft.RaftState {
+	return c.raft.State()
 }
 
 func (c *RaftCluster) Start() error {
@@ -75,8 +81,13 @@ func (c *RaftCluster) Start() error {
 	return nil
 }
 
-func (c *RaftCluster) State() raft.RaftState {
-	return c.raft.State()
+func (c *RaftCluster) IsLeader() bool {
+	return c.raft.State() == raft.Leader
+}
+
+func (c *RaftCluster) GetLeader() string {
+	_, id := c.raft.LeaderWithID()
+	return string(id)
 }
 
 func (c *RaftCluster) Bootstrap() raft.Future {

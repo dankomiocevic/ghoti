@@ -30,10 +30,18 @@ func (c *EmptyCluster) Bootstrap() raft.Future {
 	return &EmptyFuture{}
 }
 
-func (c *EmptyCluster) State() raft.RaftState {
-	return raft.Leader
+func (c *EmptyCluster) IsLeader() bool {
+	return true
+}
+
+func (c *EmptyCluster) GetLeader() string {
+	return ""
 }
 
 func (c *EmptyCluster) Shutdown() raft.Future {
 	return &EmptyFuture{}
+}
+
+func (c *EmptyCluster) state() raft.RaftState {
+	return raft.Leader
 }

@@ -36,7 +36,7 @@ func TestClusterMultiNode(t *testing.T) {
 	// Exponential retry until set as leader
 	baseDelay := 100 * time.Millisecond
 	for i := 0; i < 7; i++ {
-		if node_one.State() == raft.Leader {
+		if node_one.state() == raft.Leader {
 			break
 		}
 
@@ -44,8 +44,8 @@ func TestClusterMultiNode(t *testing.T) {
 		delay := time.Duration(secRetry) * baseDelay
 		time.Sleep(delay)
 	}
-	if node_one.State() != raft.Leader {
-		t.Fatalf("Node one not set as leader, state: %s", node_one.State())
+	if node_one.state() != raft.Leader {
+		t.Fatalf("Node one not set as leader, state: %s", node_one.state())
 	}
 
 	err = node_two.Start()
@@ -56,7 +56,7 @@ func TestClusterMultiNode(t *testing.T) {
 	// Exponential retry until node 2 is set as follower
 	baseDelay = 100 * time.Millisecond
 	for i := 0; i < 7; i++ {
-		if node_two.State() == raft.Follower {
+		if node_two.state() == raft.Follower {
 			break
 		}
 
@@ -64,8 +64,8 @@ func TestClusterMultiNode(t *testing.T) {
 		delay := time.Duration(secRetry) * baseDelay
 		time.Sleep(delay)
 	}
-	if node_two.State() != raft.Follower {
-		t.Fatalf("Node two not set as follower, state: %s", node_two.State())
+	if node_two.state() != raft.Follower {
+		t.Fatalf("Node two not set as follower, state: %s", node_two.state())
 	}
 
 	err = node_three.Start()
@@ -76,7 +76,7 @@ func TestClusterMultiNode(t *testing.T) {
 	// Exponential retry until node 3 is set as follower
 	baseDelay = 100 * time.Millisecond
 	for i := 0; i < 7; i++ {
-		if node_three.State() == raft.Follower {
+		if node_three.state() == raft.Follower {
 			break
 		}
 
@@ -84,8 +84,8 @@ func TestClusterMultiNode(t *testing.T) {
 		delay := time.Duration(secRetry) * baseDelay
 		time.Sleep(delay)
 	}
-	if node_three.State() != raft.Follower {
-		t.Fatalf("Node three not set as follower, state: %s", node_three.State())
+	if node_three.state() != raft.Follower {
+		t.Fatalf("Node three not set as follower, state: %s", node_three.state())
 	}
 
 	// Shutting down leader node
@@ -93,7 +93,7 @@ func TestClusterMultiNode(t *testing.T) {
 	// Exponential retry until another node becomes leader
 	baseDelay = 100 * time.Millisecond
 	for i := 0; i < 7; i++ {
-		if node_two.State() == raft.Leader || node_three.State() == raft.Leader {
+		if node_two.state() == raft.Leader || node_three.state() == raft.Leader {
 			break
 		}
 
@@ -101,7 +101,7 @@ func TestClusterMultiNode(t *testing.T) {
 		delay := time.Duration(secRetry) * baseDelay
 		time.Sleep(delay)
 	}
-	if node_two.State() != raft.Leader && node_three.State() != raft.Leader {
-		t.Fatalf("Node two or three not set as leader, state_two: %s, state_three: %s", node_two.State(), node_three.State())
+	if node_two.state() != raft.Leader && node_three.state() != raft.Leader {
+		t.Fatalf("Node two or three not set as leader, state_two: %s, state_three: %s", node_two.state(), node_three.state())
 	}
 }
