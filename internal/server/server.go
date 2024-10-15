@@ -15,8 +15,6 @@ import (
 	"github.com/dankomiocevic/ghoti/internal/config"
 	"github.com/dankomiocevic/ghoti/internal/errors"
 	"github.com/dankomiocevic/ghoti/internal/slots"
-
-	"github.com/hashicorp/raft"
 )
 
 type Server struct {
@@ -161,9 +159,9 @@ func (s *Server) handleUserConnection(conn Connection) {
 			)
 		}
 
-		if msg.Command != 'q' && s.cluster.State() != raft.Leader {
+		if msg.Command != 'q' && !s.cluster.IsLeader() {
 			res := errors.Error("NOT_LEADER")
-			c.Write([]byte(res.Response()))
+			c.Write([]byte(res.Response() + s.cluster.GetLeader()))
 			slog.Debug("Request made to node that was not leader",
 				slog.String("id", conn.Id),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),

@@ -20,7 +20,7 @@ func (m *MockedCluster) Join(node string, addr string) error {
 	return args.Error(0)
 }
 
-func (m *MockedCluster) State() raft.RaftState {
+func (m *MockedCluster) state() raft.RaftState {
 	args := m.Called()
 	return args.Get(0).(raft.RaftState)
 }
@@ -33,6 +33,16 @@ func (m *MockedCluster) Bootstrap() raft.Future {
 func (m *MockedCluster) Shutdown() raft.Future {
 	args := m.Called()
 	return args.Get(0).(raft.Future)
+}
+
+func (m *MockedCluster) GetLeader() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *MockedCluster) IsLeader() bool {
+	args := m.Called()
+	return args.Bool(0)
 }
 
 func TestJoinServer(t *testing.T) {
