@@ -2,14 +2,29 @@ package config
 
 import (
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/spf13/viper"
 )
 
-func TestConfigureSlot(t *testing.T) {
+func resetViper() {
 	viper.Reset()
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
 
+	viper.SetEnvPrefix("GHOTI")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.AutomaticEnv()
+
+	configPaths := []string{"/etc/ghoti", "$HOME/.ghoti", ".", "../.."}
+	for _, path := range configPaths {
+		viper.AddConfigPath(path)
+	}
+}
+
+func TestConfigureSlot(t *testing.T) {
+	resetViper()
 	viper.Set("slot_000.kind", "simple_memory")
 
 	config := DefaultConfig()
@@ -17,7 +32,7 @@ func TestConfigureSlot(t *testing.T) {
 
 	config, err := LoadConfig()
 	if err != nil {
-		t.Fatalf("Failed loading configuration")
+		t.Fatalf("Failed loading configuration: %s", err)
 	}
 
 	if config.Slots[0] == nil {
@@ -26,7 +41,7 @@ func TestConfigureSlot(t *testing.T) {
 }
 
 func TestConfigureTimeoutSlot(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("slot_000.kind", "timeout_memory")
 	viper.Set("slot_000.timeout", 50)
@@ -40,7 +55,7 @@ func TestConfigureTimeoutSlot(t *testing.T) {
 }
 
 func TestNotConfigureSlot(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("slot_000.kind", "simple_memory")
 	viper.Set("slot_000.timeout", 50)
@@ -56,7 +71,7 @@ func TestNotConfigureSlot(t *testing.T) {
 }
 
 func TestConfigureUnknownType(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("slot_000.kind", "unknown")
 
@@ -69,7 +84,7 @@ func TestConfigureUnknownType(t *testing.T) {
 }
 
 func TestUserSetup(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("users.pepe", "SomePassword")
 
@@ -86,7 +101,7 @@ func TestUserSetup(t *testing.T) {
 }
 
 func TestEmptyPassword(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("users.pepe", "")
 
@@ -99,7 +114,7 @@ func TestEmptyPassword(t *testing.T) {
 }
 
 func TestMultipleUsersSetup(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("users.pepe", "SomePassword")
 	viper.Set("users.bobby", "OtherPassword")
@@ -129,7 +144,7 @@ func TestMultipleUsersSetup(t *testing.T) {
 }
 
 func TestClusterConfig(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("cluster.node", "some_node")
 	viper.Set("cluster.bind", "10.0.0.1:8765")
@@ -171,7 +186,7 @@ func TestClusterConfig(t *testing.T) {
 }
 
 func TestClusterMissingClusterUser(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("cluster.node", "some_node")
 	viper.Set("cluster.bind", "10.0.0.1:8765")
@@ -188,7 +203,7 @@ func TestClusterMissingClusterUser(t *testing.T) {
 }
 
 func TestClusterMissingClusterPass(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("cluster.node", "some_node")
 	viper.Set("cluster.bind", "10.0.0.1:8765")
@@ -205,7 +220,7 @@ func TestClusterMissingClusterPass(t *testing.T) {
 }
 
 func TestClusterMissingNodeName(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("cluster.bind", "10.0.0.1:8765")
 	viper.Set("cluster.user", "pepe")
@@ -222,7 +237,7 @@ func TestClusterMissingNodeName(t *testing.T) {
 }
 
 func TestClusterNodeNameTooLong(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("cluster.node", "abcdefghijklmnopqrstuvwxyz1234567890")
 	viper.Set("cluster.bind", "10.0.0.1:8765")
@@ -240,7 +255,7 @@ func TestClusterNodeNameTooLong(t *testing.T) {
 }
 
 func TestClusterMissingManagerType(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("cluster.node", "some_node")
 	viper.Set("cluster.bind", "10.0.0.1:8765")
@@ -257,7 +272,7 @@ func TestClusterMissingManagerType(t *testing.T) {
 }
 
 func TestClusterDefaultBind(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("cluster.node", "some_node")
 	viper.Set("cluster.user", "pepe")
@@ -278,7 +293,7 @@ func TestClusterDefaultBind(t *testing.T) {
 }
 
 func TestLoggingLevel(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("log.level", "warn")
 	config := DefaultConfig()
@@ -294,7 +309,7 @@ func TestLoggingLevel(t *testing.T) {
 }
 
 func TestLoggingWrongLevel(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("log.level", "pepe")
 	config := DefaultConfig()
@@ -306,7 +321,7 @@ func TestLoggingWrongLevel(t *testing.T) {
 }
 
 func TestLoggingFormat(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("log.format", "json")
 	config := DefaultConfig()
@@ -322,7 +337,7 @@ func TestLoggingFormat(t *testing.T) {
 }
 
 func TestLoggingWrongFormat(t *testing.T) {
-	viper.Reset()
+	resetViper()
 
 	viper.Set("log.format", "pepe")
 	config := DefaultConfig()
