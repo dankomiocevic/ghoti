@@ -15,6 +15,17 @@ import (
 	"github.com/spf13/viper"
 )
 
+type ExitControl interface {
+	Exit(int)
+}
+
+type ExitControlCmd struct {
+}
+
+func (e *ExitControlCmd) Exit(code int) {
+	os.Exit(code)
+}
+
 func NewRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -33,19 +44,28 @@ func NewRunCommand() *cobra.Command {
 }
 
 func run(_ *cobra.Command, _ []string) {
+	var e ExitControl
+	e = &ExitControlCmd{}
+
+	runWithExit(e)
+}
+
+func runWithExit(e ExitControl) {
 	config, err := config.LoadConfig()
 	if err != nil {
 		slog.Error("Error loading config",
 			slog.Any("error", err),
 		)
-		panic(err)
+		e.Exit(1)
+		return
 	}
 
 	if err := config.Verify(); err != nil {
 		slog.Error("Error verifying config",
 			slog.Any("error", err),
 		)
-		panic(err)
+		e.Exit(2)
+		return
 	}
 
 	createLogger(config)
@@ -57,7 +77,8 @@ func run(_ *cobra.Command, _ []string) {
 			slog.Error("Error starting cluster",
 				slog.Any("error", err),
 			)
-			panic(err)
+			e.Exit(3)
+			return
 		}
 		clus.Start()
 	} else {

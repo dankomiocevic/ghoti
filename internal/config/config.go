@@ -50,9 +50,7 @@ func LoadConfig() (*Config, error) {
 
 	err := viper.ReadInConfig()
 	if err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("failed to load server config: %w", err)
-		}
+		return nil, fmt.Errorf("failed to load server config: %w", err)
 	}
 
 	if err := viper.Unmarshal(config); err != nil {
