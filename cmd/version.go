@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"log"
-
 	"github.com/spf13/cobra"
 
 	"github.com/dankomiocevic/ghoti/internal/build"
@@ -22,7 +20,7 @@ func NewVersionCommand() *cobra.Command {
 }
 
 // print out the built version.
-func version(_ *cobra.Command, _ []string) error {
-	log.Printf("Ghoti version `%s` build from `%s` on `%s` ", build.Version, build.Commit, build.Date)
+func version(cmd *cobra.Command, _ []string) error {
+	cmd.Printf("Ghoti version `%s` build from `%s` on `%s` ", build.Version, build.Commit, build.Date)
 	return nil
 }
