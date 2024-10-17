@@ -17,13 +17,17 @@ There are not many things that can be done with Ghoti, but these things, like th
 
 Ghoti is created with the following requirements:
 - Is fast, all requests must have single digit latency.
-- Is focused on throughput, it can handle tens of thousands of clients and support thousands of requests per second.
-- It is resilient, a Ghoti cluster is designed to have zero downtime and high availability.
-- Chaos is in its core, it is created and enforced to fail continuously, this way when there is a real failure you won't notice. 
+- Is focused on throughput, it can handle tens of thousands of clients and support thousands of requests per second (official benchmarks on the way)
+- It is resilient, a Ghoti cluster is designed to have minimal downtime and high availability.
+- Chaos is in its core, design decisions are based on the fact that everything fails.
 
 Ghoti does not persist data.
 
-A Ghoti cluster allows to maintain availability but does not enforce data persistence. Ghoti servers are used to keep track or propagate what is happening in the moment but should not be used to store information.
+A Ghoti cluster allows to maintain availability but does not enforce data persistence. Ghoti servers are used to keep track or propagate what is happening in the moment but must not be used to store information.
+
+Let's say that you are using a Ghoti node as a cache to store information, that information can be lost. But, if you are using it as a cache, and your application depends on this information, there is something in the design that needs to be revisited. If is truly a cache, the overall system must not fail when is down. It could have a performance hit, or be degraded temporarily, but not fail.
+
+This is why by enforcing the no-persistence and reminding you about that "systems can fail" we want to make Ghoti simple and hopefully make the overall design better.
 
 ## Protocol
 
@@ -256,10 +260,9 @@ For example, the slot 003 in the configuration can be accessed by anyone, even i
 
 ## Cluster configuration 
 
-Usually Ghoti clusters have no more than 3 instances. The clients will connect simultaneously to all the instances, this way they can recover instantly if there is an issue.
-The instances will automatically connect to each other in a complete mesh configuration each one of them will have N-1 connections.
-After connecting to the other instances they will automatically elect a leader, this leader will be in charge to define the cluster configuration and routing but will not be the main data instance. 
-It will also define which instance is the fallback leader and which one is the main data instance.
+Ghoti clusters are created to increment availability, they are not supposed to propagate information to other nodes in order to increase data persistence. When a cluster node fails, another node will take its place but it will start on a clean state without keeping track of the information stored before.
+
+Ghoti does not do replication because it affects performance, and Ghoti does not persist data so there is no real reason to replicate data in the cluster.
 
 # License
 
