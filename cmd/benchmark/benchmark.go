@@ -1,7 +1,6 @@
 package benchmark
 
 import (
-	"fmt"
 	"math/rand/v2"
 	"net"
 	"time"
@@ -30,12 +29,12 @@ func NewBenchmarkCommand() *cobra.Command {
 func run(cmd *cobra.Command, _ []string) {
 	addr, _ := cmd.Flags().GetString("addr")
 
-	fmt.Println("Starting connections..")
+	cmd.Println("Starting connections..")
 	var conns []net.Conn
 	for i := 0; i < 1000; i++ {
 		c, err := net.DialTimeout("tcp", addr, 10*time.Second)
 		if err != nil {
-			fmt.Println("Error to connect", i, err)
+			cmd.Println("Error to connect", i, err)
 			continue
 		}
 		conns = append(conns, c)
@@ -48,14 +47,14 @@ func run(cmd *cobra.Command, _ []string) {
 		}
 	}()
 
-	fmt.Printf("Enabled %d connections\n", len(conns))
+	cmd.Printf("Enabled %d connections\n", len(conns))
 
 	start := time.Now()
 	for j := 0; j < 10000; j++ {
 		if j%100 == 0 {
 			duration := time.Since(start)
 			tps := float64(j*1000) / duration.Seconds()
-			fmt.Printf("Executed %d calls, elapsed %f seconds, %f tps\n", j*1000, duration.Seconds(), tps)
+			cmd.Printf("Executed %d calls, elapsed %f seconds, %f tps\n", j*1000, duration.Seconds(), tps)
 		}
 
 		for i := 0; i < len(conns); i++ {
