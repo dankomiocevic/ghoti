@@ -228,4 +228,39 @@ func TestClusterMultiNode(t *testing.T) {
 	}
 
 	resp.Body.Close()
+
+	// Adding node one again
+	config_one = ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2229", ManagerJoin: leaderNodeConfig.ManagerAddr, Bind: "localhost:1119"}
+	node_one, err = NewCluster(config_one)
+	if err != nil {
+		t.Fatalf("failed to create new cluster node one: %s", err)
+	}
+	err = node_one.Start()
+	if err != nil {
+		t.Fatalf("failed to restart node one: %s", err)
+	}
+
+	// Exponential retry until node 1 is set as follower and gets leader info
+	baseDelay = 100 * time.Millisecond
+	for i := 0; i < 7; i++ {
+		if node_one.state() == raft.Follower && len(node_one.GetLeader()) > 0 {
+			break
+		}
+
+		secRetry := math.Pow(2, float64(i))
+		delay := time.Duration(secRetry) * baseDelay
+		time.Sleep(delay)
+	}
+	if node_one.state() != raft.Follower {
+		t.Fatalf("Node one not set as follower, state: %s", node_one.state())
+	}
+	if node_two.GetLeader() != node_one.GetLeader() {
+		t.Fatalf("Leader does not match: node_one -> %s, node_two -> %s", node_one.GetLeader(), node_two.GetLeader())
+	}
+
+	// Request to join again for node_one
+	err = requestToJoin(leaderNodeConfig.ManagerAddr, config_one.Bind, config_one.Node, config_one.User, config_one.Pass)
+	if err != nil {
+		t.Fatalf("Request to join existing node must fail silently")
+	}
 }
