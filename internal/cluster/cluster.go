@@ -41,6 +41,7 @@ func NewCluster(config ClusterConfig) (Cluster, error) {
 }
 
 func (c *RaftCluster) Shutdown() raft.Future {
+	c.manager.Close()
 	return c.raft.Shutdown()
 }
 
