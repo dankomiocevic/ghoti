@@ -15,8 +15,13 @@ func (m *MockedCluster) Start() error {
 	return nil
 }
 
-func (m *MockedCluster) Join(node string, addr string) error {
+func (m *MockedCluster) Join(node, addr string) error {
 	args := m.Called(node, addr)
+	return args.Error(0)
+}
+
+func (m *MockedCluster) Remove(node string) error {
+	args := m.Called(node)
 	return args.Error(0)
 }
 

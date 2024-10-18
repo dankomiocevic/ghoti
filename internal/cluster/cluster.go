@@ -13,6 +13,7 @@ import (
 type Cluster interface {
 	Start() error
 	Join(string, string) error
+	Remove(string) error
 	Bootstrap() raft.Future
 	IsLeader() bool
 	GetLeader() string
@@ -101,6 +102,21 @@ func (c *RaftCluster) Bootstrap() raft.Future {
 	}
 
 	return c.raft.BootstrapCluster(configuration)
+}
+
+func (c *RaftCluster) Remove(nodeID string) error {
+	slog.Info("Request to remove node from cluster received",
+		slog.String("node_id", nodeID),
+	)
+
+	future := c.raft.RemoveServer(raft.ServerID(nodeID), 0, 0)
+	if err := future.Error(); err != nil {
+		slog.Error("Failed to remove node from cluster",
+			slog.Any("error", err),
+		)
+		return err
+	}
+	return nil
 }
 
 func (c *RaftCluster) Join(nodeID, addr string) error {

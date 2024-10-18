@@ -75,6 +75,10 @@ func (s *joinServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/join" {
 		s.handleJoin(w, r)
 	}
+
+	if r.URL.Path == "/remove" {
+		s.handleRemove(w, r)
+	}
 }
 
 func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
@@ -122,6 +126,54 @@ func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 	err := s.cluster.Join(nodeID, remoteAddr)
 	if err != nil {
 		slog.Warn("Error joining cluster",
+			slog.Any("error", err),
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *joinServer) handleRemove(w http.ResponseWriter, r *http.Request) {
+	slog.Info("Received request to be removed from cluster")
+
+	if !s.cluster.IsLeader() {
+		slog.Warn("Request to remove must be sent to Leader, I am not the leader",
+			slog.String("state", s.cluster.state().String()),
+		)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	user, pass, ok := r.BasicAuth()
+	if user != s.user || pass != s.pass {
+		slog.Warn("Request to remove with wrong username/password")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	m := map[string]string{}
+	if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
+		slog.Debug("JSON request cannot be decoded")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if len(m) < 1 {
+		slog.Debug("JSON request doesn't have enough elements")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	nodeID, ok := m["id"]
+	if !ok {
+		slog.Debug("JSON request doesn't contain node ID")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err := s.cluster.Remove(nodeID)
+	if err != nil {
+		slog.Warn("Error removing node from cluster",
 			slog.Any("error", err),
 		)
 		w.WriteHeader(http.StatusInternalServerError)

@@ -26,6 +26,10 @@ func (c *EmptyCluster) Join(a, b string) error {
 	return nil
 }
 
+func (c *EmptyCluster) Remove(a string) error {
+	return nil
+}
+
 func (c *EmptyCluster) Bootstrap() raft.Future {
 	return &EmptyFuture{}
 }
