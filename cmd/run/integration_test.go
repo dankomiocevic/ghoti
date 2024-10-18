@@ -10,6 +10,10 @@ import (
 )
 
 func TestSingleNode(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test on Short mode")
+	}
+
 	rootCmd := cmd.NewRootCommand()
 	cmd := NewRunCommand()
 	rootCmd.AddCommand(cmd)

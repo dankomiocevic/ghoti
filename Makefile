@@ -56,7 +56,19 @@ lint: $(GO_BIN)/golangci-lint ## Lint Go source files
 .PHONY: test generate-mocks
 
 test: generate-mocks ## Run all tests. To run a specific test, pass the FILTER var. Usage `make test FILTER="TestCheckLogs"`
+	# To skip integration tests, define SHORT. Usage `make test SHORT=1`
 	${call print, "Running tests"}
+ifdef SHORT
+	@go test -race \
+		  -short \
+			-run "$(FILTER)" \
+			-coverpkg=./... \
+			-coverprofile=coverageunit.tmp.out \
+			-covermode=atomic \
+			-count=1 \
+			-timeout=10m \
+			${GO_PACKAGES}
+else
 	@go test -race \
 			-run "$(FILTER)" \
 			-coverpkg=./... \
@@ -65,6 +77,7 @@ test: generate-mocks ## Run all tests. To run a specific test, pass the FILTER v
 			-count=1 \
 			-timeout=10m \
 			${GO_PACKAGES}
+endif
 	@cat coverageunit.tmp.out | grep -v "mock" > coverageunit.out
 	@rm coverageunit.tmp.out
 
