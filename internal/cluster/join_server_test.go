@@ -78,7 +78,7 @@ func TestJoin(t *testing.T) {
 	}
 }
 
-func TestNoAuth(t *testing.T) {
+func TestJoinNoAuth(t *testing.T) {
 	mgrAddr := "localhost:2345"
 	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
 
@@ -106,7 +106,7 @@ func TestNoAuth(t *testing.T) {
 	}
 }
 
-func TestWrongAuth(t *testing.T) {
+func TestJoinWrongAuth(t *testing.T) {
 	mgrAddr := "localhost:2345"
 	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
 
@@ -135,7 +135,7 @@ func TestWrongAuth(t *testing.T) {
 	}
 }
 
-func TestWrongData(t *testing.T) {
+func TestWrongJoinData(t *testing.T) {
 	mgrAddr := "localhost:2345"
 	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
 
@@ -225,5 +225,72 @@ func TestBootstrapFail(t *testing.T) {
 	err = s.Start()
 	if err == nil {
 		t.Fatalf("Test should fail to bootstrap")
+	}
+}
+
+func TestRemoveWrongAuth(t *testing.T) {
+	mgrAddr := "localhost:2345"
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+
+	cluster := new(MockedCluster)
+	cluster.On("IsLeader").Return(true)
+
+	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
+
+	b, err := json.Marshal(map[string]string{"id": "node2"})
+	if err != nil {
+		t.Fatalf("failed to encode key and value for POST: %s", err)
+	}
+	req := httptest.NewRequest("POST", fmt.Sprintf("http://%s/remove", mgrAddr), bytes.NewReader(b))
+	req.Header.Add("Content-Type", "application/json")
+	req.SetBasicAuth("wrong_user", "my_pass")
+
+	w := httptest.NewRecorder()
+
+	js.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.Status != "400 Bad Request" {
+		t.Fatalf("POST request returned wrong status %s", resp.Status)
+	}
+}
+
+func TestWrongRemoveData(t *testing.T) {
+	mgrAddr := "localhost:2345"
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+
+	cluster := new(MockedCluster)
+	cluster.On("IsLeader").Return(true)
+	cluster.On("Remove", "node2").Return(nil)
+
+	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
+
+	var requestData [4][]byte
+	b, _ := json.Marshal(map[string]string{"pepe": "node2"})
+	requestData[0] = b
+	b, _ = json.Marshal(map[string]string{"addr": "node2"})
+	requestData[1] = b
+	b = []byte("something")
+	requestData[2] = b
+	b = []byte("{}")
+	requestData[3] = b
+
+	for _, element := range requestData {
+		req := httptest.NewRequest("POST", fmt.Sprintf("http://%s/remove", mgrAddr), bytes.NewReader(element))
+		req.Header.Add("Content-Type", "application/json")
+		req.SetBasicAuth(config.User, config.Pass)
+
+		w := httptest.NewRecorder()
+
+		js.ServeHTTP(w, req)
+
+		resp := w.Result()
+
+		if resp.Status != "400 Bad Request" {
+			t.Fatalf("POST request returned wrong status %s, for request: %s", resp.Status, element)
+		}
+		resp.Body.Close()
 	}
 }
