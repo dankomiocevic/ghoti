@@ -78,6 +78,13 @@ This way the applications can use a single server to solve more than one problem
 This is the most basic slot where a value can be stored. The value has a maximum of 36 characters. You can read and write on the value and there are no restrictions.
 This slot has also no configuration.
 
+Example config:
+
+```yaml
+slot_000:
+  type: simple_memory
+```
+
 ### Timeout memory slot
 
 This slot is also a memory slot but the main difference with the Simple memory slot is that it has an owner. Only the client that has last written in this slot can write again.
@@ -90,6 +97,13 @@ The timeout can be configured:
 |timeout     |Timeout value configured in seconds.|
 
 All clients can read from this slot, but only the owner can write. If any other client tries to write it will fail. If there is no owner, the first client that writes becomes the owner.
+
+Example config:
+```yaml
+slot_001:
+  type: timeout_memory
+  timeout: 10
+```
 
 ### Token bucket limiter
 
@@ -118,7 +132,18 @@ The complete configuration options are:
 
 Writes have no effect on this slot. Reads will return the number of tokens (or zero if there are no tokens available).
 
-### Leaky bucket limiter
+
+Example config:
+```yaml
+slot_002:
+  type: token_bucket
+  bucket_size: 100
+  period: second
+  refresh_rate: 50
+  tokens_per_req: 5
+```
+
+### Leaky bucket limiter (TBD)
 
 This limiter works by defining an imaginary bucket that has a leak on it. The idea is that the leak is the rate how those tokens get delivered at a constant rate.
 
@@ -136,7 +161,7 @@ As it can be interpreted from this description, this algorithm is more network i
 
 Writes have no effect on this slot. Reads will return 1 if the token was accepted or zero if not.
 
-### Broadcast signal propagation
+### Broadcast signal propagation (TBD)
 
 Anything sent to this slot is propagated as a message to all the other clients. Any client connected to Ghoti at this point will receive the event at least once.
 This means that the message could be received more than once.
@@ -155,7 +180,7 @@ This slot will only acknowledge the command when all the messages are sent, so t
 
 Writes will propagate the written value to all other clients. Reads will read the last written value.
 
-### Multicast signal propagation
+### Multicast signal propagation (TBD)
 
 Similar to the Broadcast slot but this slot allows to send a message to a specific group of clients. This type of multicast **requires 2 consecutive slots:**
 - Register/Deregister: This slot allows a client to register or deregister from the multicast. If the client is registered, it will receive the events. To register a client can write a value on this slot, to deregister it can write zero. If a client reads this slot, then a non-zero value means the client is already registered and a zero value means is not.
@@ -167,7 +192,7 @@ Similar to the Broadcast slot but this slot allows to send a message to a specif
 | dereg_tries    | Number of messages that are tried on a client until is de-registered. |
 
 
-### Random signal propagation
+### Random signal propagation (TBD)
 
 This signal propagation slot works like the Multicast signal propagation explained before but with a major diference, the message is not sent to all registered clients, but only one. It uses a pseudo-random generator to distribute the messages among the clients.
 
@@ -183,7 +208,7 @@ It has the same configuration as the previous slot:
 | dereg_tries    | Number of messages that are tried on a client until is de-registered. |
 
 
-### Ticker (watchdog)
+### Ticker (watchdog) (TBD)
 
 This is a classic slot used in embedded circuits and microcontrollers, the slot contains an integer value, the way this works is that the slot will tick once a second making its value go down by one until it reaches zero.
 If any client writes to this slot and sets a value (integer value), it will start decrementing that value once a second until it reaches zero again.
@@ -193,7 +218,7 @@ In other words, if a client writes `600` on this slot, then waits 9 minutes and 
 There is no configuration needed for this slot.
 
 
-### Atomic counter slot
+### Atomic counter slot (TBD)
 
 This slot contains an integer number and allows to increment or decrement its value. Only one process can increment or decrement the value at a time.
 
@@ -258,7 +283,7 @@ When a slot has no defined list of users, then it will have anonymous access by 
 
 For example, the slot 003 in the configuration can be accessed by anyone, even if is not logged in.
 
-## Cluster configuration 
+## Cluster configuration (Experimental)
 
 Ghoti clusters are created to increment availability, they are not supposed to propagate information to other nodes in order to increase data persistence. When a cluster node fails, another node will take its place but it will start on a clean state without keeping track of the information stored before.
 

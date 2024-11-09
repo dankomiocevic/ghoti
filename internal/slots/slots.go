@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"time"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/spf13/viper"
@@ -33,9 +32,44 @@ func GetSlot(v *viper.Viper) (Slot, error) {
 	}
 
 	if kind == "timeout_memory" {
-		// TODO: validate this data
+		if !v.IsSet("timeout") {
+			return nil, fmt.Errorf("timeout value must be set for timeout_memory slot")
+		}
 		timeoutConfig := v.GetInt("timeout")
-		return &timeoutSlot{value: "", timeout: time.Duration(timeoutConfig) * time.Second, ttl: time.Time{}, users: users}, nil
+		timeoutSlot, err := newTimeoutSlot(timeoutConfig, users)
+		if err != nil {
+			return nil, err
+		}
+		return timeoutSlot, nil
+	}
+
+	if kind == "token_bucket" {
+		if !v.IsSet("bucket_size") {
+			return nil, fmt.Errorf("bucket_size must be set for token_bucket slot")
+		}
+		bucketSize := v.GetInt("bucket_size")
+
+		if !v.IsSet("period") {
+			return nil, fmt.Errorf("period must be set for token_bucket slot")
+		}
+		periodString := v.GetString("period")
+
+		refreshRate := 1
+		if v.IsSet("refresh_rate") {
+			refreshRate = v.GetInt("refresh_rate")
+		}
+
+		tokensPerReq := 1
+		if v.IsSet("tokens_per_req") {
+			tokensPerReq = v.GetInt("tokens_per_req")
+		}
+
+		tokenBucket, err := newTokenBucketSlot(periodString, bucketSize, refreshRate, tokensPerReq, users)
+		if err != nil {
+			return nil, err
+		}
+
+		return tokenBucket, nil
 	}
 
 	return nil, errors.New("Invalid kind of slot")

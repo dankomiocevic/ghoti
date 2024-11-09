@@ -2,6 +2,7 @@ package slots
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -16,6 +17,14 @@ type timeoutSlot struct {
 	timeout time.Duration
 	ttl     time.Time
 	mu      sync.Mutex
+}
+
+func newTimeoutSlot(timeout int, users map[string]string) (*timeoutSlot, error) {
+	if timeout < 1 {
+		return nil, fmt.Errorf("Timeout value in timeout_memory slot must be bigger than zero")
+	}
+
+	return &timeoutSlot{value: "", timeout: time.Duration(timeout) * time.Second, ttl: time.Time{}, users: users}, nil
 }
 
 func (m *timeoutSlot) Read() string {
