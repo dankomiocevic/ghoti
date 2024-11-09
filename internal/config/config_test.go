@@ -54,6 +54,21 @@ func TestConfigureTimeoutSlot(t *testing.T) {
 	}
 }
 
+func TestConfigureTokenBucketSlot(t *testing.T) {
+	resetViper()
+
+	viper.Set("slot_000.kind", "token_bucket")
+	viper.Set("slot_000.bucket_size", 50)
+	viper.Set("slot_000.period", "second")
+
+	config := DefaultConfig()
+	config.ConfigureSlots()
+
+	if config.Slots[0] == nil {
+		t.Fatalf("slot zero not configured")
+	}
+}
+
 func TestNotConfigureSlot(t *testing.T) {
 	resetViper()
 
