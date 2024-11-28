@@ -17,6 +17,10 @@ import (
 func generateConfig() *config.Config {
 	c := config.DefaultConfig()
 
+	if viper.IsSet("protocol") {
+		c.Protocol = viper.GetString("protocol")
+	}
+
 	viper.Set("slot_000.kind", "simple_memory")
 	slot_zero, _ := slots.GetSlot(viper.Sub("slot_000"))
 	c.Slots[0] = slot_zero
@@ -143,7 +147,7 @@ func TestMessageTooShort(t *testing.T) {
 	defer s.Stop()
 	defer conn.Close()
 
-	response := sendData(t, conn, "r0\n")
+	response := sendData(t, conn, "r0")
 	if !strings.HasPrefix(response, "e") {
 		t.Fatalf("unexpected server response: %s", response)
 	}
@@ -385,5 +389,20 @@ func TestAllAccess(t *testing.T) {
 
 	if response != "v004SomethingSam\n" {
 		t.Fatalf("Server did not return the value: %s", response)
+	}
+}
+
+func TestTelnetSupport(t *testing.T) {
+	viper.Set("protocol", "telnet")
+
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+	defer viper.Set("protocol", "standard")
+
+	response := sendData(t, conn, "w000Hello\r\n")
+
+	if response != "v000Hello\n" {
+		t.Fatalf("unexpected server response: [%s]", response)
 	}
 }
