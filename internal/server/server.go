@@ -18,13 +18,14 @@ import (
 )
 
 type Server struct {
-	listener    net.Listener
-	slotsArray  [1000]slots.Slot
-	usersMap    map[string]auth.User
-	quit        chan interface{}
-	wg          sync.WaitGroup
-	connections *ConnectionManager
-	cluster     cluster.Cluster
+	listener      net.Listener
+	slotsArray    [1000]slots.Slot
+	usersMap      map[string]auth.User
+	quit          chan interface{}
+	wg            sync.WaitGroup
+	connections   *ConnectionManager
+	cluster       cluster.Cluster
+	telnetSupport bool
 }
 
 func NewServer(config *config.Config, cluster cluster.Cluster) *Server {
@@ -44,6 +45,7 @@ func NewServer(config *config.Config, cluster cluster.Cluster) *Server {
 	s.slotsArray = config.Slots
 	s.usersMap = config.Users
 	s.connections = NewManager()
+	s.telnetSupport = (config.Protocol == "telnet")
 	s.wg.Add(1)
 
 	go s.serve()
@@ -106,6 +108,11 @@ func (s *Server) handleUserConnection(conn Connection) {
 	)
 
 	c := conn.NetworkConn
+	bufferSize := 41
+	if s.telnetSupport {
+		bufferSize = bufferSize + 2
+	}
+
 	buf := make([]byte, 41)
 
 	//TODO: Add this to config
@@ -141,7 +148,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 			return
 		}
 
-		msg, err := ParseMessage(size, buf)
+		msg, err := ParseMessage(size, buf, s.telnetSupport)
 		if err != nil {
 			res := errors.Error("WRONG_FORMAT")
 			slog.Debug(

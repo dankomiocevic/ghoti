@@ -22,26 +22,33 @@ var SupportedLogFormat = map[string]bool{
 	"json": true,
 }
 
+var SupportedProtocols = map[string]bool{
+	"standard": true,
+	"telnet":   true,
+}
+
 type LoggingConfig struct {
 	Level  slog.Level
 	Format string
 }
 
 type Config struct {
-	TcpAddr string
-	Slots   [1000]slots.Slot
-	Users   map[string]auth.User
-	Cluster cluster.ClusterConfig
-	Logging LoggingConfig
+	TcpAddr  string
+	Slots    [1000]slots.Slot
+	Users    map[string]auth.User
+	Cluster  cluster.ClusterConfig
+	Logging  LoggingConfig
+	Protocol string
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		TcpAddr: "localhost:9090",
-		Slots:   [1000]slots.Slot{},
-		Users:   make(map[string]auth.User),
-		Cluster: cluster.ClusterConfig{},
-		Logging: LoggingConfig{Level: slog.LevelInfo, Format: "text"},
+		TcpAddr:  "localhost:9090",
+		Slots:    [1000]slots.Slot{},
+		Users:    make(map[string]auth.User),
+		Cluster:  cluster.ClusterConfig{},
+		Logging:  LoggingConfig{Level: slog.LevelInfo, Format: "text"},
+		Protocol: "standard",
 	}
 }
 
@@ -59,6 +66,14 @@ func LoadConfig() (*Config, error) {
 
 	if viper.IsSet("addr") {
 		config.TcpAddr = viper.GetString("addr")
+	}
+
+	if viper.IsSet("protocol") {
+		config.Protocol = viper.GetString("protocol")
+
+		if SupportedProtocols[config.Protocol] != true {
+			return nil, fmt.Errorf("Protocol not supported: %s", config.Protocol)
+		}
 	}
 
 	e := config.ConfigureLogging()
