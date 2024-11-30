@@ -72,5 +72,24 @@ func GetSlot(v *viper.Viper) (Slot, error) {
 		return tokenBucket, nil
 	}
 
+	if kind == "leaky_bucket" {
+		if !v.IsSet("bucket_size") {
+			return nil, fmt.Errorf("bucket_size must be set for token_bucket slot")
+		}
+		bucketSize := v.GetInt("bucket_size")
+
+		refreshRate := 1000
+		if v.IsSet("refresh_rate") {
+			refreshRate = v.GetInt("refresh_rate")
+		}
+
+		leakyBucket, err := newLeakyBucketSlot(bucketSize, refreshRate, users)
+		if err != nil {
+			return nil, err
+		}
+
+		return leakyBucket, nil
+	}
+
 	return nil, errors.New("Invalid kind of slot")
 }
