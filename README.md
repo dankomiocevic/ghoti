@@ -143,21 +143,18 @@ slot_002:
   tokens_per_req: 5
 ```
 
-### Leaky bucket limiter (TBD)
+### Leaky bucket limiter
 
 This limiter works by defining an imaginary bucket that has a leak on it. The idea is that the leak is the rate how those tokens get delivered at a constant rate.
 
 The bucket has a limited capacity, then it would remove tokens at a constant rate (defined by config). Every time we do a request, we put a token in the bucket, if there is enough room in the bucket, then the request will be approved, if there is not enough room the request will be denied. When a bucket is full, it will return 0 to all the requests until a token is leaked from it, then it will have room to receive a new token and so on.
 
-This allows applications to have a burst of requests but after some time the bucket will fill up and the requests will start at a constant rate.
+The bucket size allows applications to have a burst of requests but after some time the bucket will fill up and the requests will start at a constant rate. If you don't want to have a burst of requests, you can set the bucket size to 1.
 
 |Config          | Description |
 |----------------|-------------|
 | bucket_size	 | Max amount of tokens that can be accumulated. |
-| period	     | The refresh period for the tokens, it can be: second, minute or hour |
-| refresh_rate	 | The number of tokens leaked on every refresh period. Default: 1 |
-
-As it can be interpreted from this description, this algorithm is more network intensive than the previous one because we need to constantly query the bucket to figure out if there is room when is full.
+| refresh_rate	 | The number of milliseconds to wait until a token is leaked. Default: 1000 |
 
 Writes have no effect on this slot. Reads will return 1 if the token was accepted or zero if not.
 
