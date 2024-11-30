@@ -158,6 +158,14 @@ The bucket size allows applications to have a burst of requests but after some t
 
 Writes have no effect on this slot. Reads will return 1 if the token was accepted or zero if not.
 
+Example config:
+```yaml
+slot_003:
+  type: leaky_bucket
+  bucket_size: 100
+  refresh_rate: 1000
+```
+
 ### Broadcast signal propagation (TBD)
 
 Anything sent to this slot is propagated as a message to all the other clients. Any client connected to Ghoti at this point will receive the event at least once.
@@ -205,15 +213,26 @@ It has the same configuration as the previous slot:
 | dereg_tries    | Number of messages that are tried on a client until is de-registered. |
 
 
-### Ticker (watchdog) (TBD)
+### Ticker (watchdog)
 
 This is a classic slot used in embedded circuits and microcontrollers, the slot contains an integer value, the way this works is that the slot will tick once a second making its value go down by one until it reaches zero.
 If any client writes to this slot and sets a value (integer value), it will start decrementing that value once a second until it reaches zero again.
 
 In other words, if a client writes `600` on this slot, then waits 9 minutes and reads the value, the value will be `60`. After one more minute, the value will be zero.
 
-There is no configuration needed for this slot.
+|Config          | Description |
+|----------------|-------------|
+| initial_value  | Initial value for the ticker. Default: 0 |
+| refresh_rate	 | The number of milliseconds per tick. Default: 1000 |
 
+Example config:
+
+```yaml
+slot_003:
+  type: ticker
+  initial_value: 600
+  refresh_rate: 1000
+```
 
 ### Atomic counter slot (TBD)
 
