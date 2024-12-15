@@ -87,7 +87,9 @@ func (c *Connection) SendEvent(data string) error {
 		timeout:  time.Now().Add(200 * time.Millisecond),
 	}
 
-	slog.Debug("Sending event", slog.Any("event", event))
+	slog.Debug("Sending event",
+		slog.String("id", c.Id),
+		slog.Any("event", event))
 
 	// Send event to the channel and return an error if the channel is full
 	select {
@@ -114,10 +116,8 @@ func (c *Connection) SendEvent(data string) error {
 	}
 }
 
-func (c *Connection) eventProcessor() {
+func (c *Connection) EventProcessor() {
 	for event := range c.Events {
-		slog.Debug("Sending event", slog.Any("event", event))
-
 		if time.Now().After(event.timeout) {
 			event.callback <- event.id + " TIMEOUT"
 			continue
@@ -126,7 +126,6 @@ func (c *Connection) eventProcessor() {
 		c.NetworkConn.SetWriteDeadline(event.timeout)
 		_, err := c.NetworkConn.Write([]byte(event.data))
 		if err != nil {
-			slog.Warn("Error sending event", slog.Any("error", err))
 			event.callback <- event.id + " ERROR"
 			continue
 		}

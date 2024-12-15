@@ -96,6 +96,9 @@ func (s *Server) Stop() {
 	s.wg.Wait()
 }
 
+// TODO: Refactor this into smaller functions
+// TODO: Improve error handling
+// TODO: Remove missing direct conn.Write calls
 func (s *Server) handleUserConnection(conn Connection) {
 	defer s.connections.Delete(conn.Id)
 	defer conn.Close()
@@ -104,6 +107,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 	)
 
+	go conn.EventProcessor()
 	c := conn.NetworkConn
 	for {
 		select {
@@ -120,7 +124,9 @@ func (s *Server) handleUserConnection(conn Connection) {
 			case errors.PermanentError:
 				return
 			default:
-				slog.Error("Unidentified error reading message", slog.Any("error", err))
+				slog.Error("Unidentified error reading message",
+					slog.String("id", conn.Id),
+					slog.Any("error", err))
 			}
 		}
 
@@ -268,7 +274,22 @@ func (s *Server) handleUserConnection(conn Connection) {
 					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 				)
 				res := errors.Error("READ_PERMISSION")
-				c.Write([]byte(res.Response()))
+				err = conn.SendEvent(res.Response())
+				if err != nil {
+					slog.Error("Error sending event to connection",
+						slog.String("id", conn.Id),
+						slog.Any("error", err))
+					switch err.(type) {
+					case errors.TranscientError:
+						continue
+					case errors.PermanentError:
+						return
+					default:
+						slog.Error("Unidentified error writing message",
+							slog.String("id", conn.Id),
+							slog.Any("error", err))
+					}
+				}
 				continue
 			}
 		}
@@ -278,12 +299,28 @@ func (s *Server) handleUserConnection(conn Connection) {
 		sb.WriteString(fmt.Sprintf("%03d", msg.Slot))
 		sb.WriteString(value)
 		sb.WriteString("\n")
-		c.Write([]byte(sb.String()))
-		slog.Debug("Value read from slot",
-			slog.Int("slot", msg.Slot),
-			slog.String("value", value),
-			slog.String("id", conn.Id),
-			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-		)
+		err = conn.SendEvent(sb.String())
+		if err != nil {
+			slog.Error("Error sending event to connection",
+				slog.String("id", conn.Id),
+				slog.Any("error", err))
+			switch err.(type) {
+			case errors.TranscientError:
+				continue
+			case errors.PermanentError:
+				return
+			default:
+				slog.Error("Unidentified error writing message",
+					slog.String("id", conn.Id),
+					slog.Any("error", err))
+			}
+		} else {
+			slog.Debug("Value read from slot",
+				slog.Int("slot", msg.Slot),
+				slog.String("value", value),
+				slog.String("id", conn.Id),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+		}
 	}
 }
