@@ -2,7 +2,6 @@ package server
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 )
 
@@ -22,45 +21,44 @@ var SupportedCommands = map[string]bool{
 	"q": true,
 }
 
-func ParseMessage(size int, buf []byte, telnetSupport bool) (*Message, error) {
+func ParseMessage(size int, buf []byte, telnetSupport bool) (Message, error) {
 	if buf[size-1] != '\n' {
-		return nil, errors.New("Message is malformed")
+		return Message{}, errors.New("Message is malformed")
 	}
 
 	var input string
 
-	fmt.Println(telnetSupport)
-	if telnetSupport && size > 4 && buf[size-2] == '\r' {
+	if telnetSupport && size > 2 && buf[size-2] == '\r' {
 		input = string(buf[:size-2])
 	} else {
 		input = string(buf[:size-1])
 	}
 
-	if input == "q" {
-		return &Message{Command: []byte(input)[0], Slot: 0, Value: ""}, nil
+	command := input[:1]
+
+	if command == "q" {
+		return Message{Command: buf[0], Slot: 0, Value: ""}, nil
 	}
 
 	if len(input) < 4 {
-		return nil, errors.New("Message is too short")
+		return Message{}, errors.New("Message is too short")
 	}
 
 	if len(input) > 40 {
-		return nil, errors.New("Message is too long")
+		return Message{}, errors.New("Message is too long")
 	}
 
-	command := input[:1]
-
 	if SupportedCommands[command] != true {
-		return nil, errors.New("Command not supported")
+		return Message{}, errors.New("Command not supported")
 	}
 
 	if command == "u" || command == "p" {
-		return &Message{Command: []byte(command)[0], Slot: 0, Value: input[1:]}, nil
+		return Message{Command: []byte(command)[0], Slot: 0, Value: input[1:]}, nil
 	}
 
 	slot, err := strconv.Atoi(input[1:4])
 	if err != nil {
-		return nil, errors.New("Malformed slot")
+		return Message{}, errors.New("Malformed slot")
 	}
 
 	var value string
@@ -68,5 +66,5 @@ func ParseMessage(size int, buf []byte, telnetSupport bool) (*Message, error) {
 		value = input[4:]
 	}
 
-	return &Message{Raw: input, Command: []byte(command)[0], Slot: slot, Value: value}, nil
+	return Message{Raw: input, Command: []byte(command)[0], Slot: slot, Value: value}, nil
 }

@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -22,7 +23,7 @@ func NewManager() *ConnectionManager {
 	}
 }
 
-func (c *ConnectionManager) Add(conn net.Conn) Connection {
+func (c *ConnectionManager) Add(conn net.Conn, telnetSupport bool) Connection {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -35,13 +36,26 @@ func (c *ConnectionManager) Add(conn net.Conn) Connection {
 		}
 	}
 
+	//TODO: Add this to config
+	timeoutDuration := 200 * time.Millisecond
+
+	bufferSize := 41
+	if telnetSupport {
+		bufferSize = bufferSize + 2
+	}
+
+	buf := make([]byte, bufferSize)
 	connection := Connection{
 		Id:          id,
 		Quit:        make(chan interface{}),
+		Events:      make(chan Event, 128),
 		NetworkConn: conn,
 		LoggedUser:  auth.User{},
 		Username:    "",
 		IsLogged:    false,
+		Callback:    make(chan string),
+		Buffer:      buf,
+		Timeout:     timeoutDuration,
 	}
 
 	c.connections[connection.Id] = connection
