@@ -1,14 +1,11 @@
 package server
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/cluster"
@@ -66,7 +63,7 @@ func (s *Server) serve() {
 				slog.Error("Error accepting connection", slog.Any("error", err))
 			}
 		} else {
-			connection := s.connections.Add(conn)
+			connection := s.connections.Add(conn, s.telnetSupport)
 			slog.Debug("Connection received",
 				slog.String("id", connection.Id),
 				slog.String("remote_addr", conn.RemoteAddr().String()),
@@ -108,16 +105,6 @@ func (s *Server) handleUserConnection(conn Connection) {
 	)
 
 	c := conn.NetworkConn
-	bufferSize := 41
-	if s.telnetSupport {
-		bufferSize = bufferSize + 2
-	}
-
-	buf := make([]byte, 41)
-
-	//TODO: Add this to config
-	timeoutDuration := 200 * time.Millisecond
-
 	for {
 		select {
 		case <-conn.Quit:
@@ -125,45 +112,16 @@ func (s *Server) handleUserConnection(conn Connection) {
 		default:
 		}
 
-		reader := bufio.NewReader(c)
-		// Set the connection timeout in the future
-		c.SetReadDeadline(time.Now().Add(timeoutDuration))
-		size, err := reader.Read(buf)
+		msg, err := conn.ReadMessage(s.telnetSupport)
 		if err != nil {
-			// If the error was a timeout, continue receiving data in
-			// next loop
-			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+			switch err.(type) {
+			case errors.TranscientError:
 				continue
-			}
-
-			if err == io.EOF {
+			case errors.PermanentError:
 				return
+			default:
+				slog.Error("Unidentified error reading message", slog.Any("error", err))
 			}
-
-			slog.Error("Error receiving data from connection", slog.Any("error", err))
-			slog.Debug("Disconnecting",
-				slog.String("id", conn.Id),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
-			return
-		}
-
-		msg, err := ParseMessage(size, buf, s.telnetSupport)
-		if err != nil {
-			res := errors.Error("WRONG_FORMAT")
-			slog.Debug(
-				"Wrong message format received",
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
-
-			c.Write([]byte(res.Response()))
-			continue
-		} else {
-			slog.Debug("Received message",
-				slog.String("msg", msg.Raw),
-				slog.String("id", conn.Id),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
 		}
 
 		if msg.Command != 'q' && !s.cluster.IsLeader() {
