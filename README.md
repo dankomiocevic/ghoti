@@ -48,21 +48,37 @@ In this example, the slot has a UUID stored.
 
 When a client wants to write a value on a slot, they can use the `w` command:
 
-`w0006396A64C-1C2C-4BFC-B8F1-034758018CAC`
+`wHelloWorld`
 
 Same as the read command, the server will return the written value:
 
-`v0006396A64C-1C2C-4BFC-B8F1-034758018CAC`
+`vHelloWorld`
 
-If there is any issue with a command, the server will return a failure with a code that can be used to identify the issue:
+If there is any issue with a command, the server will return an error with a code that can be used to identify the issue:
 
-`f0006396A64C-1C2C-4BFC-B8F1-034758018CAC`
+`e009`
 
-In some cases there are messages sent as event from the server (see broadcast slots), these kind of messages are sent at any time and use the `e` (event) response:
+To identify the error code, the list of error codes can be found [here](internal/errors/README.md).
 
-`e2346396A64C-1C2C-4BFC-B8F1-034758018CAC`
+In some cases there are messages sent as async events from the server (see broadcast slots), these kind of messages are sent at any time and use the `a` (async) response:
 
-Same as the other examples, it would contain the `e` response, then the slot (in this case 234) and the event data (in this case a UUID).
+`a2346396A64C-1C2C-4BFC-B8F1-034758018CAC`
+
+Same as the other examples, it would contain the `a` response, then the slot (in this case 234) and the event data (in this case a UUID).
+
+Async events can happen at any time.
+
+### Protocol variants
+
+The core protocol is always the same despite the variant selected, but there are different options to use as a transport layer. The following are the available options:
+- standard: The protocol works as described in the previous section, it is a plain TCP connection that requires messages to be sent in plain text and terminated with a newline character. This is the default option.
+- telnet: This option is the same as the standard option but it allows the use of the telnet protocol to connect to the server. This option is useful when you want to use a telnet client to connect to the server. The main difference is that the messages are terminated with a return of carriage and a newline character, as specified in the standard telnet protocol.
+
+Example config:
+
+```yaml
+protocol: telnet
+```
 
 ## Configuration 
 
@@ -238,7 +254,7 @@ slot_003:
 
 This slot contains an integer number and allows to increment or decrement its value. Only one process can increment or decrement the value at a time.
 
-To increment, you need to write a positive integer number, to decrement, a negative integer number. The slot cannot go beyond 
+To increment, you need to write a positive integer number, to decrement, a negative integer number.
 
 There is no configuration needed for this slot.
 
