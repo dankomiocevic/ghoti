@@ -60,10 +60,6 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("failed to load server config: %w", err)
 	}
 
-	if err := viper.Unmarshal(config); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal server config: %w", err)
-	}
-
 	if viper.IsSet("addr") {
 		config.TcpAddr = viper.GetString("addr")
 	}
