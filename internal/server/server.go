@@ -132,7 +132,13 @@ func (s *Server) handleUserConnection(conn Connection) {
 
 		if msg.Command != 'q' && !s.cluster.IsLeader() {
 			res := errors.Error("NOT_LEADER")
-			c.Write([]byte(res.Response() + s.cluster.GetLeader()))
+			err = conn.SendEvent(res.Response() + s.cluster.GetLeader())
+			if err != nil {
+				switch err.(type) {
+				case errors.PermanentError:
+					return
+				}
+			}
 			slog.Debug("Request made to node that was not leader",
 				slog.String("id", conn.Id),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
@@ -165,7 +171,13 @@ func (s *Server) handleUserConnection(conn Connection) {
 		current_slot := s.slotsArray[msg.Slot]
 		if current_slot == nil {
 			res := errors.Error("MISSING_SLOT")
-			c.Write([]byte(res.Response()))
+			err = conn.SendEvent(res.Response())
+			if err != nil {
+				switch err.(type) {
+				case errors.PermanentError:
+					return
+				}
+			}
 			slog.Debug("Missing slot",
 				slog.Int("slot", msg.Slot),
 				slog.String("id", conn.Id),
@@ -183,7 +195,13 @@ func (s *Server) handleUserConnection(conn Connection) {
 					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 				)
 				res := errors.Error("WRITE_PERMISSION")
-				c.Write([]byte(res.Response()))
+				err = conn.SendEvent(res.Response())
+				if err != nil {
+					switch err.(type) {
+					case errors.PermanentError:
+						return
+					}
+				}
 				continue
 			}
 
@@ -195,7 +213,13 @@ func (s *Server) handleUserConnection(conn Connection) {
 					slog.Int("slot", msg.Slot),
 					slog.Any("error", err),
 				)
-				c.Write([]byte(res.Response()))
+				err = conn.SendEvent(res.Response())
+				if err != nil {
+					switch err.(type) {
+					case errors.PermanentError:
+						return
+					}
+				}
 				continue
 			} else {
 				slog.Debug("Value written in slot",

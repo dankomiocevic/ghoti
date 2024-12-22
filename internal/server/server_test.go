@@ -2,7 +2,9 @@ package server
 
 import (
 	"bufio"
+	"math/rand/v2"
 	"net"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -14,12 +16,15 @@ import (
 	"github.com/spf13/viper"
 )
 
-func generateConfig() *config.Config {
+func generateConfig(port string) *config.Config {
 	c := config.DefaultConfig()
 
 	if viper.IsSet("protocol") {
 		c.Protocol = viper.GetString("protocol")
 	}
+
+	viper.Set("addr", "localhost:"+port)
+	c.TcpAddr = viper.GetString("addr")
 
 	viper.Set("slot_000.kind", "simple_memory")
 	slot_zero, _ := slots.GetSlot(viper.Sub("slot_000"))
@@ -49,14 +54,15 @@ func generateConfig() *config.Config {
 }
 
 func runServer(t *testing.T) (*Server, net.Conn) {
+	port := "9" + strconv.Itoa(rand.IntN(899)+100)
 	// start the TCP Server
-	s := NewServer(generateConfig(), cluster.NewEmptyCluster())
+	s := NewServer(generateConfig(port), cluster.NewEmptyCluster())
 
 	// wait for the TCP Server to start
 	time.Sleep(time.Duration(100) * time.Millisecond)
 
 	// connect to the TCP Server
-	conn, err := net.Dial("tcp", ":9090")
+	conn, err := net.Dial("tcp", ":"+port)
 	if err != nil {
 		t.Fatalf("couldn't connect to the server: %v", err)
 	}
@@ -208,7 +214,7 @@ func TestWriteTimeoutNotOwner(t *testing.T) {
 	sendData(t, conn, "w003HelloOwner\n")
 
 	// connect to the TCP Server
-	connOther, err := net.Dial("tcp", ":9090")
+	connOther, err := net.Dial("tcp", s.listener.Addr().String())
 	if err != nil {
 		t.Fatalf("couldn't connect to the server: %v", err)
 	}
