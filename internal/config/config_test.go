@@ -2,14 +2,40 @@ package config
 
 import (
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/spf13/afero"
 	"github.com/spf13/viper"
 )
 
-func resetViper() {
+func absFilePath(path string) string {
+	s, _ := filepath.Abs(path)
+
+	return s
+}
+
+func resetViper(t *testing.T, data string) afero.Fs {
+	fs := afero.NewMemMapFs()
+	err := fs.Mkdir("/etc/ghoti", 0o777)
+	if err != nil {
+		t.Fatalf("Failed creating dir: %s", err)
+	}
+
+	file, err := fs.Create("/etc/ghoti/config.yaml")
+	if err != nil {
+		t.Fatalf("Failed creating file: %s", err)
+	}
+
+	_, err = file.WriteString(data)
+	if err != nil {
+		t.Fatalf("Failed writing to file: %s", err)
+	}
+	file.Close()
+
 	viper.Reset()
+	viper.SetFs(fs)
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 
@@ -17,15 +43,17 @@ func resetViper() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 
-	configPaths := []string{"/etc/ghoti", "$HOME/.ghoti", ".", "../.."}
-	for _, path := range configPaths {
-		viper.AddConfigPath(path)
-	}
+	viper.AddConfigPath("/etc/ghoti")
+	viper.ReadInConfig()
+
+	return fs
 }
 
 func TestConfigureSlot(t *testing.T) {
-	resetViper()
-	viper.Set("slot_000.kind", "simple_memory")
+	resetViper(t, `
+slot_000:
+  kind: simple_memory
+`)
 
 	config := DefaultConfig()
 	config.ConfigureSlots()
@@ -41,10 +69,11 @@ func TestConfigureSlot(t *testing.T) {
 }
 
 func TestConfigureTimeoutSlot(t *testing.T) {
-	resetViper()
-
-	viper.Set("slot_000.kind", "timeout_memory")
-	viper.Set("slot_000.timeout", 50)
+	resetViper(t, `
+slot_000:
+  kind: timeout_memory
+  timeout: 50
+`)
 
 	config := DefaultConfig()
 	config.ConfigureSlots()
@@ -55,11 +84,12 @@ func TestConfigureTimeoutSlot(t *testing.T) {
 }
 
 func TestConfigureTokenBucketSlot(t *testing.T) {
-	resetViper()
-
-	viper.Set("slot_000.kind", "token_bucket")
-	viper.Set("slot_000.bucket_size", 50)
-	viper.Set("slot_000.period", "second")
+	resetViper(t, `
+slot_000:
+  kind: token_bucket
+  bucket_size: 50
+  period: second
+`)
 
 	config := DefaultConfig()
 	config.ConfigureSlots()
@@ -70,10 +100,11 @@ func TestConfigureTokenBucketSlot(t *testing.T) {
 }
 
 func TestNotConfigureSlot(t *testing.T) {
-	resetViper()
-
-	viper.Set("slot_000.kind", "simple_memory")
-	viper.Set("slot_000.timeout", 50)
+	resetViper(t, `
+slot_000:
+  kind: simple_memory
+  timeout: 50
+`)
 
 	config := DefaultConfig()
 	config.ConfigureSlots()
@@ -86,9 +117,10 @@ func TestNotConfigureSlot(t *testing.T) {
 }
 
 func TestConfigureUnknownType(t *testing.T) {
-	resetViper()
-
-	viper.Set("slot_000.kind", "unknown")
+	resetViper(t, `
+slot_000:
+  kind: unknown
+`)
 
 	config := DefaultConfig()
 	config.ConfigureSlots()
@@ -99,9 +131,10 @@ func TestConfigureUnknownType(t *testing.T) {
 }
 
 func TestUserSetup(t *testing.T) {
-	resetViper()
-
-	viper.Set("users.pepe", "SomePassword")
+	resetViper(t, `
+users:
+  pepe: SomePassword
+`)
 
 	config := DefaultConfig()
 	config.LoadUsers()
@@ -116,9 +149,10 @@ func TestUserSetup(t *testing.T) {
 }
 
 func TestEmptyPassword(t *testing.T) {
-	resetViper()
-
-	viper.Set("users.pepe", "")
+	resetViper(t, `
+users:
+  pepe: ""
+`)
 
 	config := DefaultConfig()
 	e := config.LoadUsers()
@@ -129,10 +163,11 @@ func TestEmptyPassword(t *testing.T) {
 }
 
 func TestMultipleUsersSetup(t *testing.T) {
-	resetViper()
-
-	viper.Set("users.pepe", "SomePassword")
-	viper.Set("users.bobby", "OtherPassword")
+	resetViper(t, `
+users:
+  pepe: SomePassword
+  bobby: OtherPassword
+`)
 
 	config := DefaultConfig()
 	config.LoadUsers()
@@ -159,15 +194,17 @@ func TestMultipleUsersSetup(t *testing.T) {
 }
 
 func TestClusterConfig(t *testing.T) {
-	resetViper()
-
-	viper.Set("cluster.node", "some_node")
-	viper.Set("cluster.bind", "10.0.0.1:8765")
-	viper.Set("cluster.user", "pepe")
-	viper.Set("cluster.pass", "shadow")
-	viper.Set("cluster.manager.type", "join_server")
-	viper.Set("cluster.manager.join", "10.0.0.31:3456")
-	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+	resetViper(t, `
+cluster:
+  node: some_node
+  bind: "10.0.0.1:8765"
+  user: pepe
+  pass: shadow
+  manager:
+    type: join_server
+    join: "10.0.0.31:3456"
+    addr: "10.0.0.1:3456"
+`)
 
 	config := DefaultConfig()
 	err := config.LoadCluster()
@@ -201,14 +238,16 @@ func TestClusterConfig(t *testing.T) {
 }
 
 func TestClusterMissingClusterUser(t *testing.T) {
-	resetViper()
-
-	viper.Set("cluster.node", "some_node")
-	viper.Set("cluster.bind", "10.0.0.1:8765")
-	viper.Set("cluster.pass", "shadow")
-	viper.Set("cluster.manager.type", "join_server")
-	viper.Set("cluster.manager.join", "10.0.0.31:3456")
-	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+	resetViper(t, `
+cluster:
+  node: some_node
+  bind: "10.0.0.1:8765"
+  pass: shadow
+  manager:
+    type: join_server
+    join: "10.0.0.31:3456"
+    addr: "10.0.0.1:3456"
+`)
 
 	config := DefaultConfig()
 	err := config.LoadCluster()
@@ -218,14 +257,16 @@ func TestClusterMissingClusterUser(t *testing.T) {
 }
 
 func TestClusterMissingClusterPass(t *testing.T) {
-	resetViper()
-
-	viper.Set("cluster.node", "some_node")
-	viper.Set("cluster.bind", "10.0.0.1:8765")
-	viper.Set("cluster.user", "pepe")
-	viper.Set("cluster.manager.type", "join_server")
-	viper.Set("cluster.manager.join", "10.0.0.31:3456")
-	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+	resetViper(t, `
+cluster:
+  node: some_node
+  user: pepe
+  bind: "10.0.0.1:8765"
+  manager:
+    type: join_server
+    join: "10.0.0.31:3456"
+    addr: "10.0.0.1:3456"
+`)
 
 	config := DefaultConfig()
 	err := config.LoadCluster()
@@ -235,14 +276,16 @@ func TestClusterMissingClusterPass(t *testing.T) {
 }
 
 func TestClusterMissingNodeName(t *testing.T) {
-	resetViper()
-
-	viper.Set("cluster.bind", "10.0.0.1:8765")
-	viper.Set("cluster.user", "pepe")
-	viper.Set("cluster.pass", "shadow")
-	viper.Set("cluster.manager.type", "join_server")
-	viper.Set("cluster.manager.join", "10.0.0.31:3456")
-	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+	resetViper(t, `
+cluster:
+  user: pepe
+  pass: shadow
+  bind: "10.0.0.1:8765"
+  manager:
+    type: join_server
+    join: "10.0.0.31:3456"
+    addr: "10.0.0.1:3456"
+`)
 
 	config := DefaultConfig()
 	err := config.LoadCluster()
@@ -252,15 +295,17 @@ func TestClusterMissingNodeName(t *testing.T) {
 }
 
 func TestClusterNodeNameTooLong(t *testing.T) {
-	resetViper()
-
-	viper.Set("cluster.node", "abcdefghijklmnopqrstuvwxyz1234567890")
-	viper.Set("cluster.bind", "10.0.0.1:8765")
-	viper.Set("cluster.user", "pepe")
-	viper.Set("cluster.pass", "shadow")
-	viper.Set("cluster.manager.type", "join_server")
-	viper.Set("cluster.manager.join", "10.0.0.31:3456")
-	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+	resetViper(t, `
+cluster:
+  node: "abcdefghijklmnopqrstuvwxyz1234567890"
+  user: pepe
+  pass: shadow
+  bind: "10.0.0.1:8765"
+  manager:
+    type: join_server
+    join: "10.0.0.31:3456"
+    addr: "10.0.0.1:3456"
+`)
 
 	config := DefaultConfig()
 	err := config.LoadCluster()
@@ -270,14 +315,16 @@ func TestClusterNodeNameTooLong(t *testing.T) {
 }
 
 func TestClusterMissingManagerType(t *testing.T) {
-	resetViper()
-
-	viper.Set("cluster.node", "some_node")
-	viper.Set("cluster.bind", "10.0.0.1:8765")
-	viper.Set("cluster.user", "pepe")
-	viper.Set("cluster.pass", "shadow")
-	viper.Set("cluster.manager.join", "10.0.0.31:3456")
-	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+	resetViper(t, `
+cluster:
+  node: some_node
+  user: pepe
+  pass: shadow
+  bind: "10.0.0.1:8765"
+  manager:
+    join: "10.0.0.31:3456"
+    addr: "10.0.0.1:3456"
+`)
 
 	config := DefaultConfig()
 	err := config.LoadCluster()
@@ -287,14 +334,16 @@ func TestClusterMissingManagerType(t *testing.T) {
 }
 
 func TestClusterDefaultBind(t *testing.T) {
-	resetViper()
-
-	viper.Set("cluster.node", "some_node")
-	viper.Set("cluster.user", "pepe")
-	viper.Set("cluster.pass", "shadow")
-	viper.Set("cluster.manager.type", "join_server")
-	viper.Set("cluster.manager.join", "10.0.0.31:3456")
-	viper.Set("cluster.manager.addr", "10.0.0.1:3456")
+	resetViper(t, `
+cluster:
+  node: some_node
+  user: pepe
+  pass: shadow
+  manager:
+    type: join_server
+    join: "10.0.0.31:3456"
+    addr: "10.0.0.1:3456"
+`)
 
 	config := DefaultConfig()
 	err := config.LoadCluster()
@@ -308,9 +357,11 @@ func TestClusterDefaultBind(t *testing.T) {
 }
 
 func TestLoggingLevel(t *testing.T) {
-	resetViper()
+	resetViper(t, `
+log:
+  level: warn
+`)
 
-	viper.Set("log.level", "warn")
 	config := DefaultConfig()
 
 	err := config.ConfigureLogging()
@@ -324,9 +375,11 @@ func TestLoggingLevel(t *testing.T) {
 }
 
 func TestLoggingWrongLevel(t *testing.T) {
-	resetViper()
+	resetViper(t, `
+log:
+  level: pepe
+`)
 
-	viper.Set("log.level", "pepe")
 	config := DefaultConfig()
 
 	err := config.ConfigureLogging()
@@ -336,9 +389,11 @@ func TestLoggingWrongLevel(t *testing.T) {
 }
 
 func TestLoggingFormat(t *testing.T) {
-	resetViper()
+	resetViper(t, `
+log:
+  format: json
+`)
 
-	viper.Set("log.format", "json")
 	config := DefaultConfig()
 
 	err := config.ConfigureLogging()
@@ -352,13 +407,41 @@ func TestLoggingFormat(t *testing.T) {
 }
 
 func TestLoggingWrongFormat(t *testing.T) {
-	resetViper()
+	resetViper(t, `
+log:
+  format: pepe
+`)
 
-	viper.Set("log.format", "pepe")
 	config := DefaultConfig()
 
 	err := config.ConfigureLogging()
 	if err == nil {
 		t.Fatalf("Logging configuration must fail with wrong format")
+	}
+}
+
+func TestLoadUsers(t *testing.T) {
+	resetViper(t, `
+users:
+  pepe: SomePassword
+  service: OtherPassword
+`)
+
+	config := DefaultConfig()
+	err := config.LoadUsers()
+	if err != nil {
+		t.Fatalf("error loading users configuration: %s", err)
+	}
+
+	if len(config.Users) != 2 {
+		t.Fatalf("wrong number of users loaded")
+	}
+
+	if config.Users["pepe"].Name != "pepe" {
+		t.Fatalf("wrong user name loaded")
+	}
+
+	if config.Users["pepe"].Password != "SomePassword" {
+		t.Fatalf("wrong user password loaded")
 	}
 }

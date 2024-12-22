@@ -132,7 +132,13 @@ func (s *Server) handleUserConnection(conn Connection) {
 
 		if msg.Command != 'q' && !s.cluster.IsLeader() {
 			res := errors.Error("NOT_LEADER")
-			c.Write([]byte(res.Response() + s.cluster.GetLeader()))
+			err = conn.SendEvent(res.Response() + s.cluster.GetLeader())
+			if err != nil {
+				switch err.(type) {
+				case errors.PermanentError:
+					return
+				}
+			}
 			slog.Debug("Request made to node that was not leader",
 				slog.String("id", conn.Id),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
@@ -141,74 +147,22 @@ func (s *Server) handleUserConnection(conn Connection) {
 		}
 
 		if msg.Command == 'u' {
-			err := auth.ValidateUsername(msg.Value)
+			err = processUsername(s, &conn, msg)
 			if err != nil {
-				res := errors.Error("WRONG_USER")
-				c.Write([]byte(res.Response()))
-				slog.Debug("Invalid user received",
-					slog.String("user", msg.Value),
-					slog.String("id", conn.Id),
-					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-				)
-				slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
-				return
-			} else {
-				conn.LoggedUser = auth.User{}
-				conn.Username = msg.Value
-				conn.IsLogged = false
-
-				var sb strings.Builder
-				sb.WriteString("v")
-				sb.WriteString(conn.Username)
-				sb.WriteString("\n")
-				c.Write([]byte(sb.String()))
-				slog.Debug("Username set for connection",
-					slog.String("user", conn.Username),
-					slog.String("id", conn.Id),
-					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-				)
+				switch err.(type) {
+				case errors.PermanentError:
+					return
+				}
 			}
 			continue
 		}
 
 		if msg.Command == 'p' {
-			user, err := auth.GetUser(conn.Username, msg.Value)
+			err = processPassword(s, &conn, msg)
 			if err != nil {
-				res := errors.Error("WRONG_PASS")
-				c.Write([]byte(res.Response()))
-				slog.Debug("Invalid password received",
-					slog.String("id", conn.Id),
-					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-				)
-				slog.Debug("Disconnecting",
-					slog.String("id", conn.Id),
-					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-				)
-				return
-			} else {
-				if s.usersMap[user.Name].Password != user.Password {
-					res := errors.Error("WRONG_LOGIN")
-					c.Write([]byte(res.Response()))
-					slog.Warn("Invalid login received",
-						slog.String("id", conn.Id),
-						slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-					)
-					slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
+				switch err.(type) {
+				case errors.PermanentError:
 					return
-				} else {
-					conn.LoggedUser = user
-					conn.IsLogged = true
-
-					var sb strings.Builder
-					sb.WriteString("v")
-					sb.WriteString(conn.Username)
-					sb.WriteString("\n")
-					c.Write([]byte(sb.String()))
-					slog.Debug("User logged in for connection",
-						slog.String("user", conn.Username),
-						slog.String("id", conn.Id),
-						slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-					)
 				}
 			}
 			continue
@@ -217,7 +171,13 @@ func (s *Server) handleUserConnection(conn Connection) {
 		current_slot := s.slotsArray[msg.Slot]
 		if current_slot == nil {
 			res := errors.Error("MISSING_SLOT")
-			c.Write([]byte(res.Response()))
+			err = conn.SendEvent(res.Response())
+			if err != nil {
+				switch err.(type) {
+				case errors.PermanentError:
+					return
+				}
+			}
 			slog.Debug("Missing slot",
 				slog.Int("slot", msg.Slot),
 				slog.String("id", conn.Id),
@@ -235,7 +195,13 @@ func (s *Server) handleUserConnection(conn Connection) {
 					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 				)
 				res := errors.Error("WRITE_PERMISSION")
-				c.Write([]byte(res.Response()))
+				err = conn.SendEvent(res.Response())
+				if err != nil {
+					switch err.(type) {
+					case errors.PermanentError:
+						return
+					}
+				}
 				continue
 			}
 
@@ -247,7 +213,13 @@ func (s *Server) handleUserConnection(conn Connection) {
 					slog.Int("slot", msg.Slot),
 					slog.Any("error", err),
 				)
-				c.Write([]byte(res.Response()))
+				err = conn.SendEvent(res.Response())
+				if err != nil {
+					switch err.(type) {
+					case errors.PermanentError:
+						return
+					}
+				}
 				continue
 			} else {
 				slog.Debug("Value written in slot",
@@ -323,4 +295,84 @@ func (s *Server) handleUserConnection(conn Connection) {
 			)
 		}
 	}
+}
+
+func processUsername(s *Server, conn *Connection, msg Message) error {
+	err := auth.ValidateUsername(msg.Value)
+	if err != nil {
+		res := errors.Error("WRONG_USER")
+		conn.SendEvent(res.Response())
+		slog.Debug("Invalid user received",
+			slog.String("user", msg.Value),
+			slog.String("id", conn.Id),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
+		return errors.PermanentError{Err: "Bad password"}
+	} else {
+		conn.LoggedUser = auth.User{}
+		conn.Username = msg.Value
+		conn.IsLogged = false
+
+		var sb strings.Builder
+		sb.WriteString("v")
+		sb.WriteString(conn.Username)
+		sb.WriteString("\n")
+		err = conn.SendEvent(sb.String())
+		if err != nil {
+			return err
+		}
+		slog.Debug("Username set for connection",
+			slog.String("user", conn.Username),
+			slog.String("id", conn.Id),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+	}
+	return nil
+}
+
+func processPassword(s *Server, conn *Connection, msg Message) error {
+	user, err := auth.GetUser(conn.Username, msg.Value)
+	if err != nil {
+		res := errors.Error("WRONG_PASS")
+		conn.SendEvent(res.Response())
+		slog.Debug("Invalid password received",
+			slog.String("id", conn.Id),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		slog.Debug("Disconnecting",
+			slog.String("id", conn.Id),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		return errors.PermanentError{Err: "Bad password"}
+	} else {
+		if s.usersMap[user.Name].Password != user.Password {
+			res := errors.Error("WRONG_LOGIN")
+			conn.SendEvent(res.Response())
+			slog.Warn("Invalid login received",
+				slog.String("id", conn.Id),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+			slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
+			return errors.PermanentError{Err: "Invalid login"}
+		} else {
+			conn.LoggedUser = user
+			conn.IsLogged = true
+
+			var sb strings.Builder
+			sb.WriteString("v")
+			sb.WriteString(conn.Username)
+			sb.WriteString("\n")
+			err = conn.SendEvent(sb.String())
+			if err != nil {
+				return err
+			}
+			slog.Debug("User logged in for connection",
+				slog.String("user", conn.Username),
+				slog.String("id", conn.Id),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+		}
+	}
+	return nil
 }
