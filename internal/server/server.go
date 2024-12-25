@@ -129,8 +129,14 @@ func (s *Server) handleUserConnection(conn Connection) {
 					slog.Any("error", err))
 			}
 		}
-
-		if msg.Command != 'q' && !s.cluster.IsLeader() {
+		if msg.Command == 'q' {
+			slog.Debug("Client disconnected",
+				slog.String("id", conn.Id),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+			return
+		}
+		if !s.cluster.IsLeader() {
 			res := errors.Error("NOT_LEADER")
 			err = conn.SendEvent(res.Response() + s.cluster.GetLeader())
 			if err != nil {
@@ -229,13 +235,6 @@ func (s *Server) handleUserConnection(conn Connection) {
 					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 				)
 			}
-
-		} else if msg.Command == 'q' {
-			slog.Debug("Client disconnected",
-				slog.String("id", conn.Id),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
-			return
 		} else if msg.Command == 'r' {
 			if current_slot.CanRead(&conn.LoggedUser) {
 				value = current_slot.Read()
