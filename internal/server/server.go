@@ -266,12 +266,7 @@ func (s *Server) handleUserConnection(conn Connection) {
 			}
 		}
 
-		var sb strings.Builder
-		sb.WriteString("v")
-		sb.WriteString(fmt.Sprintf("%03d", msg.Slot))
-		sb.WriteString(value)
-		sb.WriteString("\n")
-		err = conn.SendEvent(sb.String())
+		err = sendSlotData(msg, conn, value)
 		if err != nil {
 			slog.Error("Error sending event to connection",
 				slog.String("id", conn.Id),
@@ -286,15 +281,27 @@ func (s *Server) handleUserConnection(conn Connection) {
 					slog.String("id", conn.Id),
 					slog.Any("error", err))
 			}
-		} else {
-			slog.Debug("Value read from slot",
-				slog.Int("slot", msg.Slot),
-				slog.String("value", value),
-				slog.String("id", conn.Id),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
 		}
 	}
+}
+
+func sendSlotData(msg Message, conn Connection, value string) error {
+	var sb strings.Builder
+	sb.WriteString("v")
+	sb.WriteString(fmt.Sprintf("%03d", msg.Slot))
+	sb.WriteString(value)
+	sb.WriteString("\n")
+	err := conn.SendEvent(sb.String())
+	if err != nil {
+		return err
+	}
+	slog.Debug("Value read from slot",
+		slog.Int("slot", msg.Slot),
+		slog.String("value", value),
+		slog.String("id", conn.Id),
+		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+	)
+	return nil
 }
 
 func processUsername(s *Server, conn *Connection, msg Message) error {
