@@ -125,7 +125,7 @@ func (c *Connection) EventProcessor() {
 
 		c.NetworkConn.SetWriteDeadline(event.timeout)
 		_, err := c.NetworkConn.Write([]byte(event.data))
-		if err != nil {
+		if err != nil { //TODO: Improve error handling to differentiate error types
 			event.callback <- event.id + " ERROR"
 			continue
 		}

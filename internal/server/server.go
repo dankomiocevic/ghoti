@@ -96,9 +96,6 @@ func (s *Server) Stop() {
 	s.wg.Wait()
 }
 
-// TODO: Refactor this into smaller functions
-// TODO: Improve error handling
-// TODO: Remove missing direct conn.Write calls
 func (s *Server) handleUserConnection(conn Connection) {
 	defer s.connections.Delete(conn.Id)
 	defer conn.Close()
@@ -108,7 +105,6 @@ func (s *Server) handleUserConnection(conn Connection) {
 	)
 
 	go conn.EventProcessor()
-	c := conn.NetworkConn
 	for {
 		select {
 		case <-conn.Quit:
@@ -129,172 +125,147 @@ func (s *Server) handleUserConnection(conn Connection) {
 					slog.Any("error", err))
 			}
 		}
-
-		if msg.Command != 'q' && !s.cluster.IsLeader() {
-			res := errors.Error("NOT_LEADER")
-			err = conn.SendEvent(res.Response() + s.cluster.GetLeader())
-			if err != nil {
-				switch err.(type) {
-				case errors.PermanentError:
-					return
-				}
-			}
-			slog.Debug("Request made to node that was not leader",
-				slog.String("id", conn.Id),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
-			continue
-		}
-
-		if msg.Command == 'u' {
-			err = processUsername(s, &conn, msg)
-			if err != nil {
-				switch err.(type) {
-				case errors.PermanentError:
-					return
-				}
-			}
-			continue
-		}
-
-		if msg.Command == 'p' {
-			err = processPassword(s, &conn, msg)
-			if err != nil {
-				switch err.(type) {
-				case errors.PermanentError:
-					return
-				}
-			}
-			continue
-		}
-
 		current_slot := s.slotsArray[msg.Slot]
-		if current_slot == nil {
-			res := errors.Error("MISSING_SLOT")
-			err = conn.SendEvent(res.Response())
-			if err != nil {
-				switch err.(type) {
-				case errors.PermanentError:
-					return
-				}
-			}
-			slog.Debug("Missing slot",
-				slog.Int("slot", msg.Slot),
-				slog.String("id", conn.Id),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
-			continue
-		}
 
-		var value string
-		if msg.Command == 'w' {
-			if !current_slot.CanWrite(&conn.LoggedUser) {
-				slog.Info("Connection trying to write on slot without permission",
-					slog.Int("slot", msg.Slot),
-					slog.String("id", conn.Id),
-					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-				)
-				res := errors.Error("WRITE_PERMISSION")
-				err = conn.SendEvent(res.Response())
-				if err != nil {
-					switch err.(type) {
-					case errors.PermanentError:
-						return
-					}
-				}
-				continue
-			}
-
-			value, err = current_slot.Write(msg.Value, c)
-
-			if err != nil {
-				res := errors.Error("WRITE_FAILED")
-				slog.Error("Error writing in slot",
-					slog.Int("slot", msg.Slot),
-					slog.Any("error", err),
-				)
-				err = conn.SendEvent(res.Response())
-				if err != nil {
-					switch err.(type) {
-					case errors.PermanentError:
-						return
-					}
-				}
-				continue
-			} else {
-				slog.Debug("Value written in slot",
-					slog.Int("slot", msg.Slot),
-					slog.String("value", msg.Value),
-					slog.String("id", conn.Id),
-					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-				)
-			}
-
-		} else if msg.Command == 'q' {
+		if msg.Command == 'q' {
 			slog.Debug("Client disconnected",
 				slog.String("id", conn.Id),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
 			return
-		} else if msg.Command == 'r' {
-			if current_slot.CanRead(&conn.LoggedUser) {
-				value = current_slot.Read()
-			} else {
-				slog.Info("Connection trying to read on slot without permission",
-					slog.Int("slot", msg.Slot),
-					slog.String("id", conn.Id),
-					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-				)
-				res := errors.Error("READ_PERMISSION")
-				err = conn.SendEvent(res.Response())
-				if err != nil {
-					slog.Error("Error sending event to connection",
-						slog.String("id", conn.Id),
-						slog.Any("error", err))
-					switch err.(type) {
-					case errors.TranscientError:
-						continue
-					case errors.PermanentError:
-						return
-					default:
-						slog.Error("Unidentified error writing message",
-							slog.String("id", conn.Id),
-							slog.Any("error", err))
-					}
-				}
-				continue
-			}
 		}
-
-		var sb strings.Builder
-		sb.WriteString("v")
-		sb.WriteString(fmt.Sprintf("%03d", msg.Slot))
-		sb.WriteString(value)
-		sb.WriteString("\n")
-		err = conn.SendEvent(sb.String())
-		if err != nil {
-			slog.Error("Error sending event to connection",
-				slog.String("id", conn.Id),
-				slog.Any("error", err))
-			switch err.(type) {
-			case errors.TranscientError:
-				continue
-			case errors.PermanentError:
-				return
-			default:
-				slog.Error("Unidentified error writing message",
-					slog.String("id", conn.Id),
-					slog.Any("error", err))
-			}
-		} else {
-			slog.Debug("Value read from slot",
-				slog.Int("slot", msg.Slot),
-				slog.String("value", value),
+		if !s.cluster.IsLeader() {
+			res := errors.Error("NOT_LEADER")
+			slog.Debug("Request made to node that was not leader",
 				slog.String("id", conn.Id),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
+			err = conn.SendEvent(res.Response() + s.cluster.GetLeader())
+			goto handleError
+		}
+
+		if msg.Command == 'u' {
+			err = processUsername(s, &conn, msg)
+			goto handleError
+		}
+
+		if msg.Command == 'p' {
+			err = processPassword(s, &conn, msg)
+			goto handleError
+		}
+
+		if current_slot == nil {
+			res := errors.Error("MISSING_SLOT")
+			slog.Debug("Missing slot",
+				slog.Int("slot", msg.Slot),
+				slog.String("id", conn.Id),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+			err = conn.SendEvent(res.Response())
+			goto handleError
+		}
+
+		if msg.Command == 'w' {
+			err = processWrite(conn, current_slot, msg)
+			goto handleError
+		}
+
+		if msg.Command == 'r' {
+			err = processRead(conn, current_slot, msg)
+			goto handleError
+		}
+
+	handleError:
+		if err != nil {
+			switch err.(type) {
+			case errors.TranscientError:
+				slog.Error(err.Error(),
+					slog.String("id", conn.Id))
+				continue
+			case errors.PermanentError:
+				slog.Error(err.Error(),
+					slog.String("id", conn.Id))
+				return
+			default:
+				slog.Error("Unidentified error type",
+					slog.String("id", conn.Id),
+					slog.Any("error", err))
+			}
 		}
 	}
+}
+
+func processRead(conn Connection, current_slot slots.Slot, msg Message) error {
+	if current_slot.CanRead(&conn.LoggedUser) {
+		value := current_slot.Read()
+		err := sendSlotData(msg, conn, value)
+		return err
+	} else {
+		slog.Error("Connection trying to read on slot without permission",
+			slog.Int("slot", msg.Slot),
+			slog.String("id", conn.Id),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		res := errors.Error("READ_PERMISSION")
+		err := conn.SendEvent(res.Response())
+		return err
+	}
+}
+
+func processWrite(conn Connection, current_slot slots.Slot, msg Message) error {
+	if !current_slot.CanWrite(&conn.LoggedUser) {
+		slog.Info("Connection trying to write on slot without permission",
+			slog.Int("slot", msg.Slot),
+			slog.String("id", conn.Id),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		res := errors.Error("WRITE_PERMISSION")
+		err := conn.SendEvent(res.Response())
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	value, err := current_slot.Write(msg.Value, conn.NetworkConn)
+
+	if err != nil {
+		res := errors.Error("WRITE_FAILED")
+		slog.Error("Error writing in slot",
+			slog.Int("slot", msg.Slot),
+			slog.Any("error", err),
+		)
+		err = conn.SendEvent(res.Response())
+		return err
+	} else {
+		slog.Debug("Value written in slot",
+			slog.Int("slot", msg.Slot),
+			slog.String("value", msg.Value),
+			slog.String("id", conn.Id),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		err = sendSlotData(msg, conn, value)
+		return err
+	}
+}
+
+func sendSlotData(msg Message, conn Connection, value string) error {
+	var sb strings.Builder
+	sb.WriteString("v")
+	sb.WriteString(fmt.Sprintf("%03d", msg.Slot))
+	sb.WriteString(value)
+	sb.WriteString("\n")
+	err := conn.SendEvent(sb.String())
+	if err != nil {
+		return err
+	}
+	slog.Debug("Value read from slot",
+		slog.Int("slot", msg.Slot),
+		slog.String("value", value),
+		slog.String("id", conn.Id),
+		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+	)
+	return nil
 }
 
 func processUsername(s *Server, conn *Connection, msg Message) error {
