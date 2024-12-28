@@ -96,9 +96,6 @@ func (s *Server) Stop() {
 	s.wg.Wait()
 }
 
-// TODO: Refactor this into smaller functions
-// TODO: Improve error handling
-// TODO: Remove missing direct conn.Write calls
 func (s *Server) handleUserConnection(conn Connection) {
 	defer s.connections.Delete(conn.Id)
 	defer conn.Close()
