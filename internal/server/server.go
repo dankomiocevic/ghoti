@@ -3,199 +3,103 @@ package server
 import (
 	"fmt"
 	"log/slog"
-	"net"
 	"strings"
-	"sync"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
+	"github.com/dankomiocevic/ghoti/internal/connection_manager"
 	"github.com/dankomiocevic/ghoti/internal/errors"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 )
 
 type Server struct {
-	listener      net.Listener
-	slotsArray    [1000]slots.Slot
-	usersMap      map[string]auth.User
-	quit          chan interface{}
-	wg            sync.WaitGroup
-	connections   *ConnectionManager
-	cluster       cluster.Cluster
-	telnetSupport bool
+	slotsArray  [1000]slots.Slot
+	usersMap    map[string]auth.User
+	connections connection_manager.ConnectionManager
+	cluster     cluster.Cluster
 }
 
 func NewServer(config *config.Config, cluster cluster.Cluster) *Server {
 	s := &Server{
-		quit:    make(chan interface{}),
 		cluster: cluster,
 	}
 
 	slog.Info("Starting server...")
 	slog.Debug("Opening tcp for listening", slog.String("tcp", config.TcpAddr))
-	l, err := net.Listen("tcp", config.TcpAddr)
-	if err != nil {
-		slog.Error("Could not start server", slog.Any("error", err))
-		panic(err)
-	}
-	s.listener = l
+
+	s.connections = connection_manager.GetConnectionManager(config.Protocol)
+	s.connections.StartListening(config.TcpAddr)
+
 	s.slotsArray = config.Slots
 	s.usersMap = config.Users
-	s.connections = NewManager()
-	s.telnetSupport = (config.Protocol == "telnet")
-	s.wg.Add(1)
 
-	go s.serve()
+	go s.connections.ServeConnections(s.HandleMessage)
 	return s
 }
 
-func (s *Server) serve() {
-	defer s.wg.Done()
-
-	slog.Debug("Starting loop to accept connections")
-	for {
-		conn, err := s.listener.Accept()
-		if err != nil {
-			select {
-			case <-s.quit:
-				return
-			default:
-				slog.Error("Error accepting connection", slog.Any("error", err))
-			}
-		} else {
-			connection := s.connections.Add(conn, s.telnetSupport)
-			slog.Debug("Connection received",
-				slog.String("id", connection.Id),
-				slog.String("remote_addr", conn.RemoteAddr().String()),
-			)
-
-			s.wg.Add(1)
-			go func() {
-				s.handleUserConnection(connection)
-				s.wg.Done()
-			}()
-		}
-	}
-}
-
 func (s *Server) Stop() {
-	slog.Debug("Closing main listener")
-	close(s.quit)
-	s.listener.Close()
-	connList := s.connections.DeleteAll()
+	s.connections.Close()
+}
 
-	for _, c := range connList {
-		slog.Debug("Closing connection",
-			slog.String("id", c.Id),
-			slog.String("remote_addr", c.NetworkConn.RemoteAddr().String()),
+func (s *Server) HandleMessage(size int, data []byte, conn *connection_manager.Connection) error {
+	msg, err := ParseMessage(size, data)
+	if err != nil {
+		res := errors.Error("PARSE_ERROR")
+		slog.Debug("Error parsing message: "+err.Error(),
+			slog.String("id", conn.Id),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
-
-		close(c.Quit)
+		return conn.SendEvent(res.Response())
 	}
 
-	s.wg.Wait()
-}
+	current_slot := s.slotsArray[msg.Slot]
 
-func (s *Server) handleUserConnection(conn Connection) {
-	defer s.connections.Delete(conn.Id)
-	defer conn.Close()
-	slog.Debug("Handling user connection",
-		slog.String("remote_addr", conn.Id),
-		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-	)
-
-	go conn.EventProcessor()
-	for {
-		select {
-		case <-conn.Quit:
-			return
-		default:
-		}
-
-		msg, err := conn.ReadMessage(s.telnetSupport)
-		if err != nil {
-			switch err.(type) {
-			case errors.TranscientError:
-				continue
-			case errors.PermanentError:
-				return
-			default:
-				slog.Error("Unidentified error reading message",
-					slog.String("id", conn.Id),
-					slog.Any("error", err))
-			}
-		}
-		current_slot := s.slotsArray[msg.Slot]
-
-		if msg.Command == 'q' {
-			slog.Debug("Client disconnected",
-				slog.String("id", conn.Id),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
-			return
-		}
-		if !s.cluster.IsLeader() {
-			res := errors.Error("NOT_LEADER")
-			slog.Debug("Request made to node that was not leader",
-				slog.String("id", conn.Id),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
-			err = conn.SendEvent(res.Response() + s.cluster.GetLeader())
-			goto handleError
-		}
-
-		if msg.Command == 'u' {
-			err = processUsername(s, &conn, msg)
-			goto handleError
-		}
-
-		if msg.Command == 'p' {
-			err = processPassword(s, &conn, msg)
-			goto handleError
-		}
-
-		if current_slot == nil {
-			res := errors.Error("MISSING_SLOT")
-			slog.Debug("Missing slot",
-				slog.Int("slot", msg.Slot),
-				slog.String("id", conn.Id),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
-			err = conn.SendEvent(res.Response())
-			goto handleError
-		}
-
-		if msg.Command == 'w' {
-			err = processWrite(conn, current_slot, msg)
-			goto handleError
-		}
-
-		if msg.Command == 'r' {
-			err = processRead(conn, current_slot, msg)
-			goto handleError
-		}
-
-	handleError:
-		if err != nil {
-			switch err.(type) {
-			case errors.TranscientError:
-				slog.Error(err.Error(),
-					slog.String("id", conn.Id))
-				continue
-			case errors.PermanentError:
-				slog.Error(err.Error(),
-					slog.String("id", conn.Id))
-				return
-			default:
-				slog.Error("Unidentified error type",
-					slog.String("id", conn.Id),
-					slog.Any("error", err))
-			}
-		}
+	if msg.Command == 'q' {
+		slog.Debug("Client disconnected",
+			slog.String("id", conn.Id),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		return errors.PermanentError{Err: "Client disconnected"}
 	}
+	if !s.cluster.IsLeader() {
+		res := errors.Error("NOT_LEADER")
+		slog.Debug("Request made to node that was not leader",
+			slog.String("id", conn.Id),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		return conn.SendEvent(res.Response() + s.cluster.GetLeader())
+	}
+
+	if msg.Command == 'u' {
+		return processUsername(s, conn, msg)
+	}
+
+	if msg.Command == 'p' {
+		return processPassword(s, conn, msg)
+	}
+
+	if current_slot == nil {
+		res := errors.Error("MISSING_SLOT")
+		slog.Debug("Missing slot",
+			slog.Int("slot", msg.Slot),
+			slog.String("id", conn.Id),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		return conn.SendEvent(res.Response())
+	}
+
+	if msg.Command == 'w' {
+		return processWrite(conn, current_slot, msg)
+	}
+
+	if msg.Command == 'r' {
+		return processRead(conn, current_slot, msg)
+	}
+	return nil
 }
 
-func processRead(conn Connection, current_slot slots.Slot, msg Message) error {
+func processRead(conn *connection_manager.Connection, current_slot slots.Slot, msg Message) error {
 	if current_slot.CanRead(&conn.LoggedUser) {
 		value := current_slot.Read()
 		err := sendSlotData(msg, conn, value)
@@ -212,7 +116,7 @@ func processRead(conn Connection, current_slot slots.Slot, msg Message) error {
 	}
 }
 
-func processWrite(conn Connection, current_slot slots.Slot, msg Message) error {
+func processWrite(conn *connection_manager.Connection, current_slot slots.Slot, msg Message) error {
 	if !current_slot.CanWrite(&conn.LoggedUser) {
 		slog.Info("Connection trying to write on slot without permission",
 			slog.Int("slot", msg.Slot),
@@ -249,7 +153,7 @@ func processWrite(conn Connection, current_slot slots.Slot, msg Message) error {
 	}
 }
 
-func sendSlotData(msg Message, conn Connection, value string) error {
+func sendSlotData(msg Message, conn *connection_manager.Connection, value string) error {
 	var sb strings.Builder
 	sb.WriteString("v")
 	sb.WriteString(fmt.Sprintf("%03d", msg.Slot))
@@ -268,7 +172,7 @@ func sendSlotData(msg Message, conn Connection, value string) error {
 	return nil
 }
 
-func processUsername(s *Server, conn *Connection, msg Message) error {
+func processUsername(s *Server, conn *connection_manager.Connection, msg Message) error {
 	err := auth.ValidateUsername(msg.Value)
 	if err != nil {
 		res := errors.Error("WRONG_USER")
@@ -302,7 +206,7 @@ func processUsername(s *Server, conn *Connection, msg Message) error {
 	return nil
 }
 
-func processPassword(s *Server, conn *Connection, msg Message) error {
+func processPassword(s *Server, conn *connection_manager.Connection, msg Message) error {
 	user, err := auth.GetUser(conn.Username, msg.Value)
 	if err != nil {
 		res := errors.Error("WRONG_PASS")

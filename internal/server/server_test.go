@@ -214,7 +214,7 @@ func TestWriteTimeoutNotOwner(t *testing.T) {
 	sendData(t, conn, "w003HelloOwner\n")
 
 	// connect to the TCP Server
-	connOther, err := net.Dial("tcp", s.listener.Addr().String())
+	connOther, err := net.Dial("tcp", s.connections.GetAddr())
 	if err != nil {
 		t.Fatalf("couldn't connect to the server: %v", err)
 	}
