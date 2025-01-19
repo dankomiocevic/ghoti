@@ -1,8 +1,7 @@
-package server
+package connection_manager
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 )
 
@@ -22,12 +21,20 @@ var SupportedCommands = map[string]bool{
 	"q": true,
 }
 
-func ParseMessage(size int, buf []byte) (Message, error) {
+func ParseMessage(size int, buf []byte, telnetSupport bool) (Message, error) {
+	if buf[size-1] != '\n' {
+		return Message{}, errors.New("Message is malformed")
+	}
+
 	var input string
 
-	input = string(buf[:size])
+	if telnetSupport && size > 2 && buf[size-2] == '\r' {
+		input = string(buf[:size-2])
+	} else {
+		input = string(buf[:size-1])
+	}
+
 	command := input[:1]
-	fmt.Printf("Input: [%s]\n", input)
 
 	if command == "q" {
 		return Message{Command: buf[0], Slot: 0, Value: ""}, nil

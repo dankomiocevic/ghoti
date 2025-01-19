@@ -1,4 +1,4 @@
-package server
+package connection_manager
 
 import (
 	"bufio"
@@ -33,20 +33,21 @@ type Connection struct {
 	Timeout     time.Duration
 }
 
-func (c *Connection) ReadMessage(telnetSupport bool) (Message, error) {
+func (c *Connection) ReceiveMessage() (int, error) {
 	reader := bufio.NewReader(c.NetworkConn)
 	// Set the connection timeout in the future
 	c.NetworkConn.SetReadDeadline(time.Now().Add(c.Timeout))
 	size, err := reader.Read(c.Buffer)
+
 	if err != nil {
 		// If the error was a timeout, continue receiving data in
 		// next loop
 		if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
-			return Message{}, errors.TranscientError{Err: "Timeout receiving data"}
+			return 0, errors.TranscientError{Err: "Timeout receiving data"}
 		}
 
 		if err == io.EOF {
-			return Message{}, errors.PermanentError{Err: "Connection closed"}
+			return 0, errors.PermanentError{Err: "Connection closed"}
 		}
 
 		slog.Error("Error receiving data from connection", slog.Any("error", err))
@@ -54,28 +55,10 @@ func (c *Connection) ReadMessage(telnetSupport bool) (Message, error) {
 			slog.String("id", c.Id),
 			slog.String("remote_addr", c.NetworkConn.RemoteAddr().String()),
 		)
-		return Message{}, errors.PermanentError{Err: "Connection closed"}
+		return 0, errors.PermanentError{Err: "Connection closed"}
 	}
 
-	msg, err := ParseMessage(size, c.Buffer, telnetSupport)
-	if err != nil {
-		res := errors.Error("WRONG_FORMAT")
-		slog.Debug(
-			"Wrong message format received",
-			slog.String("id", c.Id),
-			slog.String("remote_addr", c.NetworkConn.RemoteAddr().String()),
-		)
-
-		c.NetworkConn.Write([]byte(res.Response()))
-		return Message{}, errors.TranscientError{Err: "Wrong message format"}
-	} else {
-		slog.Debug("Received message",
-			slog.String("msg", msg.Raw),
-			slog.String("id", c.Id),
-			slog.String("remote_addr", c.NetworkConn.RemoteAddr().String()),
-		)
-	}
-	return msg, nil
+	return size, nil
 }
 
 func (c *Connection) SendEvent(data string) error {
