@@ -3,6 +3,8 @@ package connection_manager
 import (
 	"log/slog"
 	"net"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -197,7 +199,7 @@ func (c *TcpManager) Close() {
 
 	c.lock.Lock()
 	conns := make([]Connection, 0, len(c.connections))
-	for _, conn := range conns {
+	for _, conn := range c.connections {
 		conns = append(conns, conn)
 	}
 	c.lock.Unlock()
@@ -213,4 +215,73 @@ func (c *TcpManager) Close() {
 
 	slog.Info("Waiting for connections to be drained")
 	c.wg.Wait()
+}
+
+func (c *TcpManager) Broadcast(data string) (string, error) {
+	callback := make(chan string, 100)
+	defer close(callback)
+
+	eventId := uuid.NewString()
+	event := Event{
+		id:       eventId,
+		data:     data,
+		callback: callback,
+		timeout:  time.Now().Add(200 * time.Millisecond),
+	}
+
+	sent := 0
+	received := 0
+	errors := 0
+
+	// Fix the concurrency issue here with range when removing connections on
+	// another goroutine
+	for _, conn := range c.connections {
+		select {
+		case conn.Events <- event:
+			sent++
+		default:
+			sent++
+			errors++
+		}
+
+		if sent-received-errors > 90 {
+			for sent-received-errors > 50 {
+				// Start consuming messages from the callback channel that might be ready
+				select {
+				case response := <-callback:
+					if response == eventId+" OK" {
+						received++
+					} else {
+						errors++
+					}
+				default:
+				}
+			}
+		}
+	}
+
+	// Get the time 200 ms in the future
+	timeout := time.Now().Add(200 * time.Millisecond)
+
+	// Wait for all the missing responses
+	for received+errors < sent {
+		select {
+		case response := <-callback:
+			if response == eventId+" OK" {
+				received++
+			} else {
+				errors++
+			}
+		case <-time.After(timeout.Sub(time.Now())):
+			break
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString(strconv.Itoa(received))
+	sb.WriteString("/")
+	sb.WriteString(strconv.Itoa(sent))
+	sb.WriteString("/")
+	sb.WriteString(strconv.Itoa(errors))
+	return sb.String(), nil
 }

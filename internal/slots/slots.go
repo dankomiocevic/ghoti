@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
+	"github.com/dankomiocevic/ghoti/internal/connection_manager"
 	"github.com/spf13/viper"
 )
 
@@ -16,7 +17,7 @@ type Slot interface {
 	CanWrite(*auth.User) bool
 }
 
-func GetSlot(v *viper.Viper) (Slot, error) {
+func GetSlot(v *viper.Viper, conn connection_manager.ConnectionManager, id string) (Slot, error) {
 	kind := v.GetString("kind")
 	usersConfig := v.GetStringMap("users")
 
@@ -116,6 +117,15 @@ func GetSlot(v *viper.Viper) (Slot, error) {
 		}
 
 		return tickerSlot, nil
+	}
+
+	if kind == "broadcast" {
+		broadcastSlot, err := newBroadcastSlot(users, conn, id)
+		if err != nil {
+			return nil, err
+		}
+
+		return broadcastSlot, nil
 	}
 
 	return nil, errors.New("Invalid kind of slot")

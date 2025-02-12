@@ -1,21 +1,11 @@
 # Example config file for Ghoti
 
-cluster:
-  node: node1
-  bind: localhost:3456
-  user: "pepe"
-  pass: "v3rySecr3t"
-  manager:
-    type: join_server
-    addr: localhost:5678
-    join: localhost:5679
-
 log:
   level: debug
   format: text
 
 slot_000:
-  kind: simple_memory
+  kind: broadcast
 
 slot_001:
   kind: simple_memory

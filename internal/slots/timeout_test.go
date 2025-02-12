@@ -18,7 +18,7 @@ func loadTimeoutSlot(t *testing.T) Slot {
 	v.Set("users.write", "w")
 	v.Set("users.allu", "a")
 
-	slot, err := GetSlot(v)
+	slot, err := GetSlot(v, nil, "")
 	if err != nil {
 		t.Fatalf("Slot must not return error: %s", err)
 	}
@@ -79,7 +79,7 @@ func TestTimeoutMemoryMissingConfig(t *testing.T) {
 
 	v.Set("kind", "timeout_memory")
 
-	_, err := GetSlot(v)
+	_, err := GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error")
 	}

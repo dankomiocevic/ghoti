@@ -7,6 +7,7 @@ type CallbackFn func(int, []byte, *Connection) error
 type ConnectionManager interface {
 	StartListening(string) error
 	ServeConnections(CallbackFn) error
+	Broadcast(string) (string, error)
 	Delete(string)
 	GetAddr() string
 	Close()

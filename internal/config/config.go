@@ -6,6 +6,7 @@ import (
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/cluster"
+	"github.com/dankomiocevic/ghoti/internal/connection_manager"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 	"github.com/spf13/viper"
 )
@@ -33,12 +34,13 @@ type LoggingConfig struct {
 }
 
 type Config struct {
-	TcpAddr  string
-	Slots    [1000]slots.Slot
-	Users    map[string]auth.User
-	Cluster  cluster.ClusterConfig
-	Logging  LoggingConfig
-	Protocol string
+	TcpAddr     string
+	Slots       [1000]slots.Slot
+	Users       map[string]auth.User
+	Cluster     cluster.ClusterConfig
+	Logging     LoggingConfig
+	Connections connection_manager.ConnectionManager
+	Protocol    string
 }
 
 func DefaultConfig() *Config {
@@ -76,6 +78,9 @@ func LoadConfig() (*Config, error) {
 	if e != nil {
 		return nil, e
 	}
+
+	//TODO: Move this out of the config package
+	config.Connections = connection_manager.GetConnectionManager(config.Protocol)
 
 	config.ConfigureSlots()
 
@@ -152,8 +157,9 @@ func (c *Config) LoadUsers() error {
 func (c *Config) ConfigureSlots() {
 	for i := 0; i < 1000; i++ {
 		key := fmt.Sprintf("slot_%03d", i)
+		num := fmt.Sprintf("%03d", i)
 		if viper.IsSet(key) {
-			slot, _ := slots.GetSlot(viper.Sub(key))
+			slot, _ := slots.GetSlot(viper.Sub(key), c.Connections, num)
 			c.Slots[i] = slot
 		}
 	}

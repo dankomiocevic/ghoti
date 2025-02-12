@@ -20,7 +20,7 @@ func loadBucketSlot(t *testing.T) Slot {
 	v.Set("users.write", "w")
 	v.Set("users.allu", "a")
 
-	slot, err := GetSlot(v)
+	slot, err := GetSlot(v, nil, "")
 	if err != nil {
 		t.Fatalf("Slot must not return error: %s", err)
 	}
@@ -81,13 +81,13 @@ func TestTokenBucketMissingConfig(t *testing.T) {
 
 	v.Set("kind", "token_bucket")
 
-	_, err := GetSlot(v)
+	_, err := GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error for missing config")
 	}
 
 	v.Set("bucket_size", 10)
-	_, err = GetSlot(v)
+	_, err = GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error for missing config")
 	}
@@ -99,14 +99,14 @@ func TestTokenBucketWrongSize(t *testing.T) {
 	v.Set("kind", "token_bucket")
 	v.Set("bucket_size", 0)
 
-	_, err := GetSlot(v)
+	_, err := GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error")
 	}
 
 	v.Set("bucket_size", "A")
 
-	_, err = GetSlot(v)
+	_, err = GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error")
 	}
@@ -121,21 +121,21 @@ func TestTokenBucketWrongTokensPerReq(t *testing.T) {
 	v.Set("refresh_rate", 10)
 	v.Set("tokens_per_req", 12)
 
-	_, err := GetSlot(v)
+	_, err := GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error")
 	}
 
 	v.Set("tokens_per_req", 12)
 
-	_, err = GetSlot(v)
+	_, err = GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error")
 	}
 
 	v.Set("tokens_per_req", "A")
 
-	_, err = GetSlot(v)
+	_, err = GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error")
 	}
@@ -149,21 +149,21 @@ func TestTokenBucketWrongRefreshRate(t *testing.T) {
 	v.Set("bucket_size", 10)
 	v.Set("refresh_rate", 11)
 
-	_, err := GetSlot(v)
+	_, err := GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error")
 	}
 
 	v.Set("tokens_per_request", "A")
 
-	_, err = GetSlot(v)
+	_, err = GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error")
 	}
 
 	v.Set("tokens_per_request", 0)
 
-	_, err = GetSlot(v)
+	_, err = GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error")
 	}
@@ -176,21 +176,21 @@ func TestTokenBucketWrongPeriod(t *testing.T) {
 	v.Set("period", "pepe")
 	v.Set("bucket_size", 10)
 
-	_, err := GetSlot(v)
+	_, err := GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error")
 	}
 
 	v.Set("period", "")
 
-	_, err = GetSlot(v)
+	_, err = GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error")
 	}
 
 	v.Set("period", 0)
 
-	_, err = GetSlot(v)
+	_, err = GetSlot(v, nil, "")
 	if err == nil {
 		t.Fatalf("Slot must return error")
 	}
@@ -250,7 +250,7 @@ func TestTokenBucketNotMatchingValues(t *testing.T) {
 	v.Set("period", "second")
 	v.Set("tokens_per_req", 7)
 
-	slot, err := GetSlot(v)
+	slot, err := GetSlot(v, nil, "")
 	if err != nil {
 		t.Fatalf("Slot must not return error: %s", err)
 	}

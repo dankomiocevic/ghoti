@@ -18,7 +18,7 @@ func loadLeakySlot(t *testing.T) Slot {
 	v.Set("users.write", "w")
 	v.Set("users.allu", "a")
 
-	slot, err := GetSlot(v)
+	slot, err := GetSlot(v, nil, "")
 	if err != nil {
 		t.Fatalf("Slot must not return error: %s", err)
 	}
@@ -76,7 +76,7 @@ func TestLeakyBucketMissingConfig(t *testing.T) {
 	v := viper.New()
 
 	v.Set("kind", "leaky_bucket")
-	_, err := GetSlot(v)
+	_, err := GetSlot(v, nil, "")
 
 	if err == nil {
 		t.Fatalf("Slot must return error")
@@ -88,7 +88,7 @@ func TestLeakyBucketInvalidConfig(t *testing.T) {
 
 	v.Set("kind", "leaky_bucket")
 	v.Set("bucket_size", 0)
-	_, err := GetSlot(v)
+	_, err := GetSlot(v, nil, "")
 
 	if err == nil {
 		t.Fatalf("Slot must return error")

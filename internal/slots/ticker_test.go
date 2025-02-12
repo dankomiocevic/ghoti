@@ -18,7 +18,7 @@ func loadTickerSlot(t *testing.T) Slot {
 	v.Set("users.write", "w")
 	v.Set("users.allu", "a")
 
-	slot, err := GetSlot(v)
+	slot, err := GetSlot(v, nil, "")
 	if err != nil {
 		t.Fatalf("Slot must not return error: %s", err)
 	}
@@ -110,7 +110,7 @@ func TestTickerMissingConfig(t *testing.T) {
 	v := viper.New()
 
 	v.Set("kind", "ticker")
-	_, err := GetSlot(v)
+	_, err := GetSlot(v, nil, "")
 
 	if err == nil {
 		t.Fatalf("Slot must return error")
