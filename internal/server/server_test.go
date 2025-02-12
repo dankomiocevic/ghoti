@@ -11,6 +11,7 @@ import (
 
 	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
+	"github.com/dankomiocevic/ghoti/internal/connection_manager"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 
 	"github.com/spf13/viper"
@@ -23,26 +24,28 @@ func generateConfig(port string) *config.Config {
 		c.Protocol = viper.GetString("protocol")
 	}
 
+	c.Connections = connection_manager.GetConnectionManager(c.Protocol)
+
 	viper.Set("addr", "localhost:"+port)
 	c.TcpAddr = viper.GetString("addr")
 
 	viper.Set("slot_000.kind", "simple_memory")
-	slot_zero, _ := slots.GetSlot(viper.Sub("slot_000"))
+	slot_zero, _ := slots.GetSlot(viper.Sub("slot_000"), c.Connections, "000")
 	c.Slots[0] = slot_zero
-	slot_one, _ := slots.GetSlot(viper.Sub("slot_000"))
+	slot_one, _ := slots.GetSlot(viper.Sub("slot_000"), c.Connections, "001")
 	c.Slots[1] = slot_one
-	slot_two, _ := slots.GetSlot(viper.Sub("slot_000"))
+	slot_two, _ := slots.GetSlot(viper.Sub("slot_000"), c.Connections, "002")
 	c.Slots[2] = slot_two
 
 	viper.Set("slot_001.kind", "timeout_memory")
 	viper.Set("slot_001.timeout", 60)
-	slot_three, _ := slots.GetSlot(viper.Sub("slot_001"))
+	slot_three, _ := slots.GetSlot(viper.Sub("slot_001"), c.Connections, "003")
 	c.Slots[3] = slot_three
 	viper.Set("slot_004.kind", "simple_memory")
 	viper.Set("slot_004.users.pepe", "r")
 	viper.Set("slot_004.users.bobby", "w")
 	viper.Set("slot_004.users.sammy", "a")
-	slot_four, _ := slots.GetSlot(viper.Sub("slot_004"))
+	slot_four, _ := slots.GetSlot(viper.Sub("slot_004"), c.Connections, "004")
 	c.Slots[4] = slot_four
 
 	viper.Set("users.pepe", "passw0rd")

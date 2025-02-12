@@ -28,7 +28,7 @@ func NewServer(config *config.Config, cluster cluster.Cluster) *Server {
 	slog.Info("Starting server...")
 	slog.Debug("Opening tcp for listening", slog.String("tcp", config.TcpAddr))
 
-	s.connections = connection_manager.GetConnectionManager(config.Protocol)
+	s.connections = config.Connections
 	s.connections.StartListening(config.TcpAddr)
 
 	s.slotsArray = config.Slots

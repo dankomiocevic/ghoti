@@ -138,3 +138,7 @@ func (m *TelnetManager) Delete(id string) {
 func (m *TelnetManager) Close() {
 	m.tcpManager.Close()
 }
+
+func (m *TelnetManager) Broadcast(data string) (string, error) {
+	return m.tcpManager.Broadcast(data)
+}
