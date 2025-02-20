@@ -182,22 +182,43 @@ slot_003:
   refresh_rate: 1000
 ```
 
-### Broadcast signal propagation (TBD)
+### Broadcast signal propagation
 
 Anything sent to this slot is propagated as a message to all the other clients. Any client connected to Ghoti at this point will receive the event at least once.
 This means that the message could be received more than once.
+
+The message is sent as an async event, the receiving client will receive the message at any time.
+The message format is the following:
+
+```
+>a000HelloWorld
+```
+
+Where `a` is the async event, `000` is the slot number and `HelloWorld` is the message.
 
 The message to be sent has a maximum of 36 characters, this allows to send an ID or a UUID to all the hosts.
 
 This kind of slot is used to notify other clients about a new event or to propagate a signal.
 
-The only configuration for this slot is the following:
+There is no configuration for this slot.
 
-|Config          | Description |
-|----------------|-------------|
-| timeout        | Time to wait for a confirmation on the clients that the message was received. |
+This slot will only acknowledge the command when all the messages are sent, so take into account that the more clients connected or the hardest those clients are to reach, it will delay the confirmation. The confirmation contains the following information:
 
-This slot will only acknowledge the command when all the messages are sent, so take into account that the more clients connected or the hardest those clients are to reach, it will delay the confirmation.
+```
+v000a/b/c
+```
+Where:
+- `a` is the number of clients that received the message.
+- `b` is the number of clients that are connected.
+- `c` is the number of failures.
+
+Example:
+```
+>w001HelloWorld
+<a001HelloWorld
+<v0003/5/2
+```
+This means that the message was sent to 5 clients, 3 received it and 2 failed.
 
 Writes will propagate the written value to all other clients. Reads will read the last written value.
 
