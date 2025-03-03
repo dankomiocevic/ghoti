@@ -119,3 +119,50 @@ func TestLeakyBucketUseAllTokens(t *testing.T) {
 		t.Fatalf("We should not be able to read more tokens")
 	}
 }
+
+func LeakyBucketSlotWrite(t *testing.T) {
+	slot := loadLeakySlot(t)
+
+	_, err := slot.Write("test_data", nil)
+	if err == nil {
+		t.Fatalf("Error should be returned when attempting to write to a leaky bucket slot")
+	}
+}
+
+func LeakyBucketInvalidRefreshRate(t *testing.T) {
+	v := viper.New()
+
+	v.Set("kind", "leaky_bucket")
+	v.Set("bucket_size", 200)
+	v.Set("refresh_rate", 0) // Invalid refresh rate
+
+	_, err := GetSlot(v, nil, "")
+	if err == nil {
+		t.Fatalf("Slot must return error for invalid refresh rate")
+	}
+}
+
+func LeakyBucketReadWindowDiffGreaterThanSize(t *testing.T) {
+	slot := loadLeakySlot(t)
+
+	leakySlot := slot.(*leakyBucketSlot)
+	leakySlot.value = 100
+	leakySlot.window = currentWindowMillis(leakySlot.rate) - leakySlot.size - 1
+
+	if leakySlot.Read() != "1" {
+		t.Fatalf("We should be able to read a token after window diff is greater than size")
+	}
+
+	if leakySlot.value != 1 {
+		t.Fatalf("Bucket value should be reset to 1 after window diff is greater than size")
+	}
+}
+
+func LeakyBucketCanReadWhenUsersEmpty(t *testing.T) {
+	slot := loadLeakySlot(t)
+
+	read_user, _ := auth.GetUser("read", "pass")
+	if !slot.CanRead(&read_user) {
+		t.Fatalf("we should be able to read when users map is empty")
+	}
+}
