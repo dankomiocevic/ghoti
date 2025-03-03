@@ -81,6 +81,10 @@ endif
 	@cat coverageunit.tmp.out | grep -v "mock" > coverageunit.out
 	@rm coverageunit.tmp.out
 
+test-bench: generate-mocks ## Run benchmark tests. See https://pkg.go.dev/cmd/go#hdr-Testing_flags
+	${call print, "Running benchmark tests"}
+	@go test ./... -bench . -benchtime 5s -timeout 0 -run=XXX -cpu 1 -benchmem
+
 #-----------------------------------------------------------------------------------------------------------------------
 # Helpers
 #-----------------------------------------------------------------------------------------------------------------------
