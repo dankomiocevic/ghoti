@@ -293,3 +293,141 @@ func TestTokenBucketNotMatchingValues(t *testing.T) {
 		t.Fatalf("Slot must return at least 111 correct tokens. Correct: %d", i)
 	}
 }
+
+func TestTokenBucketZeroBucketSize(t *testing.T) {
+	v := viper.New()
+
+	v.Set("kind", "token_bucket")
+	v.Set("bucket_size", 0)
+	v.Set("refresh_rate", 10)
+	v.Set("period", "second")
+	v.Set("tokens_per_req", 5)
+
+	_, err := GetSlot(v, nil, "")
+	if err == nil {
+		t.Fatalf("Slot must return error for zero bucket size")
+	}
+}
+
+func TestTokenBucketZeroRefreshRate(t *testing.T) {
+	v := viper.New()
+
+	v.Set("kind", "token_bucket")
+	v.Set("bucket_size", 100)
+	v.Set("refresh_rate", 0)
+	v.Set("period", "second")
+	v.Set("tokens_per_req", 5)
+
+	_, err := GetSlot(v, nil, "")
+	if err == nil {
+		t.Fatalf("Slot must return error for zero refresh rate")
+	}
+}
+
+func TokenBucketWriteMethodReturnsError(t *testing.T) {
+	slot := loadBucketSlot(t)
+
+	// Try writing to the token bucket slot
+	result, err := slot.Write("some data", nil)
+
+	if err == nil {
+		t.Fatalf("Write method should return an error for token bucket slots")
+	}
+
+	if result != "" {
+		t.Fatalf("Write method should return empty string, got: %s", result)
+	}
+
+	expectedErrorMsg := "Token bucket slots cannot be used to write"
+	if err.Error() != expectedErrorMsg {
+		t.Fatalf("Expected error message '%s', got: '%s'", expectedErrorMsg, err.Error())
+	}
+}
+
+func TestTokenBucketWithMinutePeriod(t *testing.T) {
+	v := viper.New()
+
+	v.Set("kind", "token_bucket")
+	v.Set("bucket_size", 100)
+	v.Set("refresh_rate", 50)
+	v.Set("period", "minute")
+	v.Set("tokens_per_req", 10)
+
+	slot, err := GetSlot(v, nil, "")
+	if err != nil {
+		t.Fatalf("Slot must not return error for minute period: %s", err)
+	}
+
+	tokenSlot := slot.(*tokenBucketSlot)
+	if tokenSlot.period != 60 {
+		t.Fatalf("Period should be 60 seconds for minute period, got: %d", tokenSlot.period)
+	}
+}
+
+func TestTokenBucketWithHourPeriod(t *testing.T) {
+	v := viper.New()
+
+	v.Set("kind", "token_bucket")
+	v.Set("bucket_size", 100)
+	v.Set("refresh_rate", 50)
+	v.Set("period", "hour")
+	v.Set("tokens_per_req", 10)
+
+	slot, err := GetSlot(v, nil, "")
+	if err != nil {
+		t.Fatalf("Slot must not return error for hour period: %s", err)
+	}
+
+	tokenSlot := slot.(*tokenBucketSlot)
+	if tokenSlot.period != 3600 {
+		t.Fatalf("Period should be 3600 seconds for hour period, got: %d", tokenSlot.period)
+	}
+}
+
+func TestTokenBucketWithInvalidPeriod(t *testing.T) {
+	users := make(map[string]string)
+
+	_, err := newTokenBucketSlot("invalid", 100, 50, 10, users)
+	if err == nil {
+		t.Fatalf("Expected error when creating token bucket with invalid period")
+	}
+
+	expectedError := "Period value is invalid on token_bucket slot: invalid"
+	if err.Error() != expectedError {
+		t.Fatalf("Expected error message '%s', got '%s'", expectedError, err.Error())
+	}
+}
+
+func TokenBucketNegativeTokensPerRequest(t *testing.T) {
+	users := make(map[string]string)
+
+	_, err := newTokenBucketSlot("second", 100, 50, -5, users)
+	if err == nil {
+		t.Fatalf("Expected error when creating token bucket with negative tokens per request")
+	}
+
+	expectedError := "Tokens per request cannot be zero"
+	if err.Error() != expectedError {
+		t.Fatalf("Expected error message '%s', got '%s'", expectedError, err.Error())
+	}
+}
+
+func TokenBucketEmptyUserMap(t *testing.T) {
+	// Create a token bucket with an empty users map
+	slot, err := newTokenBucketSlot("second", 100, 50, 10, map[string]string{})
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Create a user
+	user, _ := auth.GetUser("anyone", "pass")
+
+	// Should have permission when user map is empty
+	if !slot.CanRead(&user) {
+		t.Fatalf("Expected any user to have read permission when users map is empty")
+	}
+
+	if slot.CanWrite(&user) {
+		t.Fatalf("Expected no write permission regardless of users map")
+	}
+}

@@ -102,7 +102,7 @@ func TestTickerMissingConfig(t *testing.T) {
 	}
 }
 
-func TickerInvalidRefreshRate(t *testing.T) {
+func TestTickerInvalidRefreshRate(t *testing.T) {
 	v := viper.New()
 
 	v.Set("kind", "ticker")
@@ -115,7 +115,7 @@ func TickerInvalidRefreshRate(t *testing.T) {
 	}
 }
 
-func TickerNegativeInitialValue(t *testing.T) {
+func TestTickerNegativeInitialValue(t *testing.T) {
 	v := viper.New()
 
 	v.Set("kind", "ticker")
@@ -128,7 +128,7 @@ func TickerNegativeInitialValue(t *testing.T) {
 	}
 }
 
-func TickerValidConfig(t *testing.T) {
+func TestTickerValidConfig(t *testing.T) {
 	v := viper.New()
 
 	v.Set("kind", "ticker")
@@ -149,7 +149,7 @@ func TickerValidConfig(t *testing.T) {
 	}
 }
 
-func TickerCanReadWhenUsersEmpty(t *testing.T) {
+func TestTickerCanReadWhenUsersEmpty(t *testing.T) {
 	v := viper.New()
 
 	v.Set("kind", "ticker")
@@ -167,7 +167,7 @@ func TickerCanReadWhenUsersEmpty(t *testing.T) {
 	}
 }
 
-func TickerCanWriteWhenUsersEmpty(t *testing.T) {
+func TestTickerCanWriteWhenUsersEmpty(t *testing.T) {
 	v := viper.New()
 
 	v.Set("kind", "ticker")
@@ -185,7 +185,7 @@ func TickerCanWriteWhenUsersEmpty(t *testing.T) {
 	}
 }
 
-func TickerWriteNonIntegerData(t *testing.T) {
+func TestTickerWriteNonIntegerData(t *testing.T) {
 	slot := loadTickerSlot(t)
 
 	_, err := slot.Write("non-integer", nil)
