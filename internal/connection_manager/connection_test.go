@@ -27,10 +27,8 @@ func loadConnection(t *testing.T) *Connection {
 	}
 }
 
-func ConnectionSendEventSuccess(t *testing.T) {
+func TestConnectionSendEventSuccess(t *testing.T) {
 	conn := loadConnection(t)
-
-	go conn.EventProcessor()
 
 	go func() {
 		event := <-conn.Events
@@ -43,10 +41,8 @@ func ConnectionSendEventSuccess(t *testing.T) {
 	}
 }
 
-func ConnectionSendEventTimeout(t *testing.T) {
+func TestConnectionSendEventTimeout(t *testing.T) {
 	conn := loadConnection(t)
-
-	go conn.EventProcessor()
 
 	go func() {
 		event := <-conn.Events
@@ -59,10 +55,8 @@ func ConnectionSendEventTimeout(t *testing.T) {
 	}
 }
 
-func ConnectionSendEventError(t *testing.T) {
+func TestConnectionSendEventError(t *testing.T) {
 	conn := loadConnection(t)
-
-	go conn.EventProcessor()
 
 	go func() {
 		event := <-conn.Events
@@ -75,10 +69,8 @@ func ConnectionSendEventError(t *testing.T) {
 	}
 }
 
-func ConnectionSendEventUnknownResponse(t *testing.T) {
+func TestConnectionSendEventUnknownResponse(t *testing.T) {
 	conn := loadConnection(t)
-
-	go conn.EventProcessor()
 
 	var event Event
 	go func() {
@@ -92,7 +84,7 @@ func ConnectionSendEventUnknownResponse(t *testing.T) {
 	}
 }
 
-func ConnectionSendEventChannelFull(t *testing.T) {
+func TestConnectionSendEventChannelFull(t *testing.T) {
 	conn := &Connection{
 		Events:   make(chan Event, 0),
 		Callback: make(chan string, 1),
