@@ -39,7 +39,7 @@ func (m *tickerSlot) Read() string {
 	m.window = current
 	m.value = max(0, m.value-windowDiff)
 
-	return strconv.Itoa(int(m.value))
+	return strconv.FormatInt(m.value, 10)
 }
 
 func (m *tickerSlot) CanRead(u *auth.User) bool {
@@ -59,7 +59,7 @@ func (m *tickerSlot) CanWrite(u *auth.User) bool {
 }
 
 func (m *tickerSlot) Write(data string, from net.Conn) (string, error) {
-	dataInt, err := strconv.Atoi(data)
+	dataInt, err := strconv.ParseInt(data, 10, 64)
 	if err != nil {
 		return "", fmt.Errorf("Data must be an integer")
 	}
@@ -68,7 +68,10 @@ func (m *tickerSlot) Write(data string, from net.Conn) (string, error) {
 		return "", fmt.Errorf("Data cannot be negative")
 	}
 
+	m.mu.Lock()
 	m.window = currentWindowMillis(m.rate)
 	m.value = int64(dataInt)
-	return strconv.Itoa(dataInt), nil
+	m.mu.Unlock()
+
+	return strconv.FormatInt(dataInt, 10), nil
 }

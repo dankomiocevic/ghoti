@@ -10,10 +10,13 @@ import (
 type memorySlot struct {
 	users map[string]string
 	value string
-	mu    sync.Mutex
+	mu    sync.RWMutex
 }
 
 func (m *memorySlot) Read() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	return m.value
 }
 
