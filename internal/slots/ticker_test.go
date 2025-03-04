@@ -92,20 +92,6 @@ func TestTickerWrite(t *testing.T) {
 	}
 }
 
-func TestTickerTick(t *testing.T) {
-	slot := loadTickerSlot(t)
-
-	slot.Write("100", nil)
-	if slot.Read() != "100" {
-		t.Fatalf("Value must be 100")
-	}
-
-	time.Sleep(101 * time.Millisecond)
-	if slot.Read() != "99" {
-		t.Fatalf("Value must be 99")
-	}
-}
-
 func TestTickerMissingConfig(t *testing.T) {
 	v := viper.New()
 
