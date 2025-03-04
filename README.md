@@ -271,7 +271,7 @@ slot_003:
   refresh_rate: 1000
 ```
 
-### Atomic counter slot (TBD)
+### Atomic counter slot
 
 This slot contains an integer number and allows to increment or decrement its value. Only one process can increment or decrement the value at a time.
 
