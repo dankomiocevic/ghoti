@@ -128,5 +128,9 @@ func GetSlot(v *viper.Viper, conn connection_manager.ConnectionManager, id strin
 		return broadcastSlot, nil
 	}
 
+	if kind == "atomic" {
+		return &atomicSlot{value: 0, users: users}, nil
+	}
+
 	return nil, errors.New("Invalid kind of slot")
 }

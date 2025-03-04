@@ -13,7 +13,7 @@ type broadcastSlot struct {
 	users   map[string]string
 	value   string
 	slotId  string
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	manager connection_manager.ConnectionManager
 }
 
@@ -27,6 +27,9 @@ func newBroadcastSlot(users map[string]string, conn connection_manager.Connectio
 }
 
 func (m *broadcastSlot) Read() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	return m.value
 }
 
