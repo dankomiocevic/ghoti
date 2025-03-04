@@ -48,7 +48,7 @@ func loadBroadcastSlot(t *testing.T) *broadcastSlot {
 	return slot
 }
 
-func BroadcastSlotCanReadWhenUsersEmpty(t *testing.T) {
+func TestBroadcastSlotCanReadWhenUsersEmpty(t *testing.T) {
 	slot := loadBroadcastSlot(t)
 
 	read_user, _ := auth.GetUser("read", "pass")
@@ -57,7 +57,7 @@ func BroadcastSlotCanReadWhenUsersEmpty(t *testing.T) {
 	}
 }
 
-func BroadcastSlotCanWriteWhenUsersEmpty(t *testing.T) {
+func TestBroadcastSlotCanWriteWhenUsersEmpty(t *testing.T) {
 	slot := loadBroadcastSlot(t)
 
 	write_user, _ := auth.GetUser("write", "pass")
@@ -79,7 +79,7 @@ func TestBroadcastSlotReadAndWrite(t *testing.T) {
 	}
 }
 
-func BroadcastSlotPermissionsWithMock(t *testing.T) {
+func TestBroadcastSlotPermissionsWithMock(t *testing.T) {
 	users := map[string]string{
 		"read_user":  "r",
 		"write_user": "w",
@@ -120,7 +120,7 @@ func BroadcastSlotPermissionsWithMock(t *testing.T) {
 	}
 }
 
-func BroadcastSlotWriteManagerFailure(t *testing.T) {
+func TestBroadcastSlotWriteManagerFailure(t *testing.T) {
 	manager := &MockConnectionManager{
 		BroadcastFunc: func(message string) (string, error) {
 			return "", fmt.Errorf("broadcast failed")

@@ -120,7 +120,7 @@ func TestLeakyBucketUseAllTokens(t *testing.T) {
 	}
 }
 
-func LeakyBucketSlotWrite(t *testing.T) {
+func TestLeakyBucketSlotWrite(t *testing.T) {
 	slot := loadLeakySlot(t)
 
 	_, err := slot.Write("test_data", nil)
@@ -129,7 +129,7 @@ func LeakyBucketSlotWrite(t *testing.T) {
 	}
 }
 
-func LeakyBucketInvalidRefreshRate(t *testing.T) {
+func TestLeakyBucketInvalidRefreshRate(t *testing.T) {
 	v := viper.New()
 
 	v.Set("kind", "leaky_bucket")
@@ -142,7 +142,7 @@ func LeakyBucketInvalidRefreshRate(t *testing.T) {
 	}
 }
 
-func LeakyBucketReadWindowDiffGreaterThanSize(t *testing.T) {
+func TestLeakyBucketReadWindowDiffGreaterThanSize(t *testing.T) {
 	slot := loadLeakySlot(t)
 
 	leakySlot := slot.(*leakyBucketSlot)
@@ -158,7 +158,7 @@ func LeakyBucketReadWindowDiffGreaterThanSize(t *testing.T) {
 	}
 }
 
-func LeakyBucketCanReadWhenUsersEmpty(t *testing.T) {
+func TestLeakyBucketCanReadWhenUsersEmpty(t *testing.T) {
 	slot := loadLeakySlot(t)
 
 	read_user, _ := auth.GetUser("read", "pass")
