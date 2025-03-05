@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
@@ -15,7 +16,7 @@ import (
 
 type Event struct {
 	id       string
-	data     string
+	data     []byte
 	timeout  time.Time
 	callback chan string
 }
@@ -65,7 +66,7 @@ func (c *Connection) SendEvent(data string) error {
 	eventId := uuid.NewString()
 	event := Event{
 		id:       eventId,
-		data:     data,
+		data:     []byte(data),
 		callback: c.Callback,
 		timeout:  time.Now().Add(200 * time.Millisecond),
 	}
@@ -100,20 +101,28 @@ func (c *Connection) SendEvent(data string) error {
 }
 
 func (c *Connection) EventProcessor() {
+	var b strings.Builder
 	for event := range c.Events {
+		b.Reset()
+		b.Grow(40 + 8)
+		b.WriteString(event.id)
+
 		if time.Now().After(event.timeout) {
-			event.callback <- event.id + " TIMEOUT"
+			b.WriteString(" TIMEOUT")
+			event.callback <- b.String()
 			continue
 		}
 
 		c.NetworkConn.SetWriteDeadline(event.timeout)
-		_, err := c.NetworkConn.Write([]byte(event.data))
+		_, err := c.NetworkConn.Write(event.data)
 		if err != nil { //TODO: Improve error handling to differentiate error types
-			event.callback <- event.id + " ERROR"
+			b.WriteString(" ERROR")
+			event.callback <- b.String()
 			continue
 		}
 
-		event.callback <- event.id + " OK"
+		b.WriteString(" OK")
+		event.callback <- b.String()
 	}
 }
 
