@@ -5,14 +5,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/mock"
 )
 
 func loadConnection(t *testing.T) *Connection {
 	conn := &TestConn{}
-	conn.On("Write", mock.Anything).Return(10, nil)
-	conn.On("SetWriteDeadline", mock.Anything).Return(nil)
-	conn.On("Close").Return(nil)
 
 	return &Connection{
 		Id:          uuid.NewString(),

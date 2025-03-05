@@ -220,11 +220,12 @@ func (c *TcpManager) Close() {
 func (c *TcpManager) Broadcast(data string) (string, error) {
 	callback := make(chan string, 100)
 	defer close(callback)
+	dataBytes := []byte(data)
 
 	eventId := uuid.NewString()
 	event := Event{
 		id:       eventId,
-		data:     data,
+		data:     dataBytes,
 		callback: callback,
 		timeout:  time.Now().Add(200 * time.Millisecond),
 	}

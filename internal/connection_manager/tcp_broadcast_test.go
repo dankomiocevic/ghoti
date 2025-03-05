@@ -7,53 +7,42 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/mock"
 )
 
 // This is a mock for net.Conn
 type TestConn struct {
-	mock.Mock
 }
 
 func (c *TestConn) Read(b []byte) (n int, err error) {
-	args := c.Called(b)
-	return args.Int(0), args.Error(1)
+	return 0, nil
 }
 
 func (c *TestConn) Write(b []byte) (n int, err error) {
-	args := c.Called(b)
-	return args.Int(0), args.Error(1)
+	return 0, nil
 }
 
 func (c *TestConn) Close() error {
-	args := c.Called()
-	return args.Error(0)
+	return nil
 }
 
 func (c *TestConn) LocalAddr() net.Addr {
-	args := c.Called()
-	return args.Get(0).(net.Addr)
+	return nil
 }
 
 func (c *TestConn) RemoteAddr() net.Addr {
-	args := c.Called()
-	return args.Get(0).(net.Addr)
+	return nil
 }
 
 func (c *TestConn) SetDeadline(t time.Time) error {
-	args := c.Called(t)
-	return args.Error(0)
+	return nil
 }
 
 func (c *TestConn) SetReadDeadline(t time.Time) error {
-	args := c.Called(t)
-	return args.Error(0)
+	return nil
 }
 
 func (c *TestConn) SetWriteDeadline(t time.Time) error {
-	args := c.Called(t)
-	return args.Error(0)
+	return nil
 }
 
 // This test creates 100 connections to check the broadcast functionality
@@ -139,9 +128,6 @@ func benchmarkBroadcast(x int, b *testing.B) {
 
 		for i := 0; i < x; i++ {
 			server := new(TestConn)
-			server.On("Write", mock.Anything).Return(10, nil)
-			server.On("SetWriteDeadline", mock.Anything).Return(nil)
-			server.On("Close").Return(nil)
 			servers = append(servers, server)
 		}
 
