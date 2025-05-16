@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Add explicit permissions
+permissions:
+  contents: write  # Required for creating releases
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Build and create release packages
+        run: make release VERSION=${{ env.VERSION }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./dist/*.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            # Ghoti v${{ env.VERSION }}
+            
+            ## Installation
+            
+            1. Download the appropriate zip file for your platform
+            2. Extract the contents
+            3. Run the `ghoti` executable (or `ghoti.exe` on Windows)
+            
+            ## Included Files
+            
+            - ghoti executable for your platform
+            - README.md with usage instructions
+            
+            ## Platform-specific Notes
+            
+            ### Linux
+            Make the file executable with `chmod +x ghoti` if needed
+            
+            ### macOS
+            Make the file executable with `chmod +x ghoti` if needed
+            You may need to allow the app in System Preferences > Security & Privacy
+            
+            ### Windows
+            Run the executable by double-clicking or from Command Prompt

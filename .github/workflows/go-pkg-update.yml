@@ -1,0 +1,46 @@
+name: Update pkg.go.dev
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types:
+      - completed
+
+jobs:
+  update-pkg-go-dev:
+    name: Update pkg.go.dev
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          TAG=$(git describe --tags --abbrev=0)
+          echo "TAG=${TAG}" >> $GITHUB_ENV
+          echo "Latest tag: ${TAG}"
+
+      - name: Update pkg.go.dev
+        run: |
+          echo "Requesting pkg.go.dev to update for version ${TAG}"
+          go list -m github.com/dankomiocevic/ghoti@${TAG}
+          
+          # Force proxy.golang.org to update
+          GOPROXY=https://proxy.golang.org go list -m github.com/dankomiocevic/ghoti@${TAG}
+          
+          echo "Waiting for propagation..."
+          sleep 10
+          
+          # Verify versions are available
+          go list -m -versions github.com/dankomiocevic/ghoti
+          
+          echo "✅ pkg.go.dev update requested for ${TAG}"

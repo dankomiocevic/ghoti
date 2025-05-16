@@ -31,11 +31,25 @@ clean: ## Clean project files
 #-----------------------------------------------------------------------------------------------------------------------
 # Building & Installing
 #-----------------------------------------------------------------------------------------------------------------------
-.PHONY: build install
+.PHONY: build build-all install
 
 build: ## Build Ghoti binary. Build directory can be overridden using BUILD_DIR="desired/path", default is ".dist/". Usage `BUILD_DIR="." make build`
 	${call print, "Building Ghoti binary within ${BUILD_DIR}/${BINARY_NAME}"}
 	@go build -v -o "${BUILD_DIR}/${BINARY_NAME}" "$(CURDIR)/cmd/ghoti"
+
+build-all: ## Build Ghoti binary for all platforms. Usage `make build-all`
+	${call print, "Building Ghoti binary for all platforms"}
+	@echo "Building for Linux..."
+	@GOOS=linux GOARCH=amd64 go build -v -o "${BUILD_DIR}/${BINARY_NAME}-linux-amd64" "$(CURDIR)/cmd/ghoti"
+	@GOOS=linux GOARCH=arm64 go build -v -o "${BUILD_DIR}/${BINARY_NAME}-linux-arm64" "$(CURDIR)/cmd/ghoti"
+	@GOOS=linux GOARCH=386 go build -v -o "${BUILD_DIR}/${BINARY_NAME}-linux-386" "$(CURDIR)/cmd/ghoti"
+	@echo "Building for Windows..."
+	@GOOS=windows GOARCH=amd64 go build -v -o "${BUILD_DIR}/${BINARY_NAME}-windows-amd64.exe" "$(CURDIR)/cmd/ghoti"
+	@GOOS=windows GOARCH=386 go build -v -o "${BUILD_DIR}/${BINARY_NAME}-windows-386.exe" "$(CURDIR)/cmd/ghoti"
+	@echo "Building for Mac..."
+	@GOOS=darwin GOARCH=amd64 go build -v -o "${BUILD_DIR}/${BINARY_NAME}-darwin-amd64" "$(CURDIR)/cmd/ghoti"
+	@GOOS=darwin GOARCH=arm64 go build -v -o "${BUILD_DIR}/${BINARY_NAME}-darwin-arm64" "$(CURDIR)/cmd/ghoti"
+	@echo "Build done"
 
 install: ## Install Ghoti within $GO_BIN. Ensure that $GO_BIN is available on the $PATH to run the executable from anywhere
 	${call print, "Installing Ghoti binary within ${GO_BIN}"}
@@ -84,6 +98,44 @@ endif
 test-bench: generate-mocks ## Run benchmark tests. See https://pkg.go.dev/cmd/go#hdr-Testing_flags
 	${call print, "Running benchmark tests"}
 	@go test ./... -bench . -benchtime 5s -timeout 0 -run=XXX -cpu 1 -benchmem
+
+#-----------------------------------------------------------------------------------------------------------------------
+# Release
+#-----------------------------------------------------------------------------------------------------------------------
+
+release: build-all
+	@echo "Creating release packages..."
+	@# Linux packages
+	@for arch in amd64 arm64 386; do \
+		echo "Creating package for linux-$$arch..."; \
+		package_dir="${BUILD_DIR}/tmp/ghoti-linux-$$arch"; \
+		mkdir -p "$$package_dir"; \
+		cp "${BUILD_DIR}/${BINARY_NAME}-linux-$$arch" "$$package_dir/${BINARY_NAME}"; \
+		chmod +x "$$package_dir/${BINARY_NAME}"; \
+		cp ./README.md "$$package_dir/"; \
+		cd "${BUILD_DIR}/tmp" && zip -r "../${BINARY_NAME}-v${VERSION}-linux-$$arch.zip" "ghoti-linux-$$arch" && cd - > /dev/null; \
+	done
+	@# macOS packages
+	@for arch in amd64 arm64; do \
+		echo "Creating package for darwin-$$arch..."; \
+		package_dir="${BUILD_DIR}/tmp/ghoti-darwin-$$arch"; \
+		mkdir -p "$$package_dir"; \
+		cp "${BUILD_DIR}/${BINARY_NAME}-darwin-$$arch" "$$package_dir/${BINARY_NAME}"; \
+		chmod +x "$$package_dir/${BINARY_NAME}"; \
+		cp ./README.md "$$package_dir/"; \
+		cd "${BUILD_DIR}/tmp" && zip -r "../${BINARY_NAME}-v${VERSION}-darwin-$$arch.zip" "ghoti-darwin-$$arch" && cd - > /dev/null; \
+	done
+	@# Windows packages
+	@for arch in amd64 386; do \
+		echo "Creating package for windows-$$arch..."; \
+		package_dir="${BUILD_DIR}/tmp/ghoti-windows-$$arch"; \
+		mkdir -p "$$package_dir"; \
+		cp "${BUILD_DIR}/${BINARY_NAME}-windows-$$arch.exe" "$$package_dir/${BINARY_NAME}.exe"; \
+		cp ./README.md "$$package_dir/"; \
+		cd "${BUILD_DIR}/tmp" && zip -r "../${BINARY_NAME}-v${VERSION}-windows-$$arch.zip" "${BINARY_NAME}-windows-$$arch" && cd - > /dev/null; \
+	done
+	rm -rf "${BUILD_DIR}/tmp"
+	@echo "Release packages are available in ${BUILD_DIR}"
 
 #-----------------------------------------------------------------------------------------------------------------------
 # Helpers
