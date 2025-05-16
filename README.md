@@ -355,9 +355,6 @@ If there is something really bad happening (like an issue during a deployment), 
 
 # License
 
-This software is using a license that is based on the Redis [RSALv2](https://redis.io/legal/rsalv2-agreement/) license. The license is a permissive non-copyleft license, allowing the right to "use, copy, distribute, make available, and prepare derivative works of the software" and has only two primary limitations. Under this license, you may not:
-
-- Commercialize the software or provide it to others as a managed service
-- Remove or obscure any licensing, copyright, or other notices
+This software is using the Apache-2.0 license.
 
 [Complete license](LICENSE.md)
