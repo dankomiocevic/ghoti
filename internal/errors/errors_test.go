@@ -15,7 +15,7 @@ func TestError(t *testing.T) {
 		t.Fatalf("Error name was not NOT_LEADER: %s", e.name)
 	}
 
-	if e.response != "e000\n" {
+	if e.response != "000\n" {
 		t.Fatalf("Error response was not e000: %s", e.response)
 	}
 }
