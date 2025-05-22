@@ -30,8 +30,8 @@ func (e ErrorCode) String() string {
 	return e.id
 }
 
-func (e ErrorCode) Response() string {
-	return e.response
+func (e ErrorCode) Response(slot string) string {
+	return fmt.Sprintf("e%s%s", slot, e.response)
 }
 
 func loadValues() map[string]ErrorCode {
@@ -42,7 +42,7 @@ func loadValues() map[string]ErrorCode {
 	for _, v := range matches {
 		id := fmt.Sprint(v[3:6])
 		name := fmt.Sprint(v[8:len(v)])
-		response := fmt.Sprintf("e%s\n", id)
+		response := fmt.Sprintf("%s\n", id)
 
 		e := ErrorCode{name: name, id: id, response: response}
 		m[name] = e

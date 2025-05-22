@@ -280,7 +280,7 @@ func TestInvalidUsername(t *testing.T) {
 	// Login as pepe/passw0rd
 	response := sendData(t, conn, "upepe!\n")
 
-	if response != "e002\n" {
+	if response != "exxx002\n" {
 		t.Fatalf("Server did not return error")
 	}
 }
@@ -293,7 +293,7 @@ func TestEmptyPassword(t *testing.T) {
 	// Login with empty password
 	response := sendData(t, conn, "p000\n")
 
-	if response != "e003\n" {
+	if response != "exxx003\n" {
 		t.Fatalf("Server did not return error: %s", response)
 	}
 }
@@ -307,7 +307,7 @@ func TestWrongPassword(t *testing.T) {
 	sendData(t, conn, "upepe\n")
 	response := sendData(t, conn, "p12345\n")
 
-	if response != "e004\n" {
+	if response != "exxx004\n" {
 		t.Fatalf("Server did not return error: %s", response)
 	}
 }
@@ -320,14 +320,14 @@ func TestAccessForbidden(t *testing.T) {
 	// Read on Slot 4 that is password protected
 	response := sendData(t, conn, "r004\n")
 
-	if response != "e008\n" {
+	if response != "e004008\n" {
 		t.Fatalf("Server did not return error: %s", response)
 	}
 
 	// Write on Slot 4 that is password protected
 	response_two := sendData(t, conn, "w004Something\n")
 
-	if response_two != "e006\n" {
+	if response_two != "e004006\n" {
 		t.Fatalf("Server did not return error: %s", response)
 	}
 }
@@ -350,7 +350,7 @@ func TestReadOnly(t *testing.T) {
 	// Write on Slot 4 that is password protected
 	response_two := sendData(t, conn, "w004Something\n")
 
-	if response_two != "e006\n" {
+	if response_two != "e004006\n" {
 		t.Fatalf("Server did not return an error")
 	}
 }
@@ -366,7 +366,7 @@ func TestWriteOnly(t *testing.T) {
 	// Read on Slot 4 that is password protected
 	response := sendData(t, conn, "r004\n")
 
-	if response != "e008\n" {
+	if response != "e004008\n" {
 		t.Fatalf("Server did not return an error")
 	}
 

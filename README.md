@@ -48,15 +48,27 @@ In this example, the slot has a UUID stored.
 
 When a client wants to write a value on a slot, they can use the `w` command:
 
-`wHelloWorld`
+`w000HelloWorld`
 
+This will write the value `HelloWorld` on the slot `000`. The value can be any string with a maximum of 36 characters.
 Same as the read command, the server will return the written value:
 
-`vHelloWorld`
+`v000HelloWorld`
 
 If there is any issue with a command, the server will return an error with a code that can be used to identify the issue:
 
-`e009`
+`e000009`
+
+In this case, the error code has 3 parts:
+- `e` indicates is an error response.
+- `000` is the slot number.
+- `009` is the error code.
+
+In the case of commands that are not related to a specifc slot, the slot number will be "xxx". For example, if you want to login, the command to enter the password would be `p` and it won't be related to any slot. The response when the password is empty would be:
+
+`exxx003`
+
+Where `e` indicates is an error response, `xxx` is the slot number and `009` is the error code.:w
 
 To identify the error code, the list of error codes can be found [here](internal/errors/README.md).
 
@@ -66,7 +78,7 @@ In some cases there are messages sent as async events from the server (see broad
 
 Same as the other examples, it would contain the `a` response, then the slot (in this case 234) and the event data (in this case a UUID).
 
-Async events can happen at any time.
+NOTE: Async events can happen at any time.
 
 ### Protocol variants
 

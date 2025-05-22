@@ -101,7 +101,7 @@ func (m *TelnetManager) handleUserConnection(callback CallbackFn, conn Connectio
 				slog.String("remote_addr", conn.Id),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
-			conn.SendEvent(res.Response())
+			conn.SendEvent(res.Response("xxx"))
 			continue
 		}
 		conn.Buffer[size-2] = 10

@@ -116,7 +116,7 @@ func (c *TcpManager) handleUserConnection(callback CallbackFn, conn Connection) 
 				slog.String("remote_addr", conn.Id),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
-			conn.SendEvent(res.Response())
+			conn.SendEvent(res.Response("xxx"))
 			continue
 		}
 		size -= 1
