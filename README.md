@@ -365,6 +365,17 @@ But why 2? Because there are two main reasons to use the cluster mode:
 
 If there is something really bad happening (like an issue during a deployment), then the only impact is an increased downtime. If this increased downtime needed to enable a new node is too high, then you can add a third node.
 
+# Next steps
+
+This list is not exhaustive, but it is a good starting point to understand what is missing and what is planned for the future.
+Here are some of the things that are planned for the future:
+- Add support for WebSockets.
+- Replace the Cluster implementation with a simpler one.
+- Add metrics and monitoring (Prometheus, OpenTelemetry, etc).
+- Implement missing slots.
+- Add benchmark for the performance of the slots.
+- Add docker support.
+
 # License
 
 This software is using the Apache-2.0 license.
