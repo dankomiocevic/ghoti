@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sync"
 )
 
 type joinServer struct {
@@ -19,7 +20,8 @@ type joinServer struct {
 	clusterBind string
 	cluster     Cluster
 	ln          net.Listener
-	server      http.Server
+	server      *http.Server
+	wg          sync.WaitGroup
 }
 
 func (s *joinServer) Start() error {
@@ -41,7 +43,7 @@ func (s *joinServer) Start() error {
 		}
 	}
 
-	server := http.Server{
+	server := &http.Server{
 		Handler: s,
 	}
 	s.server = server
@@ -51,14 +53,14 @@ func (s *joinServer) Start() error {
 		return err
 	}
 	s.ln = ln
-
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		err := server.Serve(s.ln)
-		if err != nil {
+		if err != nil && err != http.ErrServerClosed {
 			slog.Error("Error starting server",
 				slog.Any("error", err),
 			)
-			return
 		}
 	}()
 
@@ -68,6 +70,7 @@ func (s *joinServer) Start() error {
 func (s *joinServer) Close() {
 	slog.Info("Closing Cluster Join server")
 	s.server.Shutdown(context.Background())
+	s.wg.Wait()
 	return
 }
 
