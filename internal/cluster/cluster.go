@@ -78,7 +78,6 @@ func (c *RaftCluster) Start() error {
 	if err != nil {
 		return err
 	}
-	defer c.manager.Close()
 
 	return nil
 }
