@@ -1,0 +1,91 @@
+version: "2"
+run:
+  build-tags:
+    - docker
+  modules-download-mode: readonly
+  allow-parallel-runners: true
+linters:
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errname
+    - fatcontext
+    - gocritic
+    - gocyclo
+    - godot
+    - mirror
+    - misspell
+    - perfsprint
+    - protogetter
+    - revive
+    - recvcheck
+    - staticcheck
+    - tagalign
+    - testifylint
+    - unconvert
+    - unparam
+    - wastedassign
+    - whitespace
+  settings:
+    gocyclo:
+      min-complexity: 58
+    godot:
+      scope: declarations
+      capital: true
+      period: true
+    govet:
+      disable:
+        - shadow
+        - fieldalignment
+      enable-all: true
+    perfsprint:
+      err-error: false
+      errorf: false
+    staticcheck:
+      checks:
+        - all
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - bodyclose
+          - perfsprint
+        path: (.+)_test.go
+      - path: (.+)\.go$
+        text: should have a package comment
+      - path: (.+)\.go$
+        text: exported (.+) should have comment
+      - path: (.+)\.go$
+        text: comment on exported (.+) should be of the form
+      - path: (.+)\.go$
+        text: (.+) name will be used as (.+) by other packages, and that stutters; consider calling this (.+)
+      - path: (.+)\.go$
+        text: Error return value of (.+) is not checked
+      - path: (.+)\.go$
+        text: unused-parameter
+      - path: (.+)\.go$
+        text: exported func (.+) returns unexported type (.+), which can be annoying to use
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/dankomiocevic)
+        - localmodule
+    gofmt:
+      simplify: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
