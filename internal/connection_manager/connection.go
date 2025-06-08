@@ -86,13 +86,14 @@ func (c *Connection) SendEvent(data string) error {
 	select {
 	case response := <-c.Callback:
 		slog.Debug("Callback received", slog.String("response", response))
-		if response == eventId+" OK" {
+		switch response {
+		case eventId + " OK":
 			return nil
-		} else if response == eventId+" TIMEOUT" {
+		case eventId + " TIMEOUT":
 			return errors.TranscientError{Err: "Timeout waiting for response"}
-		} else if response == eventId+" ERROR" {
+		case eventId + " ERROR":
 			return errors.TranscientError{Err: "Error sending event"}
-		} else {
+		default:
 			return errors.TranscientError{Err: "Unknown response for event " + eventId + ": " + response}
 		}
 	case <-time.After(200 * time.Millisecond):

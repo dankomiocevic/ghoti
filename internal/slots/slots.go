@@ -104,7 +104,7 @@ func GetSlot(v *viper.Viper, conn connection_manager.ConnectionManager, id strin
 			return nil, fmt.Errorf("Initial value cannot be negative")
 		}
 
-		refreshRate := 1000
+		var refreshRate int
 		if !v.IsSet("refresh_rate") {
 			return nil, fmt.Errorf("refresh_rate must be set for ticker slot")
 		} else {

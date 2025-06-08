@@ -40,7 +40,7 @@ func runServer(t *testing.T, config *ClusterConfig, cluster Cluster) MembershipM
 	return s
 }
 
-// More of an integration test
+// More of an integration test.
 func TestJoin(t *testing.T) {
 	mgrAddr := "localhost:5345"
 	config := &ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr, ManagerJoin: "", Bind: "localhost:5555"}

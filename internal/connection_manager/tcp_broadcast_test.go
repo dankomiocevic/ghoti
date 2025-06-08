@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// This is a mock for net.Conn
+// This is a mock for net.Conn.
 type TestConn struct {
 }
 
@@ -45,7 +45,7 @@ func (c *TestConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
-// This test creates 100 connections to check the broadcast functionality
+// This test creates 100 connections to check the broadcast functionality.
 func TestBroadcast(t *testing.T) {
 	var wg sync.WaitGroup
 

@@ -86,7 +86,7 @@ func (s *joinServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 	slog.Info("Received request to join cluster")
-	user, pass, ok := r.BasicAuth()
+	user, pass, _ := r.BasicAuth()
 
 	if user != s.user || pass != s.pass {
 		slog.Warn("Request to join with wrong username/password",
@@ -147,7 +147,7 @@ func (s *joinServer) handleRemove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, pass, ok := r.BasicAuth()
+	user, pass, _ := r.BasicAuth()
 	if user != s.user || pass != s.pass {
 		slog.Warn("Request to remove with wrong username/password")
 		w.WriteHeader(http.StatusBadRequest)
