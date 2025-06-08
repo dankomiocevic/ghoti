@@ -17,26 +17,26 @@ func TestClusterMultiNode(t *testing.T) {
 		t.Skip("Skipping integration test on Short mode")
 	}
 
-	config_one := ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2222", ManagerJoin: "", Bind: "localhost:1111"}
-	config_two := ClusterConfig{Node: "node2", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2223", ManagerJoin: "localhost:2222", Bind: "localhost:1112"}
-	config_three := ClusterConfig{Node: "node3", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2225", ManagerJoin: "localhost:2222", Bind: "localhost:1113"}
+	configOne := ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2222", ManagerJoin: "", Bind: "localhost:1111"}
+	configTwo := ClusterConfig{Node: "node2", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2223", ManagerJoin: "localhost:2222", Bind: "localhost:1112"}
+	configThree := ClusterConfig{Node: "node3", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2225", ManagerJoin: "localhost:2222", Bind: "localhost:1113"}
 
-	node_one, err := NewCluster(config_one)
+	nodeOne, err := NewCluster(configOne)
 	if err != nil {
 		t.Fatalf("failed to create new cluster node one: %s", err)
 	}
 
-	node_two, err := NewCluster(config_two)
+	nodeTwo, err := NewCluster(configTwo)
 	if err != nil {
 		t.Fatalf("failed to create new cluster node two: %s", err)
 	}
 
-	node_three, err := NewCluster(config_three)
+	nodeThree, err := NewCluster(configThree)
 	if err != nil {
 		t.Fatalf("failed to create new cluster node three: %s", err)
 	}
 
-	err = node_one.Start()
+	err = nodeOne.Start()
 	if err != nil {
 		t.Fatalf("failed to start cluster node one: %s", err)
 	}
@@ -44,7 +44,7 @@ func TestClusterMultiNode(t *testing.T) {
 	// Exponential retry until set as leader
 	baseDelay := 100 * time.Millisecond
 	for i := 0; i < 7; i++ {
-		if node_one.state() == raft.Leader {
+		if nodeOne.state() == raft.Leader {
 			break
 		}
 
@@ -52,11 +52,11 @@ func TestClusterMultiNode(t *testing.T) {
 		delay := time.Duration(secRetry) * baseDelay
 		time.Sleep(delay)
 	}
-	if node_one.state() != raft.Leader {
-		t.Fatalf("Node one not set as leader, state: %s", node_one.state())
+	if nodeOne.state() != raft.Leader {
+		t.Fatalf("Node one not set as leader, state: %s", nodeOne.state())
 	}
 
-	err = node_two.Start()
+	err = nodeTwo.Start()
 	if err != nil {
 		t.Fatalf("failed to start node two: %s", err)
 	}
@@ -64,7 +64,7 @@ func TestClusterMultiNode(t *testing.T) {
 	// Exponential retry until node 2 is set as follower
 	baseDelay = 100 * time.Millisecond
 	for i := 0; i < 7; i++ {
-		if node_two.state() == raft.Follower {
+		if nodeTwo.state() == raft.Follower {
 			break
 		}
 
@@ -72,11 +72,11 @@ func TestClusterMultiNode(t *testing.T) {
 		delay := time.Duration(secRetry) * baseDelay
 		time.Sleep(delay)
 	}
-	if node_two.state() != raft.Follower {
-		t.Fatalf("Node two not set as follower, state: %s", node_two.state())
+	if nodeTwo.state() != raft.Follower {
+		t.Fatalf("Node two not set as follower, state: %s", nodeTwo.state())
 	}
 
-	err = node_three.Start()
+	err = nodeThree.Start()
 	if err != nil {
 		t.Fatalf("failed to start node three: %s", err)
 	}
@@ -84,7 +84,7 @@ func TestClusterMultiNode(t *testing.T) {
 	// Exponential retry until node 3 is set as follower
 	baseDelay = 100 * time.Millisecond
 	for i := 0; i < 7; i++ {
-		if node_three.state() == raft.Follower {
+		if nodeThree.state() == raft.Follower {
 			break
 		}
 
@@ -92,17 +92,17 @@ func TestClusterMultiNode(t *testing.T) {
 		delay := time.Duration(secRetry) * baseDelay
 		time.Sleep(delay)
 	}
-	if node_three.state() != raft.Follower {
-		t.Fatalf("Node three not set as follower, state: %s", node_three.state())
+	if nodeThree.state() != raft.Follower {
+		t.Fatalf("Node three not set as follower, state: %s", nodeThree.state())
 	}
 
 	// Shutting down leader node
-	node_one.Shutdown().Error()
+	nodeOne.Shutdown().Error()
 
 	// Exponential retry until another node becomes leader
 	baseDelay = 100 * time.Millisecond
 	for i := 0; i < 7; i++ {
-		if node_two.state() == raft.Leader || node_three.state() == raft.Leader {
+		if nodeTwo.state() == raft.Leader || nodeThree.state() == raft.Leader {
 			break
 		}
 
@@ -110,27 +110,27 @@ func TestClusterMultiNode(t *testing.T) {
 		delay := time.Duration(secRetry) * baseDelay
 		time.Sleep(delay)
 	}
-	if node_two.state() != raft.Leader && node_three.state() != raft.Leader {
-		t.Fatalf("Node two or three not set as leader, state_two: %s, state_three: %s", node_two.state(), node_three.state())
+	if nodeTwo.state() != raft.Leader && nodeThree.state() != raft.Leader {
+		t.Fatalf("Node two or three not set as leader, state_two: %s, state_three: %s", nodeTwo.state(), nodeThree.state())
 	}
 
 	// Identify the leader and follower node
 	var leaderNodeConfig, followerNodeConfig ClusterConfig
-	if node_two.IsLeader() {
-		leaderNodeConfig = config_two
-		followerNodeConfig = config_three
+	if nodeTwo.IsLeader() {
+		leaderNodeConfig = configTwo
+		followerNodeConfig = configThree
 	} else {
-		leaderNodeConfig = config_three
-		followerNodeConfig = config_two
+		leaderNodeConfig = configThree
+		followerNodeConfig = configTwo
 	}
 
 	// Adding node one again
-	config_one = ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2226", ManagerJoin: leaderNodeConfig.ManagerAddr, Bind: "localhost:1111"}
-	node_one, err = NewCluster(config_one)
+	configOne = ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2226", ManagerJoin: leaderNodeConfig.ManagerAddr, Bind: "localhost:1111"}
+	nodeOne, err = NewCluster(configOne)
 	if err != nil {
 		t.Fatalf("failed to create new cluster node one: %s", err)
 	}
-	err = node_one.Start()
+	err = nodeOne.Start()
 	if err != nil {
 		t.Fatalf("failed to restart node one: %s", err)
 	}
@@ -138,7 +138,7 @@ func TestClusterMultiNode(t *testing.T) {
 	// Exponential retry until node 1 is set as follower and gets leader info
 	baseDelay = 100 * time.Millisecond
 	for i := 0; i < 7; i++ {
-		if node_one.state() == raft.Follower && len(node_one.GetLeader()) > 0 {
+		if nodeOne.state() == raft.Follower && len(nodeOne.GetLeader()) > 0 {
 			break
 		}
 
@@ -146,20 +146,20 @@ func TestClusterMultiNode(t *testing.T) {
 		delay := time.Duration(secRetry) * baseDelay
 		time.Sleep(delay)
 	}
-	if node_one.state() != raft.Follower {
-		t.Fatalf("Node one not set as follower, state: %s", node_one.state())
+	if nodeOne.state() != raft.Follower {
+		t.Fatalf("Node one not set as follower, state: %s", nodeOne.state())
 	}
-	if node_two.GetLeader() != node_one.GetLeader() {
-		t.Fatalf("Leader does not match: node_one -> %s, node_two -> %s", node_one.GetLeader(), node_two.GetLeader())
+	if nodeTwo.GetLeader() != nodeOne.GetLeader() {
+		t.Fatalf("Leader does not match: nodeOne -> %s, nodeTwo -> %s", nodeOne.GetLeader(), nodeTwo.GetLeader())
 	}
 
 	// Shutting down again node
-	node_one.Shutdown().Error()
+	nodeOne.Shutdown().Error()
 
 	// Exponential retry until another node becomes leader
 	baseDelay = 100 * time.Millisecond
 	for i := 0; i < 7; i++ {
-		if node_two.state() == raft.Leader || node_three.state() == raft.Leader {
+		if nodeTwo.state() == raft.Leader || nodeThree.state() == raft.Leader {
 			break
 		}
 
@@ -167,21 +167,21 @@ func TestClusterMultiNode(t *testing.T) {
 		delay := time.Duration(secRetry) * baseDelay
 		time.Sleep(delay)
 	}
-	if node_two.state() != raft.Leader && node_three.state() != raft.Leader {
-		t.Fatalf("Node two or three not set as leader, state_two: %s, state_three: %s", node_two.state(), node_three.state())
+	if nodeTwo.state() != raft.Leader && nodeThree.state() != raft.Leader {
+		t.Fatalf("Node two or three not set as leader, state_two: %s, state_three: %s", nodeTwo.state(), nodeThree.state())
 	}
 
 	// Identify the leader and follower node
-	if node_two.IsLeader() {
-		leaderNodeConfig = config_two
-		followerNodeConfig = config_three
+	if nodeTwo.IsLeader() {
+		leaderNodeConfig = configTwo
+		followerNodeConfig = configThree
 	} else {
-		leaderNodeConfig = config_three
-		followerNodeConfig = config_two
+		leaderNodeConfig = configThree
+		followerNodeConfig = configTwo
 	}
 
-	// Request to remove node_one sent to follower
-	b, err := json.Marshal(map[string]string{"id": config_one.Node})
+	// Request to remove nodeOne sent to follower
+	b, err := json.Marshal(map[string]string{"id": configOne.Node})
 	if err != nil {
 		t.Fatalf("Failed to generate JSON: %s", err)
 	}
@@ -205,8 +205,8 @@ func TestClusterMultiNode(t *testing.T) {
 
 	resp.Body.Close()
 
-	// Request to remove node_one sent to leader
-	b, err = json.Marshal(map[string]string{"id": config_one.Node})
+	// Request to remove nodeOne sent to leader
+	b, err = json.Marshal(map[string]string{"id": configOne.Node})
 	if err != nil {
 		t.Fatalf("Failed to generate JSON: %s", err)
 	}
@@ -230,12 +230,12 @@ func TestClusterMultiNode(t *testing.T) {
 	resp.Body.Close()
 
 	// Adding node one again
-	config_one = ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2229", ManagerJoin: leaderNodeConfig.ManagerAddr, Bind: "localhost:1119"}
-	node_one, err = NewCluster(config_one)
+	configOne = ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2229", ManagerJoin: leaderNodeConfig.ManagerAddr, Bind: "localhost:1119"}
+	nodeOne, err = NewCluster(configOne)
 	if err != nil {
 		t.Fatalf("failed to create new cluster node one: %s", err)
 	}
-	err = node_one.Start()
+	err = nodeOne.Start()
 	if err != nil {
 		t.Fatalf("failed to restart node one: %s", err)
 	}
@@ -243,7 +243,7 @@ func TestClusterMultiNode(t *testing.T) {
 	// Exponential retry until node 1 is set as follower and gets leader info
 	baseDelay = 100 * time.Millisecond
 	for i := 0; i < 7; i++ {
-		if node_one.state() == raft.Follower && len(node_one.GetLeader()) > 0 {
+		if nodeOne.state() == raft.Follower && len(nodeOne.GetLeader()) > 0 {
 			break
 		}
 
@@ -251,15 +251,15 @@ func TestClusterMultiNode(t *testing.T) {
 		delay := time.Duration(secRetry) * baseDelay
 		time.Sleep(delay)
 	}
-	if node_one.state() != raft.Follower {
-		t.Fatalf("Node one not set as follower, state: %s", node_one.state())
+	if nodeOne.state() != raft.Follower {
+		t.Fatalf("Node one not set as follower, state: %s", nodeOne.state())
 	}
-	if node_two.GetLeader() != node_one.GetLeader() {
-		t.Fatalf("Leader does not match: node_one -> %s, node_two -> %s", node_one.GetLeader(), node_two.GetLeader())
+	if nodeTwo.GetLeader() != nodeOne.GetLeader() {
+		t.Fatalf("Leader does not match: nodeOne -> %s, nodeTwo -> %s", nodeOne.GetLeader(), nodeTwo.GetLeader())
 	}
 
-	// Request to join again for node_one
-	err = requestToJoin(leaderNodeConfig.ManagerAddr, config_one.Bind, config_one.Node, config_one.User, config_one.Pass)
+	// Request to join again for nodeOne
+	err = requestToJoin(leaderNodeConfig.ManagerAddr, configOne.Bind, configOne.Node, configOne.User, configOne.Pass)
 	if err != nil {
 		t.Fatalf("Request to join existing node must fail silently")
 	}

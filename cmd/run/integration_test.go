@@ -38,7 +38,7 @@ func TestSingleNode(t *testing.T) {
 	}
 
 	reader := bufio.NewReader(conn)
-	response, err := reader.ReadBytes(byte('\n'))
+	response, _ := reader.ReadBytes(byte('\n'))
 	if string(response[0]) == "e" {
 		t.Fatalf("received error response: %v", string(response))
 	}
