@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Documentation on Ghoti</title>
+    <link>https://miocevic.com/docs/</link>
+    <description>Recent content in Documentation on Ghoti</description>
+    <generator>Hugo</generator>
+    <language>en</language>
+    <atom:link href="https://miocevic.com/docs/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Overview</title>
+      <link>https://miocevic.com/docs/overview/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      <guid>https://miocevic.com/docs/overview/</guid>
+      <description>&lt;div class=&#34;pageinfo pageinfo-primary&#34;&gt;&#xA;&lt;p&gt;This page provides a comprehensive overview of Ghoti, its concepts, and its intended use cases.&lt;/p&gt;&#xA;&#xA;&lt;/div&gt;&#xA;&#xA;&lt;h2 id=&#34;what-is-ghoti&#34;&gt;What is Ghoti?&lt;a class=&#34;td-heading-self-link&#34; href=&#34;#what-is-ghoti&#34; aria-label=&#34;Heading self-link&#34;&gt;&lt;/a&gt;&lt;/h2&gt;&#xA;&lt;p&gt;Ghoti is a fast, in-memory, centralized coordination service designed for distributed systems. Inspired by the Unix philosophy of doing one thing well, Ghoti provides a simple way to coordinate ephemeral state, rate limiting, and signaling between distributed components, without the complexity of persistent storage or heavy consensus protocols.&lt;/p&gt;&#xA;&lt;p&gt;At its core, Ghoti offers 1000 configurable &amp;ldquo;slots&amp;rdquo;—think of them as lightweight registers or memory cells. Each slot can be configured for a specific behavior, such as storing a value, acting as a rate limiter, propagating signals, or serving as a counter. Clients interact with these slots using a plain text protocol over TCP or Telnet, making integration easy from any programming language.&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>
