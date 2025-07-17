@@ -102,21 +102,92 @@ func (c *Connection) SendEvent(data string) error {
 }
 
 func (c *Connection) EventProcessor() {
-	var b strings.Builder
-	for event := range c.Events {
-		b.Reset()
-		b.Grow(40 + 8)
-		b.WriteString(event.id)
+	var eventBatch []Event
+	batchSize := 20
+	timer := time.NewTimer(0) // Start with a zero timer
+	timer.Stop()              // Stop it immediately
 
+	for {
+		select {
+		case event, ok := <-c.Events:
+			if !ok {
+				// Channel closed, send any remaining events
+				if len(eventBatch) > 0 {
+					c.sendBatchedEvents(eventBatch)
+				}
+				return
+			}
+
+			eventBatch = append(eventBatch, event)
+
+			// If we have enough events, send immediately
+			if len(eventBatch) >= batchSize {
+				c.sendBatchedEvents(eventBatch)
+				eventBatch = eventBatch[:0] // Clear the batch
+				timer.Stop()                // Stop the timer since we sent immediately
+			} else {
+				// Start a timer to send events if no more come in
+				timer.Reset(10 * time.Millisecond)
+			}
+
+		case <-timer.C:
+			// Timer expired, send any batched events
+			if len(eventBatch) > 0 {
+				c.sendBatchedEvents(eventBatch)
+				eventBatch = eventBatch[:0] // Clear the batch
+			}
+		}
+	}
+}
+
+func (c *Connection) sendBatchedEvents(events []Event) {
+	if len(events) == 0 {
+		return
+	}
+
+	// Merge events into a single message
+	var sb strings.Builder
+	validEvents := 0
+	for i, event := range events {
 		if time.Now().After(event.timeout) {
+			// Handle timeout events immediately
+			var b strings.Builder
+			b.Grow(40 + 8)
+			b.WriteString(event.id)
 			b.WriteString(" TIMEOUT")
 			event.callback <- b.String()
 			continue
 		}
 
-		c.NetworkConn.SetWriteDeadline(event.timeout)
-		_, err := c.NetworkConn.Write(event.data)
-		if err != nil { //TODO: Improve error handling to differentiate error types
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		sb.Write(event.data)
+		validEvents++
+	}
+
+	// If no valid events to send, return early
+	if validEvents == 0 {
+		return
+	}
+
+	// Send the batched data to the network
+	batchedData := sb.String()
+	c.NetworkConn.SetWriteDeadline(time.Now().Add(200 * time.Millisecond))
+	_, err := c.NetworkConn.Write([]byte(batchedData))
+
+	slog.Debug("Sending batched events",
+		slog.String("id", c.Id),
+		slog.Int("event_count", len(events)),
+		slog.Int("total_size", len(batchedData)))
+
+	// Handle each event's callback individually
+	for _, event := range events {
+		var b strings.Builder
+		b.Grow(40 + 8)
+		b.WriteString(event.id)
+
+		if err != nil {
 			b.WriteString(" ERROR")
 			event.callback <- b.String()
 			continue

@@ -5,10 +5,17 @@ The decision to use error codes instead of a more verbose message is related to 
 
 # How error messages work
 
-The error messages will contain the error command `e` followed by 3 digits specifying the error code.
+The error messages will contain the error command `e` followed by 3 digits specifying the slot and three more digits to include the error code.
+For example, for slot 135 and error 006, you would see:
 
 ```
-e001
+e135006
+```
+
+Some cases are not related to a specific slot like for example error 001 that is a parsing error. In that case, instead of a slot number, you will see `xxx` as the slot number:
+
+```
+exxx001
 ```
 
 It could also contain extra arguments if something is important to share with the client. 
@@ -16,7 +23,7 @@ For example, when Ghoti is configured to work in a cluster it has a leader node 
 In this case, the error will be followed by the name of the node that is the leader:
 
 ```
-e000node1
+exxx000node1
 ```
 
 This way the client can identify which node is the one that it should be contacting to execute commands.
@@ -41,7 +48,7 @@ When the client tries to write on a peer/follower node, the node will return thi
 The error also contains the name of the leader node.
 
 ```
-e000nodeA
+exxx000nodeA
 ```
 
 This example shows that the `nodeA` is the node that should be contacted instead. Depending on how the cluster was created and how the client was configured, this information will be available for the client to identify the correct address for the node.
