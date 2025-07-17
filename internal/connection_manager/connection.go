@@ -126,8 +126,15 @@ func (c *Connection) EventProcessor() {
 				eventBatch = eventBatch[:0] // Clear the batch
 				timer.Stop()                // Stop the timer since we sent immediately
 			} else {
-				// Start a timer to send events if no more come in
-				timer.Reset(10 * time.Millisecond)
+				// Check if the channel is empty - if so, send immediately
+				if len(eventBatch) == 1 && len(c.Events) == 0 {
+					c.sendBatchedEvents(eventBatch)
+					eventBatch = eventBatch[:0] // Clear the batch
+					timer.Stop()                // Stop the timer since we sent immediately
+				} else {
+					// Start a timer to send events if no more come in
+					timer.Reset(5 * time.Millisecond)
+				}
 			}
 
 		case <-timer.C:
