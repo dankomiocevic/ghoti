@@ -3,8 +3,6 @@
   <head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
     <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link rel="canonical" type="text/html" href="https://miocevic.com/blog/">
-<link rel="alternate" type="application/rss&#43;xml" href="https://miocevic.com/blog/index.xml">
 <meta name="robots" content="noindex, nofollow">
 
 
@@ -19,26 +17,31 @@
 <link rel="icon" type="image/png" href="/favicons/android-144x144.png" sizes="144x144">
 <link rel="icon" type="image/png" href="/favicons/android-192x192.png" sizes="192x192">
 
-<title>Blog | Ghoti</title>
-<meta name="description" content="This is the blog section. It has two categories: News and Releases.
-Files in these directories will be listed in reverse chronological order.">
-<meta property="og:url" content="https://miocevic.com/blog/">
+<title>Implementing Leader Election with Ghoti: Simple, Fast, and Reliable | Ghoti</title>
+<meta name="description" content="Learn how to implement leader election in distributed systems using Ghoti&#39;s timeout memory slots - a simple and effective approach">
+<meta property="og:url" content="https://miocevic.com/blog/2024/01/25/implementing-leader-election-with-ghoti-simple-fast-and-reliable/">
   <meta property="og:site_name" content="Ghoti">
-  <meta property="og:title" content="Blog">
-  <meta property="og:description" content="This is the blog section. It has two categories: News and Releases.
-Files in these directories will be listed in reverse chronological order.">
+  <meta property="og:title" content="Implementing Leader Election with Ghoti: Simple, Fast, and Reliable">
+  <meta property="og:description" content="Learn how to implement leader election in distributed systems using Ghoti&#39;s timeout memory slots - a simple and effective approach">
   <meta property="og:locale" content="en">
-  <meta property="og:type" content="website">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="blog">
+    <meta property="article:published_time" content="2024-01-25T00:00:00+00:00">
+    <meta property="article:modified_time" content="2024-01-25T00:00:00+00:00">
+    <meta property="article:tag" content="Leader-Election">
+    <meta property="article:tag" content="Distributed-Systems">
+    <meta property="article:tag" content="Coordination">
+    <meta property="article:tag" content="Timeout-Memory">
 
-  <meta itemprop="name" content="Blog">
-  <meta itemprop="description" content="This is the blog section. It has two categories: News and Releases.
-Files in these directories will be listed in reverse chronological order.">
-  <meta itemprop="dateModified" content="2025-06-24T23:21:00-07:00">
-  <meta itemprop="wordCount" content="23">
+  <meta itemprop="name" content="Implementing Leader Election with Ghoti: Simple, Fast, and Reliable">
+  <meta itemprop="description" content="Learn how to implement leader election in distributed systems using Ghoti&#39;s timeout memory slots - a simple and effective approach">
+  <meta itemprop="datePublished" content="2024-01-25T00:00:00+00:00">
+  <meta itemprop="dateModified" content="2024-01-25T00:00:00+00:00">
+  <meta itemprop="wordCount" content="1214">
+  <meta itemprop="keywords" content="Leader-Election,Distributed-Systems,Coordination,Timeout-Memory">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Blog">
-  <meta name="twitter:description" content="This is the blog section. It has two categories: News and Releases.
-Files in these directories will be listed in reverse chronological order.">
+  <meta name="twitter:title" content="Implementing Leader Election with Ghoti: Simple, Fast, and Reliable">
+  <meta name="twitter:description" content="Learn how to implement leader election in distributed systems using Ghoti&#39;s timeout memory slots - a simple and effective approach">
 <link href="/scss/main.css" rel="stylesheet">
 <script
   src="https://code.jquery.com/jquery-3.7.1.min.js"
@@ -46,7 +49,7 @@ Files in these directories will be listed in reverse chronological order.">
   crossorigin="anonymous"></script>
 
   </head>
-  <body class="td-section td-blog">
+  <body class="td-page td-blog">
     <header>
       <nav class="td-navbar js-navbar-scroll" data-bs-theme="dark">
 <div class="container-fluid flex-column flex-md-row">
@@ -79,165 +82,152 @@ Files in these directories will be listed in reverse chronological order.">
     <div class="container-fluid td-outer">
       <div class="td-main">
         <div class="row flex-xl-nowrap">
-          <div class="col-12 col-md-3 col-xl-2 td-sidebar d-print-none">
-          </div>
-          <div class="d-none d-xl-block col-xl-2 td-toc d-print-none">
-          </div>
+          <aside class="col-12 col-md-3 col-xl-2 td-sidebar d-print-none">
+            <div id="td-sidebar-menu" class="td-sidebar__inner">
+  <form class="td-sidebar__search d-flex align-items-center">
+    <div class="td-search">
+  <div class="td-search__icon"></div>
+  <input type="search" class="td-search__input form-control td-search-input" placeholder="Search this site…" aria-label="Search this site…" autocomplete="off">
+</div>
+    <button class="btn btn-link td-sidebar__toggle d-md-none p-0 ms-3 fas fa-bars" type="button" data-bs-toggle="collapse" data-bs-target="#td-section-nav" aria-controls="td-section-nav" aria-expanded="false" aria-label="Toggle section navigation">
+    </button>
+  </form>
+  <nav class="td-sidebar-nav collapse" id="td-section-nav">
+    <ul class="td-sidebar-nav__section pe-md-3 ul-0">
+      <li class="td-sidebar-nav__section-title td-sidebar-nav__section with-child active-path" id="m-blog-li">
+  <a href="/blog/" class="align-left ps-0 td-sidebar-link td-sidebar-link__section tree-root" id="m-blog"><span class="">Blog</span></a>
+  <ul class="ul-1">
+    <li class="td-sidebar-nav__section-title td-sidebar-nav__section with-child active-path" id="m-blognews-li">
+  <a href="/blog/news/" class="align-left ps-0 td-sidebar-link td-sidebar-link__section" id="m-blognews"><span class="">News</span></a>
+  <ul class="ul-2 foldable">
+    <li class="td-sidebar-nav__section-title td-sidebar-nav__section without-child active-path" id="m-blog20240125implementing-leader-election-with-ghoti-simple-fast-and-reliable-li">
+  <a href="/blog/2024/01/25/implementing-leader-election-with-ghoti-simple-fast-and-reliable/" title="Implementing Leader Election with Ghoti: Simple, Fast, and Reliable" class="align-left ps-0 active td-sidebar-link td-sidebar-link__page" id="m-blog20240125implementing-leader-election-with-ghoti-simple-fast-and-reliable"><span class="td-sidebar-nav-active-item">Leader Election with Ghoti</span></a>
+</li>
+  </ul>
+</li><li class="td-sidebar-nav__section-title td-sidebar-nav__section without-child" id="m-blogreleases-li">
+  <a href="/blog/releases/" class="align-left ps-0 td-sidebar-link td-sidebar-link__section" id="m-blogreleases"><span class="">Releases</span></a>
+</li>
+  </ul>
+</li>
+    </ul>
+  </nav>
+</div>
+
+          </aside>
+          <aside class="d-none d-xl-block col-xl-2 td-sidebar-toc d-print-none">
+            <div class="td-page-meta ms-2 pb-1 pt-2 mb-0">
+<a href="https://github.com/dankomiocevic/ghoti/tree/main/content/en/blog/news/leader-election-with-ghoti.md" class="td-page-meta--view td-page-meta__view" target="_blank" rel="noopener"><i class="fa-solid fa-file-lines fa-fw"></i> View page source</a>
+  <a href="https://github.com/dankomiocevic/ghoti/edit/main/content/en/blog/news/leader-election-with-ghoti.md" class="td-page-meta--edit td-page-meta__edit" target="_blank" rel="noopener"><i class="fa-solid fa-pen-to-square fa-fw"></i> Edit this page</a>
+  <a href="https://github.com/dankomiocevic/ghoti/new/main/content/en/blog/news?filename=change-me.md&amp;value=---%0Atitle%3A&#43;%22Long&#43;Page&#43;Title%22%0AlinkTitle%3A&#43;%22Short&#43;Nav&#43;Title%22%0Aweight%3A&#43;100%0Adescription%3A&#43;%3E-%0A&#43;&#43;&#43;&#43;&#43;Page&#43;description&#43;for&#43;heading&#43;and&#43;indexes.%0A---%0A%0A%23%23&#43;Heading%0A%0AEdit&#43;this&#43;template&#43;to&#43;create&#43;your&#43;new&#43;page.%0A%0A%2A&#43;Give&#43;it&#43;a&#43;good&#43;name%2C&#43;ending&#43;in&#43;%60.md%60&#43;-&#43;e.g.&#43;%60getting-started.md%60%0A%2A&#43;Edit&#43;the&#43;%22front&#43;matter%22&#43;section&#43;at&#43;the&#43;top&#43;of&#43;the&#43;page&#43;%28weight&#43;controls&#43;how&#43;its&#43;ordered&#43;amongst&#43;other&#43;pages&#43;in&#43;the&#43;same&#43;directory%3B&#43;lowest&#43;number&#43;first%29.%0A%2A&#43;Add&#43;a&#43;good&#43;commit&#43;message&#43;at&#43;the&#43;bottom&#43;of&#43;the&#43;page&#43;%28%3C80&#43;characters%3B&#43;use&#43;the&#43;extended&#43;description&#43;field&#43;for&#43;more&#43;detail%29.%0A%2A&#43;Create&#43;a&#43;new&#43;branch&#43;so&#43;you&#43;can&#43;preview&#43;your&#43;new&#43;file&#43;and&#43;request&#43;a&#43;review&#43;via&#43;Pull&#43;Request.%0A" class="td-page-meta--child td-page-meta__child" target="_blank" rel="noopener"><i class="fa-solid fa-pen-to-square fa-fw"></i> Create child page</a>
+  <a href="https://github.com/dankomiocevic/ghoti/issues/new?title=Implementing%20Leader%20Election%20with%20Ghoti:%20Simple,%20Fast,%20and%20Reliable" class="td-page-meta--issue td-page-meta__issue" target="_blank" rel="noopener"><i class="fa-solid fa-list-check fa-fw"></i> Create documentation issue</a>
+  <a id="print" href="/blog/news/_print/"><i class="fa-solid fa-print fa-fw"></i> Print entire section</a>
+
+</div>
+
+            <div class="td-toc">
+        <nav id="TableOfContents">
+  <ul>
+    <li><a href="#the-leader-election-problem">The Leader Election Problem</a></li>
+    <li><a href="#enter-ghotis-timeout-memory-slots">Enter Ghoti&rsquo;s Timeout Memory Slots</a></li>
+    <li><a href="#how-leader-election-works-with-ghoti">How Leader Election Works with Ghoti</a></li>
+    <li><a href="#configuration">Configuration</a></li>
+    <li><a href="#implementation-with-ghoti-protocol">Implementation with Ghoti Protocol</a>
+      <ul>
+        <li><a href="#step-1-contest-for-leadership">Step 1: Contest for Leadership</a></li>
+        <li><a href="#step-2-read-current-leader">Step 2: Read Current Leader</a></li>
+        <li><a href="#step-3-maintain-leadership-heartbeat">Step 3: Maintain Leadership (Heartbeat)</a></li>
+        <li><a href="#protocol-message-examples">Protocol Message Examples</a></li>
+      </ul>
+    </li>
+    <li><a href="#testing-the-implementation">Testing the Implementation</a>
+      <ul>
+        <li><a href="#terminal-1-start-ghoti-server">Terminal 1: Start Ghoti Server</a></li>
+        <li><a href="#terminal-2-test-node-a">Terminal 2: Test Node A</a></li>
+        <li><a href="#terminal-3-test-node-b">Terminal 3: Test Node B</a></li>
+        <li><a href="#terminal-4-test-node-c">Terminal 4: Test Node C</a></li>
+        <li><a href="#testing-failover">Testing Failover</a></li>
+      </ul>
+    </li>
+    <li><a href="#advanced-patterns">Advanced Patterns</a>
+      <ul>
+        <li><a href="#graceful-shutdown">Graceful Shutdown</a></li>
+        <li><a href="#leadership-transfer">Leadership Transfer</a></li>
+        <li><a href="#health-checks">Health Checks</a></li>
+        <li><a href="#multiple-leadership-slots">Multiple Leadership Slots</a></li>
+      </ul>
+    </li>
+    <li><a href="#benefits-of-this-approach">Benefits of This Approach</a>
+      <ul>
+        <li><a href="#simplicity">Simplicity</a></li>
+        <li><a href="#performance">Performance</a></li>
+        <li><a href="#reliability">Reliability</a></li>
+        <li><a href="#flexibility">Flexibility</a></li>
+      </ul>
+    </li>
+    <li><a href="#when-to-use-this-approach">When to Use This Approach</a></li>
+    <li><a href="#when-not-to-use-this-approach">When Not to Use This Approach</a></li>
+    <li><a href="#conclusion">Conclusion</a></li>
+  </ul>
+</nav>
+      </div>
+    
+            <div class="taxonomy taxonomy-terms-cloud taxo-tags">
+      <h5 class="taxonomy-title">Tag Cloud</h5>
+      <ul class="taxonomy-terms">
+        <li><a class="taxonomy-term" href="https://miocevic.com/tags/coordination/" data-taxonomy-term="coordination"><span class="taxonomy-label">Coordination</span><span class="taxonomy-count">1</span></a></li>
+        <li><a class="taxonomy-term" href="https://miocevic.com/tags/distributed-systems/" data-taxonomy-term="distributed-systems"><span class="taxonomy-label">Distributed-Systems</span><span class="taxonomy-count">1</span></a></li>
+        <li><a class="taxonomy-term" href="https://miocevic.com/tags/leader-election/" data-taxonomy-term="leader-election"><span class="taxonomy-label">Leader-Election</span><span class="taxonomy-count">1</span></a></li>
+        <li><a class="taxonomy-term" href="https://miocevic.com/tags/timeout-memory/" data-taxonomy-term="timeout-memory"><span class="taxonomy-label">Timeout-Memory</span><span class="taxonomy-count">1</span></a></li>
+        </ul>
+    </div>
+  <div class="taxonomy taxonomy-terms-cloud taxo-categories">
+      <h5 class="taxonomy-title">Categories</h5>
+      <ul class="taxonomy-terms">
+        <li><a class="taxonomy-term" href="https://miocevic.com/categories/tutorial/" data-taxonomy-term="tutorial"><span class="taxonomy-label">Tutorial</span><span class="taxonomy-count">1</span></a></li>
+        </ul>
+    </div>
+  
+	
+          </aside>
           <main class="col-12 col-md-9 col-xl-8 ps-md-5 pe-md-4" role="main">
-            
-
-
-
-
+            <a class="td-rss-button" title="RSS" href="/blog/news/index.xml" target="_blank" rel="noopener">
+              <i class="fa-solid fa-rss" aria-hidden="true"></i>
+            </a>
+            <nav aria-label="breadcrumb" class="td-breadcrumbs">
+  <ol class="breadcrumb">
+  <li class="breadcrumb-item">
+    <a href="/blog/">Blog</a></li>
+  <li class="breadcrumb-item">
+    <a href="/blog/news/">News</a></li>
+  <li class="breadcrumb-item active" aria-current="page">
+    Leader Election with Ghoti</li>
+  </ol>
+</nav>
 <div class="td-content">
-<div class="pageinfo pageinfo-primary d-print-none">
-<p>
-This is the multi-page printable view of this section.
-<a href="#" onclick="print();return false;">Click here to print</a>.
-</p><p>
-<a href="/blog/">Return to the regular view of this page</a>.
-</p>
-</div>
-
-
-
-<h1 class="title">Blog</h1>
-
-
-
-
-
-    <ul>
-    
-  
-  
-  
-  
-
-  
-    
-    
-	
-
-    <li><a href="#pg-995c359e0eda056a2e3b98e604c59580">News</a></li>
-
-
-
-    
-    <ul>
-        
-  
-  
-  
-  
-
-  
-    
-    
-	
-
-    <li><a href="#pg-43448ff203b900ec8850e00110033ffc">Implementing Leader Election with Ghoti: Simple, Fast, and Reliable</a></li>
-
-
-
-    
-  
-
-    </ul>
-    
-  
-    
-    
-	
-
-    <li><a href="#pg-fbc771f2981eed29c0bc016b2d68a41a">Releases</a></li>
-
-
-
-    
-    <ul>
-        
-  
-  
-  
-  
-
-  
-
-    </ul>
-    
-  
-
-    </ul>
-
-
-<div class="content">
-      <p>This is the <strong>blog</strong> section. It has two categories: News and Releases.</p>
-<p>Files in these directories will be listed in reverse chronological order.</p>
-
-</div>
-</div>
-
-
-  
-  
-  
-  
-
-  
-  
-
-  
-    
-    
-	
-    
-
-
-  
-
-<div class="td-content" style="">
-    <h1 id="pg-995c359e0eda056a2e3b98e604c59580">News</h1>
-	
-	<div class="td-byline mb-4">
-		
-        
-	</div>
-	
-</div>
-
-
-
-
-
-    
-      
-  
-  
-  
-  
-
-  
-  
-
-  
-    
-    
-	
-    
-
-
-  
-
-<div class="td-content" style="">
-    <h1 id="pg-43448ff203b900ec8850e00110033ffc">Implementing Leader Election with Ghoti: Simple, Fast, and Reliable</h1>
+	<h1>Implementing Leader Election with Ghoti: Simple, Fast, and Reliable</h1>
 	<div class="lead">Learn how to implement leader election in distributed systems using Ghoti&rsquo;s timeout memory slots - a simple and effective approach</div>
 	<div class="td-byline mb-4">
 		By <b>The Ghoti Team</b> |
-        
 		<time datetime="2024-01-25" class="text-body-secondary">Thursday, January 25, 2024</time>
-        
 	</div>
+	<header class="article-meta">
+		<div class="taxonomy taxonomy-terms-article taxo-tags">
+  <h5 class="taxonomy-title">Tags:</h5>
+  <ul class="taxonomy-terms">
+    <li><a class="taxonomy-term" href="https://miocevic.com/tags/leader-election/" data-taxonomy-term="leader-election"><span class="taxonomy-label">Leader-Election</span></a></li>
+    <li><a class="taxonomy-term" href="https://miocevic.com/tags/distributed-systems/" data-taxonomy-term="distributed-systems"><span class="taxonomy-label">Distributed-Systems</span></a></li>
+    <li><a class="taxonomy-term" href="https://miocevic.com/tags/coordination/" data-taxonomy-term="coordination"><span class="taxonomy-label">Coordination</span></a></li>
+    <li><a class="taxonomy-term" href="https://miocevic.com/tags/timeout-memory/" data-taxonomy-term="timeout-memory"><span class="taxonomy-label">Timeout-Memory</span></a></li>
+    </ul>
+</div>
+<div class="taxonomy taxonomy-terms-article taxo-categories">
+  <h5 class="taxonomy-title">Categories:</h5>
+  <ul class="taxonomy-terms">
+    <li><a class="taxonomy-term" href="https://miocevic.com/categories/tutorial/" data-taxonomy-term="tutorial"><span class="taxonomy-label">Tutorial</span></a></li>
+    </ul>
+</div>
+
+  </header>
 	
 
 <div class="pageinfo pageinfo-primary">
@@ -436,57 +426,16 @@ slot_003: type: timeout_memory  # Configuration manager
 <hr>
 <p><em>Ghoti makes distributed coordination simple. Sometimes the best solution is the simplest one.</em></p>
 
-</div>
+	<ul class="list-unstyled d-flex justify-content-between align-items-center mb-0 pt-5">
+  <li>
+    <a class="btn btn-primary disabled"><span class="me-1">←</span>Previous</a>
+  </li>
+  <li>
+    <a class="btn btn-primary disabled">Next<span class="ms-1">→</span></a>
+  </li>
+</ul>
 
-
-
-
-
-    
-	
-  
-
-    
-	
-  
-    
-    
-	
-    
-
-
-  
-
-<div class="td-content" style="page-break-before: always">
-    <h1 id="pg-fbc771f2981eed29c0bc016b2d68a41a">Releases</h1>
-	
-	<div class="td-byline mb-4">
-		
-        
 	</div>
-	
-</div>
-
-
-
-
-
-    
-      
-  
-  
-  
-  
-
-  
-  
-
-  
-
-    
-	
-  
-
 
 
           </main>

@@ -2,157 +2,157 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>http://localhost:1313/docs/overview/</loc>
+    <loc>https://miocevic.com/docs/overview/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/tasks/beds/</loc>
+    <loc>https://miocevic.com/docs/tasks/beds/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/tasks/ponycopters/configuring-ponycopters/</loc>
+    <loc>https://miocevic.com/docs/tasks/ponycopters/configuring-ponycopters/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/getting-started/</loc>
+    <loc>https://miocevic.com/docs/getting-started/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/examples/</loc>
+    <loc>https://miocevic.com/docs/examples/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/tasks/ponycopters/launching-ponycopters/</loc>
+    <loc>https://miocevic.com/docs/tasks/ponycopters/launching-ponycopters/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/tutorials/multi-bear/</loc>
+    <loc>https://miocevic.com/docs/tutorials/multi-bear/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/tasks/porridge/</loc>
+    <loc>https://miocevic.com/docs/tasks/porridge/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/concepts/</loc>
+    <loc>https://miocevic.com/docs/concepts/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/tasks/task/</loc>
+    <loc>https://miocevic.com/docs/tasks/task/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/tutorials/tutorial2/</loc>
+    <loc>https://miocevic.com/docs/tutorials/tutorial2/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/tasks/</loc>
+    <loc>https://miocevic.com/docs/tasks/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/tutorials/</loc>
+    <loc>https://miocevic.com/docs/tutorials/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/reference/</loc>
+    <loc>https://miocevic.com/docs/reference/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/contribution-guidelines/</loc>
+    <loc>https://miocevic.com/docs/contribution-guidelines/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/blog/news/</loc>
+    <loc>https://miocevic.com/blog/news/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/blog/releases/</loc>
+    <loc>https://miocevic.com/blog/releases/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/blog/2018/10/06/easy-documentation-with-docsy/</loc>
+    <loc>https://miocevic.com/blog/2018/10/06/easy-documentation-with-docsy/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/blog/2018/10/06/second-blog-post/</loc>
+    <loc>https://miocevic.com/blog/2018/10/06/second-blog-post/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/blog/2018/01/04/another-great-release/</loc>
+    <loc>https://miocevic.com/blog/2018/01/04/another-great-release/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/categories/</loc>
-    <lastmod>2025-06-24T23:21:00-07:00</lastmod>
-    <xhtml:link
-                rel="alternate"
-                hreflang="fa"
-                href="http://localhost:1313/fa/categories/"
-                />
-    <xhtml:link
-                rel="alternate"
-                hreflang="no"
-                href="http://localhost:1313/no/categories/"
-                />
-    <xhtml:link
-                rel="alternate"
-                hreflang="en"
-                href="http://localhost:1313/categories/"
-                />
-  </url><url>
-    <loc>http://localhost:1313/tags/docs/</loc>
-    <lastmod>2025-06-24T23:21:00-07:00</lastmod>
-  </url><url>
-    <loc>http://localhost:1313/docs/getting-started/example-page/</loc>
-    <lastmod>2025-06-24T23:21:00-07:00</lastmod>
-  </url><url>
-    <loc>http://localhost:1313/categories/examples/</loc>
-    <lastmod>2025-06-24T23:21:00-07:00</lastmod>
-  </url><url>
-    <loc>http://localhost:1313/docs/reference/parameter-reference/</loc>
-    <lastmod>2025-06-24T23:21:00-07:00</lastmod>
-  </url><url>
-    <loc>http://localhost:1313/tags/sample/</loc>
-    <lastmod>2025-06-24T23:21:00-07:00</lastmod>
-  </url><url>
-    <loc>http://localhost:1313/tags/</loc>
+    <loc>https://miocevic.com/categories/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
     <xhtml:link
                 rel="alternate"
                 hreflang="fa"
-                href="http://localhost:1313/fa/tags/"
+                href="https://miocevic.com/fa/categories/"
                 />
     <xhtml:link
                 rel="alternate"
                 hreflang="no"
-                href="http://localhost:1313/no/tags/"
+                href="https://miocevic.com/no/categories/"
                 />
     <xhtml:link
                 rel="alternate"
                 hreflang="en"
-                href="http://localhost:1313/tags/"
+                href="https://miocevic.com/categories/"
                 />
   </url><url>
-    <loc>http://localhost:1313/tags/test/</loc>
+    <loc>https://miocevic.com/tags/docs/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/tasks/ponycopters/</loc>
+    <loc>https://miocevic.com/docs/getting-started/example-page/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/about/</loc>
+    <loc>https://miocevic.com/categories/examples/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/blog/</loc>
+    <loc>https://miocevic.com/docs/reference/parameter-reference/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/community/</loc>
+    <loc>https://miocevic.com/tags/sample/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/docs/</loc>
+    <loc>https://miocevic.com/tags/</loc>
+    <lastmod>2025-06-24T23:21:00-07:00</lastmod>
+    <xhtml:link
+                rel="alternate"
+                hreflang="fa"
+                href="https://miocevic.com/fa/tags/"
+                />
+    <xhtml:link
+                rel="alternate"
+                hreflang="no"
+                href="https://miocevic.com/no/tags/"
+                />
+    <xhtml:link
+                rel="alternate"
+                hreflang="en"
+                href="https://miocevic.com/tags/"
+                />
+  </url><url>
+    <loc>https://miocevic.com/tags/test/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/</loc>
+    <loc>https://miocevic.com/docs/tasks/ponycopters/</loc>
+    <lastmod>2025-06-24T23:21:00-07:00</lastmod>
+  </url><url>
+    <loc>https://miocevic.com/about/</loc>
+    <lastmod>2025-06-24T23:21:00-07:00</lastmod>
+  </url><url>
+    <loc>https://miocevic.com/blog/</loc>
+    <lastmod>2025-06-24T23:21:00-07:00</lastmod>
+  </url><url>
+    <loc>https://miocevic.com/community/</loc>
+    <lastmod>2025-06-24T23:21:00-07:00</lastmod>
+  </url><url>
+    <loc>https://miocevic.com/docs/</loc>
+    <lastmod>2025-06-24T23:21:00-07:00</lastmod>
+  </url><url>
+    <loc>https://miocevic.com/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
     <xhtml:link
                 rel="alternate"
                 hreflang="no"
-                href="http://localhost:1313/no/"
+                href="https://miocevic.com/no/"
                 />
     <xhtml:link
                 rel="alternate"
                 hreflang="fa"
-                href="http://localhost:1313/fa/"
+                href="https://miocevic.com/fa/"
                 />
     <xhtml:link
                 rel="alternate"
                 hreflang="en"
-                href="http://localhost:1313/"
+                href="https://miocevic.com/"
                 />
   </url><url>
-    <loc>http://localhost:1313/categories/placeholders/</loc>
+    <loc>https://miocevic.com/categories/placeholders/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/search/</loc>
+    <loc>https://miocevic.com/search/</loc>
     <lastmod>2025-06-24T23:21:00-07:00</lastmod>
   </url>
 </urlset>
