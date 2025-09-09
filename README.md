@@ -285,9 +285,11 @@ slot_003:
 
 ### Atomic counter slot
 
-This slot contains an integer number and allows to increment or decrement its value. Only one process can increment or decrement the value at a time.
+This slot contains an integer number and allows to increment its value atomically.
 
-To increment, you need to write a positive integer number, to decrement, a negative integer number.
+You can write a positive integer to the slot and it will set the current value to that number.
+
+When reading this slot, it will return the current value and increment it by one atomically.
 
 There is no configuration needed for this slot.
 
