@@ -16,7 +16,7 @@ type timeoutSlot struct {
 	owner   net.Conn
 	timeout time.Duration
 	ttl     time.Time
-	mu      sync.Mutex
+	mu      sync.RWMutex
 }
 
 func newTimeoutSlot(timeout int, users map[string]string) (*timeoutSlot, error) {
@@ -28,14 +28,18 @@ func newTimeoutSlot(timeout int, users map[string]string) (*timeoutSlot, error) 
 }
 
 func (m *timeoutSlot) Read() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	return m.value
 }
 
 func (m *timeoutSlot) Write(data string, from net.Conn) (string, error) {
+	timeNow := time.Now()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	timeNow := time.Now()
 	if timeNow.After(m.ttl) {
 		m.owner = from
 		m.value = data

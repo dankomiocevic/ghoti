@@ -13,12 +13,12 @@ import (
 type atomicSlot struct {
 	users map[string]string
 	value int64
-	mu    sync.Mutex
+	mu    sync.RWMutex
 }
 
 func (a *atomicSlot) Read() string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 
 	if math.MaxInt64 == a.value {
 		a.value = 0
