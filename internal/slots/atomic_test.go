@@ -13,7 +13,7 @@ func loadAtomicSlot(t *testing.T) *atomicSlot {
 	slot := &atomicSlot{
 		users: users,
 		value: 0,
-		mu:    sync.Mutex{},
+		mu:    sync.RWMutex{},
 	}
 	return slot
 }
@@ -71,7 +71,7 @@ func TestAtomicSlotPermissions(t *testing.T) {
 	slot := &atomicSlot{
 		users: users,
 		value: 0,
-		mu:    sync.Mutex{},
+		mu:    sync.RWMutex{},
 	}
 
 	readUser, _ := auth.GetUser("read_user", "pass")
