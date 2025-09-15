@@ -14,7 +14,6 @@ type DummyExit struct {
 
 func (d *DummyExit) Exit(code int) {
 	d.Called(code)
-	return
 }
 
 func TestNoConfig(t *testing.T) {

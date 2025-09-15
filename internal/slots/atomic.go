@@ -23,7 +23,7 @@ func (a *atomicSlot) Read() string {
 	if math.MaxInt64 == a.value {
 		a.value = 0
 	} else {
-		a.value += 1
+		a.value++
 	}
 
 	return strconv.FormatInt(a.value, 10)

@@ -44,8 +44,7 @@ func NewRunCommand() *cobra.Command {
 }
 
 func run(_ *cobra.Command, _ []string) {
-	var e ExitControl
-	e = &ExitControlCmd{}
+	e := &ExitControlCmd{}
 
 	runWithExit(e)
 }
