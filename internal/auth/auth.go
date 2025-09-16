@@ -18,7 +18,7 @@ func ValidateUsername(name string) error {
 	match, _ := regexp.MatchString("^[a-zA-Z]+[\\w]*$", name)
 
 	if !match {
-		return fmt.Errorf("Username can only contain letters, numbers or underscore")
+		return fmt.Errorf("username can only contain letters, numbers or underscore")
 	}
 
 	return nil

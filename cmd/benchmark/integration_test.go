@@ -2,7 +2,7 @@ package benchmark
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"strings"
 	"testing"
 
@@ -24,7 +24,7 @@ func TestNoServer(t *testing.T) {
 	rootCmd.SetOut(b)
 
 	rootCmd.Execute()
-	out, err := ioutil.ReadAll(b)
+	out, err := io.ReadAll(b)
 	if err != nil {
 		t.Fatal(err)
 	}

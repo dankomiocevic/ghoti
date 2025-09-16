@@ -71,7 +71,6 @@ func (s *joinServer) Close() {
 	slog.Info("Closing Cluster Join server")
 	s.server.Shutdown(context.Background())
 	s.wg.Wait()
-	return
 }
 
 func (s *joinServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {

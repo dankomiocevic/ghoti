@@ -96,9 +96,9 @@ func GetSlot(v *viper.Viper, conn connection_manager.ConnectionManager, id strin
 		initialValue := 0
 		if !v.IsSet("initial_value") {
 			return nil, fmt.Errorf("initial_value must be set for ticker slot")
-		} else {
-			initialValue = v.GetInt("initial_value")
 		}
+
+		initialValue = v.GetInt("initial_value")
 
 		if initialValue < 0 {
 			return nil, fmt.Errorf("Initial value cannot be negative")
@@ -107,9 +107,9 @@ func GetSlot(v *viper.Viper, conn connection_manager.ConnectionManager, id strin
 		var refreshRate int
 		if !v.IsSet("refresh_rate") {
 			return nil, fmt.Errorf("refresh_rate must be set for ticker slot")
-		} else {
-			refreshRate = v.GetInt("refresh_rate")
 		}
+
+		refreshRate = v.GetInt("refresh_rate")
 
 		tickerSlot, err := newTickerSlot(refreshRate, initialValue, users)
 		if err != nil {

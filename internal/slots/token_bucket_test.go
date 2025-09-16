@@ -37,41 +37,41 @@ func TestTokenBucketSmoke(t *testing.T) {
 }
 
 func TestTokenBucketRead(t *testing.T) {
-	read_user, _ := auth.GetUser("read", "pass")
-	write_user, _ := auth.GetUser("write", "pass")
-	all_user, _ := auth.GetUser("allu", "pass")
+	readUser, _ := auth.GetUser("read", "pass")
+	writeUser, _ := auth.GetUser("write", "pass")
+	allUser, _ := auth.GetUser("allu", "pass")
 
 	slot := loadBucketSlot(t)
 
-	if !slot.CanRead(&read_user) {
+	if !slot.CanRead(&readUser) {
 		t.Fatalf("we should be able to read with the read user")
 	}
 
-	if slot.CanRead(&write_user) {
+	if slot.CanRead(&writeUser) {
 		t.Fatalf("we should not be able to read with the read user")
 	}
 
-	if !slot.CanRead(&all_user) {
+	if !slot.CanRead(&allUser) {
 		t.Fatalf("we should be able to read with the read/write user")
 	}
 }
 
 func TestTokenBucketWrite(t *testing.T) {
-	read_user, _ := auth.GetUser("read", "pass")
-	write_user, _ := auth.GetUser("write", "pass")
-	all_user, _ := auth.GetUser("allu", "pass")
+	readUser, _ := auth.GetUser("read", "pass")
+	writeUser, _ := auth.GetUser("write", "pass")
+	allUser, _ := auth.GetUser("allu", "pass")
 
 	slot := loadBucketSlot(t)
 
-	if slot.CanWrite(&read_user) {
+	if slot.CanWrite(&readUser) {
 		t.Fatalf("we should not be able to write with any user")
 	}
 
-	if slot.CanWrite(&write_user) {
+	if slot.CanWrite(&writeUser) {
 		t.Fatalf("we should not be able to write with any user")
 	}
 
-	if slot.CanWrite(&all_user) {
+	if slot.CanWrite(&allUser) {
 		t.Fatalf("we should not be able to write with any user")
 	}
 }

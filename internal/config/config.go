@@ -69,7 +69,7 @@ func LoadConfig() (*Config, error) {
 	if viper.IsSet("protocol") {
 		config.Protocol = viper.GetString("protocol")
 
-		if SupportedProtocols[config.Protocol] != true {
+		if !SupportedProtocols[config.Protocol] {
 			return nil, fmt.Errorf("Protocol not supported: %s", config.Protocol)
 		}
 	}
@@ -178,7 +178,7 @@ func (c *Config) ConfigureLogging() error {
 
 	if viper.IsSet("log.format") {
 		c.Logging.Format = viper.GetString("log.format")
-		if SupportedLogFormat[c.Logging.Format] != true {
+		if !SupportedLogFormat[c.Logging.Format] {
 			return fmt.Errorf("Log format not supported: %s", c.Logging.Format)
 		}
 	}

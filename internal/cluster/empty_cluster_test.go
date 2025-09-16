@@ -48,5 +48,4 @@ func TestEmptyCluster(t *testing.T) {
 	if state != raft.Leader {
 		t.Fatalf("Empty cluster state must always be leader")
 	}
-
 }

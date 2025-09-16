@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// MockConnection simulates a network connection for testing
+// MockConnection simulates a network connection for testing.
 type MockConnection struct {
 	writeData []byte
 	writeErr  error
@@ -132,31 +132,31 @@ func TestConnectionSendEventUnknownResponse(t *testing.T) {
 	}
 }
 
-// TestBatchingSingleEvent tests that a single event is sent immediately
+// TestBatchingSingleEvent tests that a single event is sent immediately.
 func TestBatchingSingleEvent(t *testing.T) {
 	conn := loadConnection(t)
 	go conn.EventProcessor()
 
-	// Send a single event
+	// Send a single event.
 	err := conn.SendEvent("test_data")
 	if err != nil {
 		t.Fatalf("Error sending single event: %s", err)
 	}
 
-	// Check that the event was sent to the network
+	// Check that the event was sent to the network.
 	mockConn := conn.NetworkConn.(*MockConnection)
 	if len(mockConn.GetWriteData()) == 0 {
 		t.Fatal("No data was written to network")
 	}
 
-	// Verify the data was written correctly
+	// Verify the data was written correctly.
 	expectedData := "test_data"
 	if string(mockConn.GetWriteData()) != expectedData {
 		t.Fatalf("Expected data '%s', got '%s'", expectedData, string(mockConn.GetWriteData()))
 	}
 }
 
-// TestBatchingMultipleEvents tests that multiple events are batched together
+// TestBatchingMultipleEvents tests that multiple events are batched together.
 func TestBatchingMultipleEvents(t *testing.T) {
 	conn := loadConnection(t)
 
