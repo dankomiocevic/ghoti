@@ -8,20 +8,19 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/mock"
 )
 
-type TestFuture struct {
-	mock.Mock
+func newTestCluster(config ClusterConfig) *BullyCluster {
+	return &BullyCluster{
+		config: config,
+		nodeID: config.Node,
+		peers:  make(map[string]string),
+		isUp:   true,
+		stopCh: make(chan struct{}),
+	}
 }
 
-func (f *TestFuture) Error() error {
-	args := f.Called()
-	return args.Error(0)
-}
-
-func runServer(t *testing.T, config *ClusterConfig, cluster Cluster) MembershipManager {
+func runServer(t *testing.T, config *ClusterConfig, cluster *BullyCluster) MembershipManager {
 	// configure the join Server
 	s, err := GetManager(config, cluster)
 	if err != nil {
@@ -45,11 +44,7 @@ func TestJoin(t *testing.T) {
 	mgrAddr := "localhost:5345"
 	config := &ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr, ManagerJoin: "", Bind: "localhost:5555"}
 
-	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555").Return(nil)
-	future := new(TestFuture)
-	future.On("Error").Return(nil)
-	cluster.On("Bootstrap").Return(future)
+	cluster := newTestCluster(*config)
 
 	s := runServer(t, config, cluster)
 	defer s.Close()
@@ -76,14 +71,19 @@ func TestJoin(t *testing.T) {
 	if resp.Status != "200 OK" {
 		t.Fatalf("POST request returned wrong status %s", resp.Status)
 	}
+
+	// Verify the peer was added
+	peers := cluster.GetPeers()
+	if _, ok := peers["node2"]; !ok {
+		t.Fatalf("node2 was not added to peers")
+	}
 }
 
 func TestJoinNoAuth(t *testing.T) {
 	mgrAddr := "localhost:2345"
 	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
 
-	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555", "localhost:1234").Return(nil)
+	cluster := newTestCluster(*config)
 
 	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
 
@@ -110,8 +110,7 @@ func TestJoinWrongAuth(t *testing.T) {
 	mgrAddr := "localhost:2345"
 	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
 
-	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555").Return(nil)
+	cluster := newTestCluster(*config)
 
 	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
 
@@ -139,8 +138,7 @@ func TestWrongJoinData(t *testing.T) {
 	mgrAddr := "localhost:2345"
 	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
 
-	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555").Return(nil)
+	cluster := newTestCluster(*config)
 
 	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
 
@@ -176,64 +174,12 @@ func TestWrongJoinData(t *testing.T) {
 	}
 }
 
-func TestFailJoin(t *testing.T) {
-	mgrAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
-
-	cluster := new(MockedCluster)
-	cluster.On("Join", "node2", "localhost:5555").Return(fmt.Errorf("Something wrong"))
-
-	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster, join: "localhost:1234"}
-
-	b, err := json.Marshal(map[string]string{"addr": "localhost:5555", "id": "node2"})
-	if err != nil {
-		t.Fatalf("failed to encode key and value for POST: %s", err)
-	}
-	req := httptest.NewRequest("POST", fmt.Sprintf("http://%s/join", mgrAddr), bytes.NewReader(b))
-	req.Header.Add("Content-Type", "application/json")
-	req.SetBasicAuth(config.User, config.Pass)
-
-	w := httptest.NewRecorder()
-
-	js.ServeHTTP(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.Status != "500 Internal Server Error" {
-		t.Fatalf("POST request returned wrong status %s", resp.Status)
-	}
-}
-
-func TestBootstrapFail(t *testing.T) {
-	mgrAddr := "localhost:3345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
-
-	cluster := new(MockedCluster)
-	future := new(TestFuture)
-	ret_err := fmt.Errorf("Generic error")
-	future.On("Error").Return(ret_err)
-	cluster.On("Bootstrap").Return(future)
-
-	// configure the join Server
-	s, err := GetManager(config, cluster)
-	if err != nil {
-		t.Fatalf("failed to get manager: %s", err)
-	}
-
-	// Start the server
-	err = s.Start()
-	if err == nil {
-		t.Fatalf("Test should fail to bootstrap")
-	}
-}
-
 func TestRemoveWrongAuth(t *testing.T) {
 	mgrAddr := "localhost:2345"
 	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
 
-	cluster := new(MockedCluster)
-	cluster.On("IsLeader").Return(true)
+	cluster := newTestCluster(*config)
+	cluster.leader = cluster.nodeID // Make it leader
 
 	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
 
@@ -261,9 +207,8 @@ func TestWrongRemoveData(t *testing.T) {
 	mgrAddr := "localhost:2345"
 	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
 
-	cluster := new(MockedCluster)
-	cluster.On("IsLeader").Return(true)
-	cluster.On("Remove", "node2").Return(nil)
+	cluster := newTestCluster(*config)
+	cluster.leader = cluster.nodeID // Make it leader
 
 	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
 
@@ -292,5 +237,150 @@ func TestWrongRemoveData(t *testing.T) {
 			t.Fatalf("POST request returned wrong status %s, for request: %s", resp.Status, element)
 		}
 		resp.Body.Close()
+	}
+}
+
+func TestHeartbeat(t *testing.T) {
+	mgrAddr := "localhost:2345"
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+
+	cluster := newTestCluster(*config)
+
+	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
+
+	req := httptest.NewRequest("GET", fmt.Sprintf("http://%s/heartbeat", mgrAddr), nil)
+	w := httptest.NewRecorder()
+
+	js.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Heartbeat should return 200 OK, got %d", resp.StatusCode)
+	}
+}
+
+func TestHeartbeatWhenDown(t *testing.T) {
+	mgrAddr := "localhost:2345"
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+
+	cluster := newTestCluster(*config)
+	cluster.isUp = false
+
+	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
+
+	req := httptest.NewRequest("GET", fmt.Sprintf("http://%s/heartbeat", mgrAddr), nil)
+	w := httptest.NewRecorder()
+
+	js.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("Heartbeat should return 503, got %d", resp.StatusCode)
+	}
+}
+
+func TestElectionEndpoint(t *testing.T) {
+	mgrAddr := "localhost:2345"
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+
+	cluster := newTestCluster(*config)
+
+	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
+
+	b, _ := json.Marshal(map[string]string{"id": "node0"})
+	req := httptest.NewRequest("POST", fmt.Sprintf("http://%s/election", mgrAddr), bytes.NewReader(b))
+	req.SetBasicAuth("my_user", "my_pass")
+
+	w := httptest.NewRecorder()
+
+	js.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Election endpoint should return 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestElectionEndpointWrongAuth(t *testing.T) {
+	mgrAddr := "localhost:2345"
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+
+	cluster := newTestCluster(*config)
+
+	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
+
+	b, _ := json.Marshal(map[string]string{"id": "node0"})
+	req := httptest.NewRequest("POST", fmt.Sprintf("http://%s/election", mgrAddr), bytes.NewReader(b))
+	req.SetBasicAuth("wrong_user", "my_pass")
+
+	w := httptest.NewRecorder()
+
+	js.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("Election endpoint should return 400 for wrong auth, got %d", resp.StatusCode)
+	}
+}
+
+func TestCoordinatorEndpoint(t *testing.T) {
+	mgrAddr := "localhost:2345"
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+
+	cluster := newTestCluster(*config)
+
+	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
+
+	b, _ := json.Marshal(map[string]string{"id": "node2"})
+	req := httptest.NewRequest("POST", fmt.Sprintf("http://%s/coordinator", mgrAddr), bytes.NewReader(b))
+	req.Header.Add("Content-Type", "application/json")
+	req.SetBasicAuth("my_user", "my_pass")
+
+	w := httptest.NewRecorder()
+
+	js.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Coordinator endpoint should return 200, got %d", resp.StatusCode)
+	}
+
+	if cluster.GetLeader() != "node2" {
+		t.Fatalf("Leader should be set to node2, got %s", cluster.GetLeader())
+	}
+}
+
+func TestCoordinatorEndpointWrongAuth(t *testing.T) {
+	mgrAddr := "localhost:2345"
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+
+	cluster := newTestCluster(*config)
+
+	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
+
+	b, _ := json.Marshal(map[string]string{"id": "node2"})
+	req := httptest.NewRequest("POST", fmt.Sprintf("http://%s/coordinator", mgrAddr), bytes.NewReader(b))
+	req.Header.Add("Content-Type", "application/json")
+	req.SetBasicAuth("wrong_user", "my_pass")
+
+	w := httptest.NewRecorder()
+
+	js.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("Coordinator endpoint should return 400 for wrong auth, got %d", resp.StatusCode)
 	}
 }

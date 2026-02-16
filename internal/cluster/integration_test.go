@@ -4,13 +4,32 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"math"
 	"net/http"
 	"testing"
 	"time"
-
-	"github.com/hashicorp/raft"
 )
+
+func waitForLeader(t *testing.T, c *BullyCluster, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if c.IsLeader() {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("Node %s did not become leader within timeout", c.nodeID)
+}
+
+func waitForFollower(t *testing.T, c *BullyCluster, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if !c.IsLeader() && c.GetLeader() != "" {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("Node %s did not become follower within timeout", c.nodeID)
+}
 
 func TestClusterMultiNode(t *testing.T) {
 	if testing.Short() {
@@ -26,34 +45,16 @@ func TestClusterMultiNode(t *testing.T) {
 		t.Fatalf("failed to create new cluster node one: %s", err)
 	}
 
-	nodeTwo, err := NewCluster(configTwo)
-	if err != nil {
-		t.Fatalf("failed to create new cluster node two: %s", err)
-	}
-
-	nodeThree, err := NewCluster(configThree)
-	if err != nil {
-		t.Fatalf("failed to create new cluster node three: %s", err)
-	}
-
 	err = nodeOne.Start()
 	if err != nil {
 		t.Fatalf("failed to start cluster node one: %s", err)
 	}
 
-	// Exponential retry until set as leader
-	baseDelay := 100 * time.Millisecond
-	for i := 0; i < 7; i++ {
-		if nodeOne.state() == raft.Leader {
-			break
-		}
+	waitForLeader(t, nodeOne, 5*time.Second)
 
-		secRetry := math.Pow(2, float64(i))
-		delay := time.Duration(secRetry) * baseDelay
-		time.Sleep(delay)
-	}
-	if nodeOne.state() != raft.Leader {
-		t.Fatalf("Node one not set as leader, state: %s", nodeOne.state())
+	nodeTwo, err := NewCluster(configTwo)
+	if err != nil {
+		t.Fatalf("failed to create new cluster node two: %s", err)
 	}
 
 	err = nodeTwo.Start()
@@ -61,19 +62,11 @@ func TestClusterMultiNode(t *testing.T) {
 		t.Fatalf("failed to start node two: %s", err)
 	}
 
-	// Exponential retry until node 2 is set as follower
-	baseDelay = 100 * time.Millisecond
-	for i := 0; i < 7; i++ {
-		if nodeTwo.state() == raft.Follower {
-			break
-		}
+	waitForFollower(t, nodeTwo, 5*time.Second)
 
-		secRetry := math.Pow(2, float64(i))
-		delay := time.Duration(secRetry) * baseDelay
-		time.Sleep(delay)
-	}
-	if nodeTwo.state() != raft.Follower {
-		t.Fatalf("Node two not set as follower, state: %s", nodeTwo.state())
+	nodeThree, err := NewCluster(configThree)
+	if err != nil {
+		t.Fatalf("failed to create new cluster node three: %s", err)
 	}
 
 	err = nodeThree.Start()
@@ -81,106 +74,40 @@ func TestClusterMultiNode(t *testing.T) {
 		t.Fatalf("failed to start node three: %s", err)
 	}
 
-	// Exponential retry until node 3 is set as follower
-	baseDelay = 100 * time.Millisecond
-	for i := 0; i < 7; i++ {
-		if nodeThree.state() == raft.Follower {
-			break
-		}
+	waitForFollower(t, nodeThree, 5*time.Second)
 
-		secRetry := math.Pow(2, float64(i))
-		delay := time.Duration(secRetry) * baseDelay
-		time.Sleep(delay)
+	// Verify leader is node1
+	if !nodeOne.IsLeader() {
+		t.Fatalf("Node one should be leader")
 	}
-	if nodeThree.state() != raft.Follower {
-		t.Fatalf("Node three not set as follower, state: %s", nodeThree.state())
+	if nodeTwo.GetLeader() != "node1" {
+		t.Fatalf("Node two should see node1 as leader, got %s", nodeTwo.GetLeader())
+	}
+	if nodeThree.GetLeader() != "node1" {
+		t.Fatalf("Node three should see node1 as leader, got %s", nodeThree.GetLeader())
 	}
 
-	// Shutting down leader node
-	nodeOne.Shutdown().Error()
+	// Shutdown the leader (node1)
+	nodeOne.Shutdown()
 
-	// Exponential retry until another node becomes leader
-	baseDelay = 100 * time.Millisecond
-	for i := 0; i < 7; i++ {
-		if nodeTwo.state() == raft.Leader || nodeThree.state() == raft.Leader {
-			break
-		}
+	// Wait for the bully election to complete
+	// node3 has the highest ID so it should become leader
+	time.Sleep(5 * time.Second)
 
-		secRetry := math.Pow(2, float64(i))
-		delay := time.Duration(secRetry) * baseDelay
-		time.Sleep(delay)
+	// In bully algorithm, the highest ID node becomes leader
+	// node3 > node2, so node3 should be leader
+	if !nodeThree.IsLeader() {
+		t.Fatalf("Node three should be the new leader after node one shutdown")
 	}
-	if nodeTwo.state() != raft.Leader && nodeThree.state() != raft.Leader {
-		t.Fatalf("Node two or three not set as leader, state_two: %s, state_three: %s", nodeTwo.state(), nodeThree.state())
+	if nodeTwo.GetLeader() != "node3" {
+		t.Fatalf("Node two should see node3 as leader, got %s", nodeTwo.GetLeader())
 	}
 
-	// Identify the leader and follower node
-	var leaderNodeConfig, followerNodeConfig ClusterConfig
-	if nodeTwo.IsLeader() {
-		leaderNodeConfig = configTwo
-		followerNodeConfig = configThree
-	} else {
-		leaderNodeConfig = configThree
-		followerNodeConfig = configTwo
-	}
+	// Identify the leader and follower node configs
+	leaderNodeConfig := configThree
+	followerNodeConfig := configTwo
 
-	// Adding node one again
-	configOne = ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2226", ManagerJoin: leaderNodeConfig.ManagerAddr, Bind: "localhost:1111"}
-	nodeOne, err = NewCluster(configOne)
-	if err != nil {
-		t.Fatalf("failed to create new cluster node one: %s", err)
-	}
-	err = nodeOne.Start()
-	if err != nil {
-		t.Fatalf("failed to restart node one: %s", err)
-	}
-
-	// Exponential retry until node 1 is set as follower and gets leader info
-	baseDelay = 100 * time.Millisecond
-	for i := 0; i < 7; i++ {
-		if nodeOne.state() == raft.Follower && len(nodeOne.GetLeader()) > 0 {
-			break
-		}
-
-		secRetry := math.Pow(2, float64(i))
-		delay := time.Duration(secRetry) * baseDelay
-		time.Sleep(delay)
-	}
-	if nodeOne.state() != raft.Follower {
-		t.Fatalf("Node one not set as follower, state: %s", nodeOne.state())
-	}
-	if nodeTwo.GetLeader() != nodeOne.GetLeader() {
-		t.Fatalf("Leader does not match: nodeOne -> %s, nodeTwo -> %s", nodeOne.GetLeader(), nodeTwo.GetLeader())
-	}
-
-	// Shutting down again node
-	nodeOne.Shutdown().Error()
-
-	// Exponential retry until another node becomes leader
-	baseDelay = 100 * time.Millisecond
-	for i := 0; i < 7; i++ {
-		if nodeTwo.state() == raft.Leader || nodeThree.state() == raft.Leader {
-			break
-		}
-
-		secRetry := math.Pow(2, float64(i))
-		delay := time.Duration(secRetry) * baseDelay
-		time.Sleep(delay)
-	}
-	if nodeTwo.state() != raft.Leader && nodeThree.state() != raft.Leader {
-		t.Fatalf("Node two or three not set as leader, state_two: %s, state_three: %s", nodeTwo.state(), nodeThree.state())
-	}
-
-	// Identify the leader and follower node
-	if nodeTwo.IsLeader() {
-		leaderNodeConfig = configTwo
-		followerNodeConfig = configThree
-	} else {
-		leaderNodeConfig = configThree
-		followerNodeConfig = configTwo
-	}
-
-	// Request to remove nodeOne sent to follower
+	// Request to remove nodeOne sent to follower (should fail)
 	b, err := json.Marshal(map[string]string{"id": configOne.Node})
 	if err != nil {
 		t.Fatalf("Failed to generate JSON: %s", err)
@@ -205,7 +132,7 @@ func TestClusterMultiNode(t *testing.T) {
 
 	resp.Body.Close()
 
-	// Request to remove nodeOne sent to leader
+	// Request to remove nodeOne sent to leader (should succeed)
 	b, err = json.Marshal(map[string]string{"id": configOne.Node})
 	if err != nil {
 		t.Fatalf("Failed to generate JSON: %s", err)
@@ -230,7 +157,7 @@ func TestClusterMultiNode(t *testing.T) {
 	resp.Body.Close()
 
 	// Adding node one again
-	configOne = ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2229", ManagerJoin: leaderNodeConfig.ManagerAddr, Bind: "localhost:1119"}
+	configOne = ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2226", ManagerJoin: leaderNodeConfig.ManagerAddr, Bind: "localhost:1119"}
 	nodeOne, err = NewCluster(configOne)
 	if err != nil {
 		t.Fatalf("failed to create new cluster node one: %s", err)
@@ -240,27 +167,14 @@ func TestClusterMultiNode(t *testing.T) {
 		t.Fatalf("failed to restart node one: %s", err)
 	}
 
-	// Exponential retry until node 1 is set as follower and gets leader info
-	baseDelay = 100 * time.Millisecond
-	for i := 0; i < 7; i++ {
-		if nodeOne.state() == raft.Follower && len(nodeOne.GetLeader()) > 0 {
-			break
-		}
+	waitForFollower(t, nodeOne, 5*time.Second)
 
-		secRetry := math.Pow(2, float64(i))
-		delay := time.Duration(secRetry) * baseDelay
-		time.Sleep(delay)
-	}
-	if nodeOne.state() != raft.Follower {
-		t.Fatalf("Node one not set as follower, state: %s", nodeOne.state())
-	}
-	if nodeTwo.GetLeader() != nodeOne.GetLeader() {
+	if nodeOne.GetLeader() != nodeTwo.GetLeader() {
 		t.Fatalf("Leader does not match: nodeOne -> %s, nodeTwo -> %s", nodeOne.GetLeader(), nodeTwo.GetLeader())
 	}
 
-	// Request to join again for nodeOne
-	err = requestToJoin(leaderNodeConfig.ManagerAddr, configOne.Bind, configOne.Node, configOne.User, configOne.Pass)
-	if err != nil {
-		t.Fatalf("Request to join existing node must fail silently")
-	}
+	// Clean up
+	nodeOne.Shutdown()
+	nodeTwo.Shutdown()
+	nodeThree.Shutdown()
 }
