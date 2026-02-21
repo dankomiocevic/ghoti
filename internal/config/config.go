@@ -7,6 +7,7 @@ import (
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/connection_manager"
+	"github.com/dankomiocevic/ghoti/internal/metrics"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 	"github.com/spf13/viper"
 )
@@ -39,6 +40,7 @@ type Config struct {
 	Users       map[string]auth.User
 	Cluster     cluster.ClusterConfig
 	Logging     LoggingConfig
+	Metrics     metrics.Config
 	Connections connection_manager.ConnectionManager
 	Protocol    string
 }
@@ -90,6 +92,11 @@ func LoadConfig() (*Config, error) {
 	}
 
 	e = config.LoadCluster()
+	if e != nil {
+		return nil, e
+	}
+
+	e = config.LoadMetrics()
 	if e != nil {
 		return nil, e
 	}
@@ -186,5 +193,52 @@ func (c *Config) ConfigureLogging() error {
 }
 
 func (c *Config) Verify() error {
+	return nil
+}
+
+var supportedRotations = map[string]bool{
+	"hourly": true,
+	"daily":  true,
+}
+
+// LoadMetrics reads the optional "metrics:" YAML section and populates c.Metrics.
+// Metrics are disabled by default; they must be explicitly enabled with
+// "metrics.enabled: true".
+func (c *Config) LoadMetrics() error {
+	if !viper.IsSet("metrics") {
+		return nil
+	}
+
+	c.Metrics.Enabled = viper.GetBool("metrics.enabled")
+	if !c.Metrics.Enabled {
+		return nil
+	}
+
+	c.Metrics.OutputDir = viper.GetString("metrics.output_dir")
+	if c.Metrics.OutputDir == "" {
+		return fmt.Errorf("metrics.output_dir is required when metrics is enabled")
+	}
+
+	if viper.IsSet("metrics.rotation") {
+		c.Metrics.Rotation = viper.GetString("metrics.rotation")
+		if !supportedRotations[c.Metrics.Rotation] {
+			return fmt.Errorf("unsupported metrics rotation %q: must be \"hourly\" or \"daily\"", c.Metrics.Rotation)
+		}
+	}
+
+	if viper.IsSet("metrics.retain") {
+		c.Metrics.Retain = viper.GetInt("metrics.retain")
+		if c.Metrics.Retain < 0 {
+			return fmt.Errorf("metrics.retain must be >= 0")
+		}
+	}
+
+	if viper.IsSet("metrics.interval") {
+		c.Metrics.Interval = viper.GetInt("metrics.interval")
+		if c.Metrics.Interval < 1 {
+			return fmt.Errorf("metrics.interval must be at least 1 second")
+		}
+	}
+
 	return nil
 }

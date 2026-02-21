@@ -12,6 +12,7 @@ import (
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/errors"
+	"github.com/dankomiocevic/ghoti/internal/metrics"
 )
 
 type TcpManager struct {
@@ -172,6 +173,7 @@ func (c *TcpManager) Add(conn net.Conn, bufferSize int) Connection {
 	}
 
 	c.connections[connection.Id] = connection
+	metrics.IncrConnectedClients()
 	return connection
 }
 
@@ -189,6 +191,7 @@ func (c *TcpManager) Delete(id string) {
 	}
 
 	delete(c.connections, id)
+	metrics.DecrConnectedClients()
 }
 
 func (c *TcpManager) Close() {

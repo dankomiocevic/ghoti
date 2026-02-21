@@ -4,6 +4,14 @@ log:
   level: debug
   format: text
 
+# Metrics are disabled by default. Uncomment and configure to enable.
+#metrics:
+#  enabled: true
+#  output_dir: /var/log/ghoti/metrics  # directory where metric files are written
+#  rotation: daily                      # "daily" (default) or "hourly"
+#  retain: 7                            # number of rotation files to keep (default: 7)
+#  interval: 10                         # seconds between metric snapshots (default: 10)
+
 slot_000:
   kind: broadcast
 
