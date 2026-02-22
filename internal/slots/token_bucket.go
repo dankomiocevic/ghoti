@@ -43,13 +43,14 @@ func newTokenBucketSlot(periodString string, bucketSize, refreshRate, tokensPerR
 	}
 
 	var period int64
-	if periodString == "second" {
+	switch periodString {
+	case "second":
 		period = 1
-	} else if periodString == "minute" {
+	case "minute":
 		period = 60
-	} else if periodString == "hour" {
+	case "hour":
 		period = 3600
-	} else {
+	default:
 		return nil, fmt.Errorf("Period value is invalid on token_bucket slot: %s", periodString)
 	}
 
@@ -73,7 +74,7 @@ func (m *tokenBucketSlot) Read() string {
 
 	retVal := min(m.value, m.tokensPerReq)
 
-	m.value = m.value - retVal
+	m.value -= retVal
 	return strconv.Itoa(retVal)
 }
 
