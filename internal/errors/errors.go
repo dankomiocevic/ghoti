@@ -40,9 +40,9 @@ func loadValues() map[string]ErrorCode {
 
 	m := make(map[string]ErrorCode)
 	for _, v := range matches {
-		id := fmt.Sprint(v[3:6])
-		name := fmt.Sprint(v[8:len(v)])
-		response := fmt.Sprintf("%s\n", id)
+		id := v[3:6]
+		name := v[8:]
+		response := id + "\n"
 
 		e := ErrorCode{name: name, id: id, response: response}
 		m[name] = e
