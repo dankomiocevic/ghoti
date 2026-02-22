@@ -115,7 +115,7 @@ func RecordRequest(d time.Duration) {
 
 // TakeSnapshot collects a point-in-time reading and atomically resets the
 // interval accumulators (request count, latency). The connected-clients gauge
-// is not reset. elapsed is the number of seconds since the previous snapshot
+// is not reset. Elapsed is the number of seconds since the previous snapshot
 // and is used to compute the requests-per-second rate.
 func TakeSnapshot(elapsed float64) Snapshot {
 	reqCount := global.requestCount.Swap(0)

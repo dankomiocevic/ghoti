@@ -333,3 +333,118 @@ func TestWriteSnapshotAppendsToExistingFile(t *testing.T) {
 		t.Errorf("file does not contain both snapshots:\n%s", content)
 	}
 }
+
+func TestRunWritesMetricsFile(t *testing.T) {
+	resetGlobal()
+	Enable()
+
+	dir := t.TempDir()
+	cfg := Config{
+		Enabled:   true,
+		OutputDir: dir,
+		Rotation:  "daily",
+		Retain:    7,
+		Interval:  1,
+	}
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		Run(cfg, stop)
+		close(done)
+	}()
+
+	// Record some activity so the snapshot is non-trivial.
+	IncrConnectedClients()
+	RecordRequest(2 * time.Millisecond)
+
+	// Wait long enough for at least one tick (interval = 1 s).
+	time.Sleep(1500 * time.Millisecond)
+
+	close(stop)
+	<-done
+
+	matches, err := filepath.Glob(filepath.Join(dir, "metrics-*.prom"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches) == 0 {
+		t.Fatal("expected at least one metrics file to be written")
+	}
+
+	content, err := os.ReadFile(matches[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), "ghoti_connected_clients") {
+		t.Errorf("metrics file missing expected content:\n%s", content)
+	}
+}
+
+func TestRunCreatesOutputDir(t *testing.T) {
+	resetGlobal()
+	Enable()
+
+	// Use a nested path that does not exist yet.
+	dir := filepath.Join(t.TempDir(), "nested", "metrics")
+	cfg := Config{
+		Enabled:   true,
+		OutputDir: dir,
+		Rotation:  "daily",
+		Retain:    7,
+		Interval:  1,
+	}
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		Run(cfg, stop)
+		close(done)
+	}()
+
+	time.Sleep(1500 * time.Millisecond)
+	close(stop)
+	<-done
+
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		t.Errorf("expected output directory %q to be created", dir)
+	}
+}
+
+func TestRunInvalidOutputDirStops(t *testing.T) {
+	resetGlobal()
+	Enable()
+
+	// Pass a path where a file already exists in place of the directory,
+	// so MkdirAll will fail.
+	f, err := os.CreateTemp("", "ghoti-metrics-*.prom")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	defer os.Remove(f.Name())
+
+	cfg := Config{
+		Enabled:   true,
+		OutputDir: filepath.Join(f.Name(), "subdir"), // file used as parent: invalid
+		Rotation:  "daily",
+		Retain:    7,
+		Interval:  1,
+	}
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		Run(cfg, stop)
+		close(done)
+	}()
+
+	// Run should return quickly because MkdirAll fails.
+	select {
+	case <-done:
+		// expected
+	case <-time.After(3 * time.Second):
+		close(stop)
+		t.Error("Run did not exit after invalid output directory")
+	}
+}
