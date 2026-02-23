@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/spf13/viper"
+
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/connection_manager"
-	"github.com/spf13/viper"
 )
 
 type Slot interface {
@@ -22,10 +23,8 @@ func GetSlot(v *viper.Viper, conn connection_manager.ConnectionManager, id strin
 	usersConfig := v.GetStringMap("users")
 
 	users := make(map[string]string)
-	if usersConfig != nil {
-		for key, value := range usersConfig {
-			users[key] = fmt.Sprintf("%v", value)
-		}
+	for key, value := range usersConfig {
+		users[key] = fmt.Sprintf("%v", value)
 	}
 
 	if kind == "simple_memory" {
@@ -93,12 +92,11 @@ func GetSlot(v *viper.Viper, conn connection_manager.ConnectionManager, id strin
 	}
 
 	if kind == "ticker" {
-		initialValue := 0
 		if !v.IsSet("initial_value") {
 			return nil, fmt.Errorf("initial_value must be set for ticker slot")
 		}
 
-		initialValue = v.GetInt("initial_value")
+		initialValue := v.GetInt("initial_value")
 
 		if initialValue < 0 {
 			return nil, fmt.Errorf("Initial value cannot be negative")

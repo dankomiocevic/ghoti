@@ -80,7 +80,7 @@ func TestJoin(t *testing.T) {
 
 func TestJoinNoAuth(t *testing.T) {
 	mgrAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+	config := &ClusterConfig{User: "my_user", Pass: "my_pass", ManagerAddr: mgrAddr}
 
 	cluster := new(MockedCluster)
 	cluster.On("Join", "node2", "localhost:5555", "localhost:1234").Return(nil)
@@ -108,7 +108,7 @@ func TestJoinNoAuth(t *testing.T) {
 
 func TestJoinWrongAuth(t *testing.T) {
 	mgrAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+	config := &ClusterConfig{User: "my_user", Pass: "my_pass", ManagerAddr: mgrAddr}
 
 	cluster := new(MockedCluster)
 	cluster.On("Join", "node2", "localhost:5555").Return(nil)
@@ -137,7 +137,7 @@ func TestJoinWrongAuth(t *testing.T) {
 
 func TestWrongJoinData(t *testing.T) {
 	mgrAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+	config := &ClusterConfig{User: "my_user", Pass: "my_pass", ManagerAddr: mgrAddr}
 
 	cluster := new(MockedCluster)
 	cluster.On("Join", "node2", "localhost:5555").Return(nil)
@@ -178,7 +178,7 @@ func TestWrongJoinData(t *testing.T) {
 
 func TestFailJoin(t *testing.T) {
 	mgrAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+	config := &ClusterConfig{User: "my_user", Pass: "my_pass", ManagerAddr: mgrAddr}
 
 	cluster := new(MockedCluster)
 	cluster.On("Join", "node2", "localhost:5555").Return(fmt.Errorf("Something wrong"))
@@ -211,8 +211,8 @@ func TestBootstrapFail(t *testing.T) {
 
 	cluster := new(MockedCluster)
 	future := new(TestFuture)
-	ret_err := fmt.Errorf("Generic error")
-	future.On("Error").Return(ret_err)
+	retErr := fmt.Errorf("Generic error")
+	future.On("Error").Return(retErr)
 	cluster.On("Bootstrap").Return(future)
 
 	// configure the join Server
@@ -230,7 +230,7 @@ func TestBootstrapFail(t *testing.T) {
 
 func TestRemoveWrongAuth(t *testing.T) {
 	mgrAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+	config := &ClusterConfig{User: "my_user", Pass: "my_pass", ManagerAddr: mgrAddr}
 
 	cluster := new(MockedCluster)
 	cluster.On("IsLeader").Return(true)
@@ -259,7 +259,7 @@ func TestRemoveWrongAuth(t *testing.T) {
 
 func TestWrongRemoveData(t *testing.T) {
 	mgrAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+	config := &ClusterConfig{User: "my_user", Pass: "my_pass", ManagerAddr: mgrAddr}
 
 	cluster := new(MockedCluster)
 	cluster.On("IsLeader").Return(true)
