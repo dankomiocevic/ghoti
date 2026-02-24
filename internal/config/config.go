@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/spf13/viper"
+
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/connection_manager"
 	"github.com/dankomiocevic/ghoti/internal/slots"
-	"github.com/spf13/viper"
 )
 
 var SupportedLogLevels = map[string]slog.Level{
@@ -70,7 +71,7 @@ func LoadConfig() (*Config, error) {
 		config.Protocol = viper.GetString("protocol")
 
 		if !SupportedProtocols[config.Protocol] {
-			return nil, fmt.Errorf("Protocol not supported: %s", config.Protocol)
+			return nil, fmt.Errorf("protocol not supported: %s", config.Protocol)
 		}
 	}
 
@@ -106,7 +107,7 @@ func (c *Config) LoadCluster() error {
 		c.Cluster.Node = viper.GetString("cluster.node")
 		// TODO: Only letters, and numbers no spaces
 		if len(c.Cluster.Node) > 20 {
-			return fmt.Errorf("Cluster node name must be less than 20 characters")
+			return fmt.Errorf("cluster node name must be less than 20 characters")
 		}
 
 		if !viper.IsSet("cluster.bind") {
@@ -172,7 +173,7 @@ func (c *Config) ConfigureLogging() error {
 		if ok {
 			c.Logging.Level = lvl
 		} else {
-			return fmt.Errorf("Log level not supported: %s", c.Logging.Level)
+			return fmt.Errorf("log level not supported: %s", c.Logging.Level)
 		}
 	}
 

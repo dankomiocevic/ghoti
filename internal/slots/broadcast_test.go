@@ -1,8 +1,8 @@
 package slots
 
 import (
-	"testing"
 	"fmt"
+	"testing"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/connection_manager"
@@ -51,8 +51,8 @@ func loadBroadcastSlot(t *testing.T) *broadcastSlot {
 func TestBroadcastSlotCanReadWhenUsersEmpty(t *testing.T) {
 	slot := loadBroadcastSlot(t)
 
-	read_user, _ := auth.GetUser("read", "pass")
-	if !slot.CanRead(&read_user) {
+	readUser, _ := auth.GetUser("read", "pass")
+	if !slot.CanRead(&readUser) {
 		t.Fatalf("we should be able to read when users map is empty")
 	}
 }
@@ -60,8 +60,8 @@ func TestBroadcastSlotCanReadWhenUsersEmpty(t *testing.T) {
 func TestBroadcastSlotCanWriteWhenUsersEmpty(t *testing.T) {
 	slot := loadBroadcastSlot(t)
 
-	write_user, _ := auth.GetUser("write", "pass")
-	if !slot.CanWrite(&write_user) {
+	writeUser, _ := auth.GetUser("write", "pass")
+	if !slot.CanWrite(&writeUser) {
 		t.Fatalf("we should be able to write when users map is empty")
 	}
 }
@@ -95,27 +95,27 @@ func TestBroadcastSlotPermissionsWithMock(t *testing.T) {
 		t.Fatalf("Slot must not return error: %s", err)
 	}
 
-	read_user, _ := auth.GetUser("read_user", "pass")
-	write_user, _ := auth.GetUser("write_user", "pass")
-	all_user, _ := auth.GetUser("all_user", "pass")
+	readUser, _ := auth.GetUser("read_user", "pass")
+	writeUser, _ := auth.GetUser("write_user", "pass")
+	allUser, _ := auth.GetUser("all_user", "pass")
 
-	if !slot.CanRead(&read_user) {
+	if !slot.CanRead(&readUser) {
 		t.Fatalf("Read user should have read permissions")
 	}
 
-	if slot.CanWrite(&read_user) {
+	if slot.CanWrite(&readUser) {
 		t.Fatalf("Read user should not have write permissions")
 	}
 
-	if !slot.CanWrite(&write_user) {
+	if !slot.CanWrite(&writeUser) {
 		t.Fatalf("Write user should have write permissions")
 	}
 
-	if !slot.CanRead(&all_user) {
+	if !slot.CanRead(&allUser) {
 		t.Fatalf("All user should have read permissions")
 	}
 
-	if !slot.CanWrite(&all_user) {
+	if !slot.CanWrite(&allUser) {
 		t.Fatalf("All user should have write permissions")
 	}
 }
