@@ -120,7 +120,7 @@ func TestBroadcast(t *testing.T) {
 	wg.Wait()
 }
 
-// This is a benchmark test to check the performance of the broadcast functionality
+// This is a benchmark test to check the performance of the broadcast functionality.
 func benchmarkBroadcast(x int, b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		b.StopTimer()
@@ -166,7 +166,6 @@ func benchmarkBroadcast(x int, b *testing.B) {
 		for _, conn := range servers {
 			conn.Close()
 		}
-
 	}
 }
 
