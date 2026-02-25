@@ -63,7 +63,7 @@ func loadConnection(_ *testing.T) *Connection {
 	conn := &MockConnection{}
 
 	return &Connection{
-		Id:          uuid.NewString(),
+		ID:          uuid.NewString(),
 		Quit:        make(chan interface{}),
 		Events:      make(chan Event, 10),
 		NetworkConn: conn,

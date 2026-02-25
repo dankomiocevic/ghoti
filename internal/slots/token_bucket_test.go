@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/spf13/viper"
+
+	"github.com/dankomiocevic/ghoti/internal/auth"
 )
 
 func loadBucketSlot(t *testing.T) Slot {

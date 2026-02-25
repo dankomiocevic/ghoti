@@ -34,18 +34,14 @@ func (m *MockConnectionManager) GetAddr() string {
 func (m *MockConnectionManager) Close() {
 }
 
-func loadBroadcastSlot(t *testing.T) *broadcastSlot {
+func loadBroadcastSlot(_ *testing.T) *broadcastSlot {
 	users := make(map[string]string)
 	manager := &MockConnectionManager{
 		BroadcastFunc: func(message string) (string, error) {
 			return "mock response", nil
 		},
 	}
-	slot, err := newBroadcastSlot(users, manager, "test_slot")
-	if err != nil {
-		t.Fatalf("Slot must not return error: %s", err)
-	}
-	return slot
+	return newBroadcastSlot(users, manager, "test_slot")
 }
 
 func TestBroadcastSlotCanReadWhenUsersEmpty(t *testing.T) {
@@ -90,10 +86,7 @@ func TestBroadcastSlotPermissionsWithMock(t *testing.T) {
 			return "mock response", nil
 		},
 	}
-	slot, err := newBroadcastSlot(users, manager, "test_slot")
-	if err != nil {
-		t.Fatalf("Slot must not return error: %s", err)
-	}
+	slot := newBroadcastSlot(users, manager, "test_slot")
 
 	readUser, _ := auth.GetUser("read_user", "pass")
 	writeUser, _ := auth.GetUser("write_user", "pass")
@@ -126,12 +119,9 @@ func TestBroadcastSlotWriteManagerFailure(t *testing.T) {
 			return "", fmt.Errorf("broadcast failed")
 		},
 	}
-	slot, err := newBroadcastSlot(make(map[string]string), manager, "test_slot")
-	if err != nil {
-		t.Fatalf("Slot must not return error: %s", err)
-	}
+	slot := newBroadcastSlot(make(map[string]string), manager, "test_slot")
 
-	_, err = slot.Write("test_value", nil)
+	_, err := slot.Write("test_value", nil)
 	if err == nil {
 		t.Fatalf("Error should be returned when manager broadcast fails")
 	}

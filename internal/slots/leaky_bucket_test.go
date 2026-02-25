@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/spf13/viper"
+
+	"github.com/dankomiocevic/ghoti/internal/auth"
 )
 
 func loadLeakySlot(t *testing.T) Slot {
@@ -35,39 +36,39 @@ func TestLeakyBucketSmoke(t *testing.T) {
 }
 
 func TestLeakyBucketRead(t *testing.T) {
-	read_user, _ := auth.GetUser("read", "pass")
-	write_user, _ := auth.GetUser("write", "pass")
-	all_user, _ := auth.GetUser("allu", "pass")
+	readUser, _ := auth.GetUser("read", "pass")
+	writeUser, _ := auth.GetUser("write", "pass")
+	allUser, _ := auth.GetUser("allu", "pass")
 
 	slot := loadLeakySlot(t)
-	if !slot.CanRead(&read_user) {
+	if !slot.CanRead(&readUser) {
 		t.Fatalf("we should be able to read with the read user")
 	}
 
-	if slot.CanRead(&write_user) {
+	if slot.CanRead(&writeUser) {
 		t.Fatalf("we should not be able to read with the read user")
 	}
 
-	if !slot.CanRead(&all_user) {
+	if !slot.CanRead(&allUser) {
 		t.Fatalf("we should be able to read with the read/write user")
 	}
 }
 
 func TestLeakyBucketWrite(t *testing.T) {
-	read_user, _ := auth.GetUser("read", "pass")
-	write_user, _ := auth.GetUser("write", "pass")
-	all_user, _ := auth.GetUser("allu", "pass")
+	readUser, _ := auth.GetUser("read", "pass")
+	writeUser, _ := auth.GetUser("write", "pass")
+	allUser, _ := auth.GetUser("allu", "pass")
 
 	slot := loadLeakySlot(t)
-	if slot.CanWrite(&read_user) {
+	if slot.CanWrite(&readUser) {
 		t.Fatalf("we should not be able to write with the read user")
 	}
 
-	if slot.CanWrite(&write_user) {
+	if slot.CanWrite(&writeUser) {
 		t.Fatalf("we should not be able to write with the write user")
 	}
 
-	if slot.CanWrite(&all_user) {
+	if slot.CanWrite(&allUser) {
 		t.Fatalf("we should not be able to write with the read/write user")
 	}
 }
@@ -161,8 +162,8 @@ func TestLeakyBucketReadWindowDiffGreaterThanSize(t *testing.T) {
 func TestLeakyBucketCanReadWhenUsersEmpty(t *testing.T) {
 	slot := loadLeakySlot(t)
 
-	read_user, _ := auth.GetUser("read", "pass")
-	if !slot.CanRead(&read_user) {
+	readUser, _ := auth.GetUser("read", "pass")
+	if !slot.CanRead(&readUser) {
 		t.Fatalf("we should be able to read when users map is empty")
 	}
 }

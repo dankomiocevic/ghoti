@@ -27,7 +27,7 @@ func generateConfig(port string) *config.Config {
 	c.Connections = connection_manager.GetConnectionManager(c.Protocol)
 
 	viper.Set("addr", "localhost:"+port)
-	c.TcpAddr = viper.GetString("addr")
+	c.TCPAddr = viper.GetString("addr")
 
 	viper.Set("slot_000.kind", "simple_memory")
 	slotZero, _ := slots.GetSlot(viper.Sub("slot_000"), c.Connections, "000")

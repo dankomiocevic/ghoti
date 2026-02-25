@@ -26,10 +26,10 @@ func NewServer(config *config.Config, cluster cluster.Cluster) *Server {
 	}
 
 	slog.Info("Starting server...")
-	slog.Debug("Opening tcp for listening", slog.String("tcp", config.TcpAddr))
+	slog.Debug("Opening tcp for listening", slog.String("tcp", config.TCPAddr))
 
 	s.connections = config.Connections
-	s.connections.StartListening(config.TcpAddr)
+	s.connections.StartListening(config.TCPAddr)
 
 	s.slotsArray = config.Slots
 	s.usersMap = config.Users
@@ -47,7 +47,7 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connection_manager.C
 	if err != nil {
 		res := errors.Error("PARSE_ERROR")
 		slog.Debug("Error parsing message: "+err.Error(),
-			slog.String("id", conn.Id),
+			slog.String("id", conn.ID),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 		return conn.SendEvent(res.Response("xxx"))
@@ -57,7 +57,7 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connection_manager.C
 
 	if msg.Command == 'q' {
 		slog.Debug("Client disconnected",
-			slog.String("id", conn.Id),
+			slog.String("id", conn.ID),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 		return errors.PermanentError{Err: "Client disconnected"}
@@ -65,7 +65,7 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connection_manager.C
 	if !s.cluster.IsLeader() {
 		res := errors.Error("NOT_LEADER")
 		slog.Debug("Request made to node that was not leader",
-			slog.String("id", conn.Id),
+			slog.String("id", conn.ID),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 		return conn.SendEvent(res.Response("xxx") + s.cluster.GetLeader())
@@ -83,7 +83,7 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connection_manager.C
 		res := errors.Error("MISSING_SLOT")
 		slog.Debug("Missing slot",
 			slog.Int("slot", msg.Slot),
-			slog.String("id", conn.Id),
+			slog.String("id", conn.ID),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
@@ -107,7 +107,7 @@ func processRead(conn *connection_manager.Connection, currentSlot slots.Slot, ms
 	}
 	slog.Error("Connection trying to read on slot without permission",
 		slog.Int("slot", msg.Slot),
-		slog.String("id", conn.Id),
+		slog.String("id", conn.ID),
 		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 	)
 	res := errors.Error("READ_PERMISSION")
@@ -119,7 +119,7 @@ func processWrite(conn *connection_manager.Connection, currentSlot slots.Slot, m
 	if !currentSlot.CanWrite(&conn.LoggedUser) {
 		slog.Info("Connection trying to write on slot without permission",
 			slog.Int("slot", msg.Slot),
-			slog.String("id", conn.Id),
+			slog.String("id", conn.ID),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 		res := errors.Error("WRITE_PERMISSION")
@@ -144,7 +144,7 @@ func processWrite(conn *connection_manager.Connection, currentSlot slots.Slot, m
 	slog.Debug("Value written in slot",
 		slog.Int("slot", msg.Slot),
 		slog.String("value", msg.Value),
-		slog.String("id", conn.Id),
+		slog.String("id", conn.ID),
 		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 	)
 	err = sendSlotData(msg, conn, value)
@@ -164,7 +164,7 @@ func sendSlotData(msg Message, conn *connection_manager.Connection, value string
 	slog.Debug("Value read from slot",
 		slog.Int("slot", msg.Slot),
 		slog.String("value", value),
-		slog.String("id", conn.Id),
+		slog.String("id", conn.ID),
 		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 	)
 	return nil
@@ -177,7 +177,7 @@ func processUsername(conn *connection_manager.Connection, msg Message) error {
 		conn.SendEvent(res.Response("xxx"))
 		slog.Debug("Invalid user received",
 			slog.String("user", msg.Value),
-			slog.String("id", conn.Id),
+			slog.String("id", conn.ID),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 		slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
@@ -197,7 +197,7 @@ func processUsername(conn *connection_manager.Connection, msg Message) error {
 	}
 	slog.Debug("Username set for connection",
 		slog.String("user", conn.Username),
-		slog.String("id", conn.Id),
+		slog.String("id", conn.ID),
 		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 	)
 	return nil
@@ -209,11 +209,11 @@ func processPassword(s *Server, conn *connection_manager.Connection, msg Message
 		res := errors.Error("WRONG_PASS")
 		conn.SendEvent(res.Response("xxx"))
 		slog.Debug("Invalid password received",
-			slog.String("id", conn.Id),
+			slog.String("id", conn.ID),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 		slog.Debug("Disconnecting",
-			slog.String("id", conn.Id),
+			slog.String("id", conn.ID),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 		return errors.PermanentError{Err: "Bad password"}
@@ -222,7 +222,7 @@ func processPassword(s *Server, conn *connection_manager.Connection, msg Message
 		res := errors.Error("WRONG_LOGIN")
 		conn.SendEvent(res.Response("xxx"))
 		slog.Warn("Invalid login received",
-			slog.String("id", conn.Id),
+			slog.String("id", conn.ID),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 		slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
@@ -241,7 +241,7 @@ func processPassword(s *Server, conn *connection_manager.Connection, msg Message
 	}
 	slog.Debug("User logged in for connection",
 		slog.String("user", conn.Username),
-		slog.String("id", conn.Id),
+		slog.String("id", conn.ID),
 		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 	)
 	return nil
