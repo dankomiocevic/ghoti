@@ -2,7 +2,6 @@ package config
 
 import (
 	"log/slog"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,13 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func absFilePath(path string) string {
-	s, _ := filepath.Abs(path)
-
-	return s
-}
-
-func resetViper(t *testing.T, data string) afero.Fs {
+func resetViper(t *testing.T, data string) {
 	fs := afero.NewMemMapFs()
 	err := fs.Mkdir("/etc/ghoti", 0o777)
 	if err != nil {
@@ -45,8 +38,6 @@ func resetViper(t *testing.T, data string) afero.Fs {
 
 	viper.AddConfigPath("/etc/ghoti")
 	viper.ReadInConfig()
-
-	return fs
 }
 
 func TestConfigureSlot(t *testing.T) {

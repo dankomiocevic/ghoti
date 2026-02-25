@@ -3,8 +3,9 @@ package slots
 import (
 	"testing"
 
-	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/spf13/viper"
+
+	"github.com/dankomiocevic/ghoti/internal/auth"
 )
 
 func loadTickerSlot(t *testing.T) Slot {

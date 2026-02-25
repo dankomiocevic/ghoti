@@ -21,7 +21,7 @@ type timeoutSlot struct {
 
 func newTimeoutSlot(timeout int, users map[string]string) (*timeoutSlot, error) {
 	if timeout < 1 {
-		return nil, fmt.Errorf("Timeout value in timeout_memory slot must be bigger than zero")
+		return nil, fmt.Errorf("timeout value in timeout_memory slot must be bigger than zero")
 	}
 
 	return &timeoutSlot{value: "", timeout: time.Duration(timeout) * time.Second, ttl: time.Time{}, users: users}, nil
@@ -55,7 +55,7 @@ func (m *timeoutSlot) Write(data string, from net.Conn) (string, error) {
 		return m.value, nil
 	}
 
-	return "", errors.New("Permission denied to write slot")
+	return "", errors.New("permission denied to write slot")
 }
 
 func (m *timeoutSlot) CanRead(u *auth.User) bool {

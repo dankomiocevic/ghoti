@@ -12,18 +12,18 @@ import (
 type broadcastSlot struct {
 	users   map[string]string
 	value   string
-	slotId  string
+	slotID  string
 	mu      sync.RWMutex
 	manager connection_manager.ConnectionManager
 }
 
-func newBroadcastSlot(users map[string]string, conn connection_manager.ConnectionManager, id string) (*broadcastSlot, error) {
+func newBroadcastSlot(users map[string]string, conn connection_manager.ConnectionManager, id string) *broadcastSlot {
 	return &broadcastSlot{
 		users:   users,
 		value:   "",
 		manager: conn,
-		slotId:  id,
-	}, nil
+		slotID:  id,
+	}
 }
 
 func (m *broadcastSlot) Read() string {
@@ -56,7 +56,7 @@ func (m *broadcastSlot) Write(data string, from net.Conn) (string, error) {
 
 	var sb strings.Builder
 	sb.WriteString("a")
-	sb.WriteString(m.slotId)
+	sb.WriteString(m.slotID)
 	sb.WriteString(data)
 	sb.WriteString("\n")
 	response, err := m.manager.Broadcast(sb.String())

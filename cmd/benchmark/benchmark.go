@@ -5,9 +5,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/dankomiocevic/ghoti/internal/config"
-
 	"github.com/spf13/cobra"
+
+	"github.com/dankomiocevic/ghoti/internal/config"
 )
 
 func NewBenchmarkCommand() *cobra.Command {
@@ -21,7 +21,7 @@ func NewBenchmarkCommand() *cobra.Command {
 
 	defaultConfig := config.DefaultConfig()
 	flags := cmd.Flags()
-	flags.String("addr", defaultConfig.TcpAddr, "the host:port address to serve the server on")
+	flags.String("addr", defaultConfig.TCPAddr, "the host:port address to serve the server on")
 
 	return cmd
 }

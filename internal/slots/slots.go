@@ -99,7 +99,7 @@ func GetSlot(v *viper.Viper, conn connection_manager.ConnectionManager, id strin
 		initialValue := v.GetInt("initial_value")
 
 		if initialValue < 0 {
-			return nil, fmt.Errorf("Initial value cannot be negative")
+			return nil, fmt.Errorf("initial value cannot be negative")
 		}
 
 		var refreshRate int
@@ -118,17 +118,12 @@ func GetSlot(v *viper.Viper, conn connection_manager.ConnectionManager, id strin
 	}
 
 	if kind == "broadcast" {
-		broadcastSlot, err := newBroadcastSlot(users, conn, id)
-		if err != nil {
-			return nil, err
-		}
-
-		return broadcastSlot, nil
+		return newBroadcastSlot(users, conn, id), nil
 	}
 
 	if kind == "atomic" {
 		return &atomicSlot{value: 0, users: users}, nil
 	}
 
-	return nil, errors.New("Invalid kind of slot")
+	return nil, errors.New("invalid kind of slot")
 }

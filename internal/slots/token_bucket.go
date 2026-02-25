@@ -23,23 +23,23 @@ type tokenBucketSlot struct {
 
 func newTokenBucketSlot(periodString string, bucketSize, refreshRate, tokensPerReq int, users map[string]string) (*tokenBucketSlot, error) {
 	if bucketSize < 1 {
-		return nil, fmt.Errorf("Bucket size must be bigger than zero")
+		return nil, fmt.Errorf("bucket size must be bigger than zero")
 	}
 
 	if refreshRate > bucketSize {
-		return nil, fmt.Errorf("Refresh rate cannot be bigger than the bucket size")
+		return nil, fmt.Errorf("refresh rate cannot be bigger than the bucket size")
 	}
 
 	if refreshRate < 1 {
-		return nil, fmt.Errorf("Refresh rate cannot be zero")
+		return nil, fmt.Errorf("refresh rate cannot be zero")
 	}
 
 	if tokensPerReq > bucketSize {
-		return nil, fmt.Errorf("Tokens per request cannot be bigger than the bucket size")
+		return nil, fmt.Errorf("tokens per request cannot be bigger than the bucket size")
 	}
 
 	if tokensPerReq < 1 {
-		return nil, fmt.Errorf("Tokens per request cannot be zero")
+		return nil, fmt.Errorf("tokens per request cannot be zero")
 	}
 
 	var period int64
@@ -51,7 +51,7 @@ func newTokenBucketSlot(periodString string, bucketSize, refreshRate, tokensPerR
 	case "hour":
 		period = 3600
 	default:
-		return nil, fmt.Errorf("Period value is invalid on token_bucket slot: %s", periodString)
+		return nil, fmt.Errorf("period value is invalid on token_bucket slot: %s", periodString)
 	}
 
 	return &tokenBucketSlot{value: refreshRate, size: bucketSize, period: period, rate: refreshRate, window: currentWindow(period), tokensPerReq: tokensPerReq, users: users}, nil
@@ -91,5 +91,5 @@ func (m *tokenBucketSlot) CanWrite(u *auth.User) bool {
 }
 
 func (m *tokenBucketSlot) Write(data string, from net.Conn) (string, error) {
-	return "", fmt.Errorf("Token bucket slots cannot be used to write")
+	return "", fmt.Errorf("token bucket slots cannot be used to write")
 }

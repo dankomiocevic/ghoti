@@ -205,7 +205,7 @@ func requestToJoin(joinAddr, raftAddr, nodeID, user, pass string) error {
 	defer resp.Body.Close()
 
 	if resp.Status != "200 OK" {
-		return fmt.Errorf("Failed to join cluster, response status: %s", resp.Status)
+		return fmt.Errorf("failed to join cluster, response status: %s", resp.Status)
 	}
 
 	return nil

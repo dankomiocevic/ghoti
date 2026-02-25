@@ -66,7 +66,7 @@ func TestBroadcast(t *testing.T) {
 	for i, server := range servers {
 		id := fmt.Sprintf("%d", i+1)
 		c := &Connection{
-			Id:          id,
+			ID:          id,
 			Quit:        make(chan interface{}),
 			Events:      make(chan Event, 10),
 			NetworkConn: server,
@@ -80,8 +80,8 @@ func TestBroadcast(t *testing.T) {
 		go c.EventProcessor()
 	}
 
-	// Create a new TcpManager
-	manager := TcpManager{
+	// Create a new TCPManager
+	manager := TCPManager{
 		connections: connections,
 		quit:        make(chan interface{}),
 		lock:        sync.RWMutex{},
@@ -136,7 +136,7 @@ func benchmarkBroadcast(x int, b *testing.B) {
 		for i, server := range servers {
 			id := fmt.Sprintf("%d", i+1)
 			c := &Connection{
-				Id:          id,
+				ID:          id,
 				Quit:        make(chan interface{}),
 				Events:      make(chan Event, 10),
 				NetworkConn: server,
@@ -150,8 +150,8 @@ func benchmarkBroadcast(x int, b *testing.B) {
 			go c.EventProcessor()
 		}
 
-		// Create a new TcpManager
-		manager := TcpManager{
+		// Create a new TCPManager
+		manager := TCPManager{
 			connections: connections,
 			quit:        make(chan interface{}),
 			lock:        sync.RWMutex{},
