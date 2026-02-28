@@ -173,8 +173,8 @@ func (c *TCPManager) Add(conn net.Conn, bufferSize int) Connection {
 	}
 
 	c.connections[connection.ID] = connection
-  metrics.IncrConnectedClients()
-  return connection
+	metrics.IncrConnectedClients()
+	return connection
 }
 
 func (c *TCPManager) Delete(id string) {
