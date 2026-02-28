@@ -1,4 +1,4 @@
-package connection_manager
+package connectionmanager
 
 import (
 	"bufio"
@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dankomiocevic/ghoti/internal/auth"
-	"github.com/dankomiocevic/ghoti/internal/errors"
-
 	"github.com/google/uuid"
+
+	"github.com/dankomiocevic/ghoti/internal/auth"
+	"github.com/dankomiocevic/ghoti/internal/errs"
 )
 
 type Event struct {
@@ -22,7 +22,7 @@ type Event struct {
 }
 
 type Connection struct {
-	Id          string
+	ID          string
 	Quit        chan interface{}
 	Events      chan Event
 	NetworkConn net.Conn
@@ -44,42 +44,42 @@ func (c *Connection) ReceiveMessage() (int, error) {
 		// If the error was a timeout, continue receiving data in
 		// next loop
 		if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
-			return 0, errors.TranscientError{Err: "Timeout receiving data"}
+			return 0, errs.TranscientError{Err: "Timeout receiving data"}
 		}
 
 		if err == io.EOF {
-			return 0, errors.PermanentError{Err: "Connection closed"}
+			return 0, errs.PermanentError{Err: "Connection closed"}
 		}
 
 		slog.Error("Error receiving data from connection", slog.Any("error", err))
 		slog.Debug("Disconnecting",
-			slog.String("id", c.Id),
+			slog.String("id", c.ID),
 			slog.String("remote_addr", c.NetworkConn.RemoteAddr().String()),
 		)
-		return 0, errors.PermanentError{Err: "Connection closed"}
+		return 0, errs.PermanentError{Err: "Connection closed"}
 	}
 
 	return size, nil
 }
 
 func (c *Connection) SendEvent(data string) error {
-	eventId := uuid.NewString()
+	eventID := uuid.NewString()
 	event := Event{
-		id:       eventId,
+		id:       eventID,
 		data:     []byte(data),
 		callback: c.Callback,
 		timeout:  time.Now().Add(200 * time.Millisecond),
 	}
 
 	slog.Debug("Sending event",
-		slog.String("id", c.Id),
+		slog.String("id", c.ID),
 		slog.Any("event", event))
 
 	// Send event to the channel and return an error if the channel is full
 	select {
 	case c.Events <- event:
 	default:
-		return errors.PermanentError{Err: "Could not send event, channel full"}
+		return errs.PermanentError{Err: "Could not send event, channel full"}
 	}
 
 	// Wait for the callback to be called
@@ -87,17 +87,17 @@ func (c *Connection) SendEvent(data string) error {
 	case response := <-c.Callback:
 		slog.Debug("Callback received", slog.String("response", response))
 		switch response {
-		case eventId + " OK":
+		case eventID + " OK":
 			return nil
-		case eventId + " TIMEOUT":
-			return errors.TranscientError{Err: "Timeout waiting for response"}
-		case eventId + " ERROR":
-			return errors.TranscientError{Err: "Error sending event"}
+		case eventID + " TIMEOUT":
+			return errs.TranscientError{Err: "Timeout waiting for response"}
+		case eventID + " ERROR":
+			return errs.TranscientError{Err: "Error sending event"}
 		default:
-			return errors.TranscientError{Err: "Unknown response for event " + eventId + ": " + response}
+			return errs.TranscientError{Err: "Unknown response for event " + eventID + ": " + response}
 		}
 	case <-time.After(200 * time.Millisecond):
-		return errors.TranscientError{Err: "Timeout waiting for callback"}
+		return errs.TranscientError{Err: "Timeout waiting for callback"}
 	}
 }
 
@@ -184,7 +184,7 @@ func (c *Connection) sendBatchedEvents(events []Event) {
 	_, err := c.NetworkConn.Write([]byte(batchedData))
 
 	slog.Debug("Sending batched events",
-		slog.String("id", c.Id),
+		slog.String("id", c.ID),
 		slog.Int("event_count", len(events)),
 		slog.Int("total_size", len(batchedData)))
 

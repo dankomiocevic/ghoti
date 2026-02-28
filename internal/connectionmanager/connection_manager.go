@@ -1,6 +1,4 @@
-package connection_manager
-
-import ()
+package connectionmanager
 
 type CallbackFn func(int, []byte, *Connection) error
 
@@ -16,7 +14,7 @@ type ConnectionManager interface {
 func GetConnectionManager(protocol string) ConnectionManager {
 	switch protocol {
 	case "standard":
-		return NewTcpManager()
+		return NewTCPManager()
 	case "telnet":
 		return NewTelnetManager()
 	default:

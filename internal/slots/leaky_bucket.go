@@ -20,11 +20,11 @@ type leakyBucketSlot struct {
 
 func newLeakyBucketSlot(bucketSize, refreshRate int, users map[string]string) (*leakyBucketSlot, error) {
 	if bucketSize < 1 {
-		return nil, fmt.Errorf("Bucket size must be bigger than zero")
+		return nil, fmt.Errorf("bucket size must be bigger than zero")
 	}
 
 	if refreshRate < 1 {
-		return nil, fmt.Errorf("Refresh rate cannot be zero")
+		return nil, fmt.Errorf("refresh rate cannot be zero")
 	}
 
 	return &leakyBucketSlot{value: 0, size: int64(bucketSize), rate: refreshRate, window: currentWindowMillis(refreshRate), users: users}, nil
@@ -50,10 +50,9 @@ func (m *leakyBucketSlot) Read() string {
 
 	if m.value == m.size {
 		return "0"
-	} else {
-		m.value = min(m.size, m.value+1)
-		return "1"
 	}
+	m.value = min(m.size, m.value+1)
+	return "1"
 }
 
 func (m *leakyBucketSlot) CanRead(u *auth.User) bool {
@@ -69,5 +68,5 @@ func (m *leakyBucketSlot) CanWrite(u *auth.User) bool {
 }
 
 func (m *leakyBucketSlot) Write(data string, from net.Conn) (string, error) {
-	return "", fmt.Errorf("Token bucket slots cannot be used to write")
+	return "", fmt.Errorf("token bucket slots cannot be used to write")
 }

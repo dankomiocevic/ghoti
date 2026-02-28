@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
+
 	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
-	"github.com/dankomiocevic/ghoti/internal/connection_manager"
+	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
 	"github.com/dankomiocevic/ghoti/internal/slots"
-
-	"github.com/spf13/viper"
 )
 
 func generateConfig(port string) *config.Config {
@@ -24,29 +24,29 @@ func generateConfig(port string) *config.Config {
 		c.Protocol = viper.GetString("protocol")
 	}
 
-	c.Connections = connection_manager.GetConnectionManager(c.Protocol)
+	c.Connections = connectionmanager.GetConnectionManager(c.Protocol)
 
 	viper.Set("addr", "localhost:"+port)
-	c.TcpAddr = viper.GetString("addr")
+	c.TCPAddr = viper.GetString("addr")
 
 	viper.Set("slot_000.kind", "simple_memory")
-	slot_zero, _ := slots.GetSlot(viper.Sub("slot_000"), c.Connections, "000")
-	c.Slots[0] = slot_zero
-	slot_one, _ := slots.GetSlot(viper.Sub("slot_000"), c.Connections, "001")
-	c.Slots[1] = slot_one
-	slot_two, _ := slots.GetSlot(viper.Sub("slot_000"), c.Connections, "002")
-	c.Slots[2] = slot_two
+	slotZero, _ := slots.GetSlot(viper.Sub("slot_000"), c.Connections, "000")
+	c.Slots[0] = slotZero
+	slotOne, _ := slots.GetSlot(viper.Sub("slot_000"), c.Connections, "001")
+	c.Slots[1] = slotOne
+	slotTwo, _ := slots.GetSlot(viper.Sub("slot_000"), c.Connections, "002")
+	c.Slots[2] = slotTwo
 
 	viper.Set("slot_001.kind", "timeout_memory")
 	viper.Set("slot_001.timeout", 60)
-	slot_three, _ := slots.GetSlot(viper.Sub("slot_001"), c.Connections, "003")
-	c.Slots[3] = slot_three
+	slotThree, _ := slots.GetSlot(viper.Sub("slot_001"), c.Connections, "003")
+	c.Slots[3] = slotThree
 	viper.Set("slot_004.kind", "simple_memory")
 	viper.Set("slot_004.users.pepe", "r")
 	viper.Set("slot_004.users.bobby", "w")
 	viper.Set("slot_004.users.sammy", "a")
-	slot_four, _ := slots.GetSlot(viper.Sub("slot_004"), c.Connections, "004")
-	c.Slots[4] = slot_four
+	slotFour, _ := slots.GetSlot(viper.Sub("slot_004"), c.Connections, "004")
+	c.Slots[4] = slotFour
 
 	viper.Set("users.pepe", "passw0rd")
 	viper.Set("users.bobby", "otherPassw0rd")
@@ -325,9 +325,9 @@ func TestAccessForbidden(t *testing.T) {
 	}
 
 	// Write on Slot 4 that is password protected
-	response_two := sendData(t, conn, "w004Something\n")
+	responseTwo := sendData(t, conn, "w004Something\n")
 
-	if response_two != "e004006\n" {
+	if responseTwo != "e004006\n" {
 		t.Fatalf("Server did not return error: %s", response)
 	}
 }
@@ -348,9 +348,9 @@ func TestReadOnly(t *testing.T) {
 	}
 
 	// Write on Slot 4 that is password protected
-	response_two := sendData(t, conn, "w004Something\n")
+	responseTwo := sendData(t, conn, "w004Something\n")
 
-	if response_two != "e004006\n" {
+	if responseTwo != "e004006\n" {
 		t.Fatalf("Server did not return an error")
 	}
 }
@@ -371,10 +371,10 @@ func TestWriteOnly(t *testing.T) {
 	}
 
 	// Write on Slot 4 that is password protected
-	response_two := sendData(t, conn, "w004Something\n")
+	responseTwo := sendData(t, conn, "w004Something\n")
 
-	if response_two != "v004Something\n" {
-		t.Fatalf("Server did not return the value: %s", response_two)
+	if responseTwo != "v004Something\n" {
+		t.Fatalf("Server did not return the value: %s", responseTwo)
 	}
 }
 
@@ -387,10 +387,10 @@ func TestAllAccess(t *testing.T) {
 	sendData(t, conn, "psamPassw0rd\n")
 
 	// Write on Slot 4 that is password protected
-	response_two := sendData(t, conn, "w004SomethingSam\n")
+	responseTwo := sendData(t, conn, "w004SomethingSam\n")
 
-	if response_two != "v004SomethingSam\n" {
-		t.Fatalf("Server did not return the value: %s", response_two)
+	if responseTwo != "v004SomethingSam\n" {
+		t.Fatalf("Server did not return the value: %s", responseTwo)
 	}
 
 	// Read on Slot 4 that is password protected

@@ -81,7 +81,7 @@ func TestJoin(t *testing.T) {
 
 func TestJoinNoAuth(t *testing.T) {
 	mgrAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+	config := &ClusterConfig{User: "my_user", Pass: "my_pass", ManagerAddr: mgrAddr}
 
 	cluster := newTestCluster(*config)
 
@@ -108,7 +108,7 @@ func TestJoinNoAuth(t *testing.T) {
 
 func TestJoinWrongAuth(t *testing.T) {
 	mgrAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+	config := &ClusterConfig{User: "my_user", Pass: "my_pass", ManagerAddr: mgrAddr}
 
 	cluster := newTestCluster(*config)
 
@@ -136,7 +136,7 @@ func TestJoinWrongAuth(t *testing.T) {
 
 func TestWrongJoinData(t *testing.T) {
 	mgrAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+	config := &ClusterConfig{User: "my_user", Pass: "my_pass", ManagerAddr: mgrAddr}
 
 	cluster := newTestCluster(*config)
 
@@ -176,7 +176,7 @@ func TestWrongJoinData(t *testing.T) {
 
 func TestRemoveWrongAuth(t *testing.T) {
 	mgrAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+	config := &ClusterConfig{User: "my_user", Pass: "my_pass", ManagerAddr: mgrAddr}
 
 	cluster := newTestCluster(*config)
 	cluster.leader = cluster.nodeID // Make it leader
@@ -205,7 +205,7 @@ func TestRemoveWrongAuth(t *testing.T) {
 
 func TestWrongRemoveData(t *testing.T) {
 	mgrAddr := "localhost:2345"
-	config := &ClusterConfig{Node: "node1", ManagerJoin: "localhost:1234", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+	config := &ClusterConfig{User: "my_user", Pass: "my_pass", ManagerAddr: mgrAddr}
 
 	cluster := newTestCluster(*config)
 	cluster.leader = cluster.nodeID // Make it leader

@@ -7,12 +7,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
 	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
 	"github.com/dankomiocevic/ghoti/internal/server"
-
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	"github.com/dankomiocevic/ghoti/internal/telemetry"
 )
 
 type ExitControl interface {
@@ -37,7 +38,7 @@ func NewRunCommand() *cobra.Command {
 
 	defaultConfig := config.DefaultConfig()
 	flags := cmd.Flags()
-	flags.String("addr", defaultConfig.TcpAddr, "the host:port address to serve the server on")
+	flags.String("addr", defaultConfig.TCPAddr, "the host:port address to serve the server on")
 	viper.BindPFlag("addr", cmd.Flags().Lookup("addr"))
 
 	return cmd
@@ -82,6 +83,13 @@ func runWithExit(e ExitControl) {
 		clus.Start()
 	} else {
 		clus = cluster.NewEmptyCluster()
+	}
+
+	if config.Metrics.Enabled {
+		telemetry.Enable()
+		metricsStop := make(chan struct{})
+		defer close(metricsStop)
+		go telemetry.Run(config.Metrics, metricsStop)
 	}
 
 	s := server.NewServer(config, clus)

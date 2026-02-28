@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/spf13/viper"
+
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/cluster"
-	"github.com/dankomiocevic/ghoti/internal/connection_manager"
+	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
 	"github.com/dankomiocevic/ghoti/internal/slots"
-	"github.com/spf13/viper"
+	"github.com/dankomiocevic/ghoti/internal/telemetry"
 )
 
 var SupportedLogLevels = map[string]slog.Level{
@@ -34,18 +36,19 @@ type LoggingConfig struct {
 }
 
 type Config struct {
-	TcpAddr     string
+	TCPAddr     string
 	Slots       [1000]slots.Slot
 	Users       map[string]auth.User
 	Cluster     cluster.ClusterConfig
 	Logging     LoggingConfig
-	Connections connection_manager.ConnectionManager
+	Metrics     telemetry.Config
+	Connections connectionmanager.ConnectionManager
 	Protocol    string
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		TcpAddr:  "localhost:9090",
+		TCPAddr:  "localhost:9090",
 		Slots:    [1000]slots.Slot{},
 		Users:    make(map[string]auth.User),
 		Cluster:  cluster.ClusterConfig{},
@@ -63,14 +66,14 @@ func LoadConfig() (*Config, error) {
 	}
 
 	if viper.IsSet("addr") {
-		config.TcpAddr = viper.GetString("addr")
+		config.TCPAddr = viper.GetString("addr")
 	}
 
 	if viper.IsSet("protocol") {
 		config.Protocol = viper.GetString("protocol")
 
 		if !SupportedProtocols[config.Protocol] {
-			return nil, fmt.Errorf("Protocol not supported: %s", config.Protocol)
+			return nil, fmt.Errorf("protocol not supported: %s", config.Protocol)
 		}
 	}
 
@@ -80,7 +83,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	//TODO: Move this out of the config package
-	config.Connections = connection_manager.GetConnectionManager(config.Protocol)
+	config.Connections = connectionmanager.GetConnectionManager(config.Protocol)
 
 	config.ConfigureSlots()
 
@@ -90,6 +93,11 @@ func LoadConfig() (*Config, error) {
 	}
 
 	e = config.LoadCluster()
+	if e != nil {
+		return nil, e
+	}
+
+	e = config.LoadMetrics()
 	if e != nil {
 		return nil, e
 	}
@@ -106,7 +114,7 @@ func (c *Config) LoadCluster() error {
 		c.Cluster.Node = viper.GetString("cluster.node")
 		// TODO: Only letters, and numbers no spaces
 		if len(c.Cluster.Node) > 20 {
-			return fmt.Errorf("Cluster node name must be less than 20 characters")
+			return fmt.Errorf("cluster node name must be less than 20 characters")
 		}
 
 		if !viper.IsSet("cluster.bind") {
@@ -172,19 +180,66 @@ func (c *Config) ConfigureLogging() error {
 		if ok {
 			c.Logging.Level = lvl
 		} else {
-			return fmt.Errorf("Log level not supported: %s", c.Logging.Level)
+			return fmt.Errorf("log level not supported: %s", c.Logging.Level)
 		}
 	}
 
 	if viper.IsSet("log.format") {
 		c.Logging.Format = viper.GetString("log.format")
 		if !SupportedLogFormat[c.Logging.Format] {
-			return fmt.Errorf("Log format not supported: %s", c.Logging.Format)
+			return fmt.Errorf("log format not supported: %s", c.Logging.Format)
 		}
 	}
 	return nil
 }
 
 func (c *Config) Verify() error {
+	return nil
+}
+
+var supportedRotations = map[string]bool{
+	"hourly": true,
+	"daily":  true,
+}
+
+// LoadMetrics reads the optional "metrics:" YAML section and populates c.Metrics.
+// Metrics are disabled by default; they must be explicitly enabled with
+// "telemetry.enabled: true".
+func (c *Config) LoadMetrics() error {
+	if !viper.IsSet("metrics") {
+		return nil
+	}
+
+	c.Metrics.Enabled = viper.GetBool("telemetry.enabled")
+	if !c.Metrics.Enabled {
+		return nil
+	}
+
+	c.Metrics.OutputDir = viper.GetString("telemetry.output_dir")
+	if c.Metrics.OutputDir == "" {
+		return fmt.Errorf("telemetry.output_dir is required when metrics is enabled")
+	}
+
+	if viper.IsSet("telemetry.rotation") {
+		c.Metrics.Rotation = viper.GetString("telemetry.rotation")
+		if !supportedRotations[c.Metrics.Rotation] {
+			return fmt.Errorf("unsupported metrics rotation %q: must be \"hourly\" or \"daily\"", c.Metrics.Rotation)
+		}
+	}
+
+	if viper.IsSet("telemetry.retain") {
+		c.Metrics.Retain = viper.GetInt("telemetry.retain")
+		if c.Metrics.Retain < 0 {
+			return fmt.Errorf("telemetry.retain must be >= 0")
+		}
+	}
+
+	if viper.IsSet("telemetry.interval") {
+		c.Metrics.Interval = viper.GetInt("telemetry.interval")
+		if c.Metrics.Interval < 1 {
+			return fmt.Errorf("telemetry.interval must be at least 1 second")
+		}
+	}
+
 	return nil
 }

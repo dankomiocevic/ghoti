@@ -13,10 +13,10 @@ func GetManager(config *ClusterConfig, cluster *BullyCluster) (MembershipManager
 	kind := config.ManagerType
 	if kind == "join_server" {
 		if len(config.User) < 4 || len(config.Pass) < 4 {
-			return nil, fmt.Errorf("User or password is too short")
+			return nil, fmt.Errorf("user or password is too short")
 		}
 		return &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster, join: config.ManagerJoin, nodeID: config.Node}, nil
 	}
 
-	return nil, fmt.Errorf("Wrong cluster manager type: %s", kind)
+	return nil, fmt.Errorf("wrong cluster manager type: %s", kind)
 }

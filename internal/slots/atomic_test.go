@@ -8,7 +8,7 @@ import (
 	"github.com/dankomiocevic/ghoti/internal/auth"
 )
 
-func loadAtomicSlot(t *testing.T) *atomicSlot {
+func loadAtomicSlot(_ *testing.T) *atomicSlot {
 	users := make(map[string]string)
 	slot := &atomicSlot{
 		users: users,

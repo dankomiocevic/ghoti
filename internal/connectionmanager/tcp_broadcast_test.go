@@ -1,4 +1,4 @@
-package connection_manager
+package connectionmanager
 
 import (
 	"fmt"
@@ -66,7 +66,7 @@ func TestBroadcast(t *testing.T) {
 	for i, server := range servers {
 		id := fmt.Sprintf("%d", i+1)
 		c := &Connection{
-			Id:          id,
+			ID:          id,
 			Quit:        make(chan interface{}),
 			Events:      make(chan Event, 10),
 			NetworkConn: server,
@@ -80,8 +80,8 @@ func TestBroadcast(t *testing.T) {
 		go c.EventProcessor()
 	}
 
-	// Create a new TcpManager
-	manager := TcpManager{
+	// Create a new TCPManager
+	manager := TCPManager{
 		connections: connections,
 		quit:        make(chan interface{}),
 		lock:        sync.RWMutex{},
@@ -120,7 +120,7 @@ func TestBroadcast(t *testing.T) {
 	wg.Wait()
 }
 
-// This is a benchmark test to check the performance of the broadcast functionality
+// This is a benchmark test to check the performance of the broadcast functionality.
 func benchmarkBroadcast(x int, b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		b.StopTimer()
@@ -136,7 +136,7 @@ func benchmarkBroadcast(x int, b *testing.B) {
 		for i, server := range servers {
 			id := fmt.Sprintf("%d", i+1)
 			c := &Connection{
-				Id:          id,
+				ID:          id,
 				Quit:        make(chan interface{}),
 				Events:      make(chan Event, 10),
 				NetworkConn: server,
@@ -150,8 +150,8 @@ func benchmarkBroadcast(x int, b *testing.B) {
 			go c.EventProcessor()
 		}
 
-		// Create a new TcpManager
-		manager := TcpManager{
+		// Create a new TCPManager
+		manager := TCPManager{
 			connections: connections,
 			quit:        make(chan interface{}),
 			lock:        sync.RWMutex{},
@@ -166,7 +166,6 @@ func benchmarkBroadcast(x int, b *testing.B) {
 		for _, conn := range servers {
 			conn.Close()
 		}
-
 	}
 }
 

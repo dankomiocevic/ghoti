@@ -23,9 +23,7 @@ var SupportedCommands = map[string]bool{
 }
 
 func ParseMessage(size int, buf []byte) (Message, error) {
-	var input string
-
-	input = string(buf[:size])
+	input := string(buf[:size])
 	command := input[:1]
 	fmt.Printf("Input: [%s]\n", input)
 
@@ -41,8 +39,8 @@ func ParseMessage(size int, buf []byte) (Message, error) {
 		return Message{}, errors.New("Message is too long")
 	}
 
-	if SupportedCommands[command] != true {
-		return Message{}, errors.New("Command not supported")
+	if !SupportedCommands[command] {
+		return Message{}, errors.New("command not supported")
 	}
 
 	if command == "u" || command == "p" {
@@ -51,7 +49,7 @@ func ParseMessage(size int, buf []byte) (Message, error) {
 
 	slot, err := strconv.Atoi(input[1:4])
 	if err != nil {
-		return Message{}, errors.New("Malformed slot")
+		return Message{}, errors.New("malformed slot")
 	}
 
 	var value string

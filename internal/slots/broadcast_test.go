@@ -1,11 +1,11 @@
 package slots
 
 import (
-	"testing"
 	"fmt"
+	"testing"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
-	"github.com/dankomiocevic/ghoti/internal/connection_manager"
+	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
 )
 
 type MockConnectionManager struct {
@@ -20,7 +20,7 @@ func (m *MockConnectionManager) StartListening(string) error {
 	return nil
 }
 
-func (m *MockConnectionManager) ServeConnections(connection_manager.CallbackFn) error {
+func (m *MockConnectionManager) ServeConnections(connectionmanager.CallbackFn) error {
 	return nil
 }
 
@@ -34,25 +34,21 @@ func (m *MockConnectionManager) GetAddr() string {
 func (m *MockConnectionManager) Close() {
 }
 
-func loadBroadcastSlot(t *testing.T) *broadcastSlot {
+func loadBroadcastSlot(_ *testing.T) *broadcastSlot {
 	users := make(map[string]string)
 	manager := &MockConnectionManager{
 		BroadcastFunc: func(message string) (string, error) {
 			return "mock response", nil
 		},
 	}
-	slot, err := newBroadcastSlot(users, manager, "test_slot")
-	if err != nil {
-		t.Fatalf("Slot must not return error: %s", err)
-	}
-	return slot
+	return newBroadcastSlot(users, manager, "test_slot")
 }
 
 func TestBroadcastSlotCanReadWhenUsersEmpty(t *testing.T) {
 	slot := loadBroadcastSlot(t)
 
-	read_user, _ := auth.GetUser("read", "pass")
-	if !slot.CanRead(&read_user) {
+	readUser, _ := auth.GetUser("read", "pass")
+	if !slot.CanRead(&readUser) {
 		t.Fatalf("we should be able to read when users map is empty")
 	}
 }
@@ -60,8 +56,8 @@ func TestBroadcastSlotCanReadWhenUsersEmpty(t *testing.T) {
 func TestBroadcastSlotCanWriteWhenUsersEmpty(t *testing.T) {
 	slot := loadBroadcastSlot(t)
 
-	write_user, _ := auth.GetUser("write", "pass")
-	if !slot.CanWrite(&write_user) {
+	writeUser, _ := auth.GetUser("write", "pass")
+	if !slot.CanWrite(&writeUser) {
 		t.Fatalf("we should be able to write when users map is empty")
 	}
 }
@@ -90,32 +86,29 @@ func TestBroadcastSlotPermissionsWithMock(t *testing.T) {
 			return "mock response", nil
 		},
 	}
-	slot, err := newBroadcastSlot(users, manager, "test_slot")
-	if err != nil {
-		t.Fatalf("Slot must not return error: %s", err)
-	}
+	slot := newBroadcastSlot(users, manager, "test_slot")
 
-	read_user, _ := auth.GetUser("read_user", "pass")
-	write_user, _ := auth.GetUser("write_user", "pass")
-	all_user, _ := auth.GetUser("all_user", "pass")
+	readUser, _ := auth.GetUser("read_user", "pass")
+	writeUser, _ := auth.GetUser("write_user", "pass")
+	allUser, _ := auth.GetUser("all_user", "pass")
 
-	if !slot.CanRead(&read_user) {
+	if !slot.CanRead(&readUser) {
 		t.Fatalf("Read user should have read permissions")
 	}
 
-	if slot.CanWrite(&read_user) {
+	if slot.CanWrite(&readUser) {
 		t.Fatalf("Read user should not have write permissions")
 	}
 
-	if !slot.CanWrite(&write_user) {
+	if !slot.CanWrite(&writeUser) {
 		t.Fatalf("Write user should have write permissions")
 	}
 
-	if !slot.CanRead(&all_user) {
+	if !slot.CanRead(&allUser) {
 		t.Fatalf("All user should have read permissions")
 	}
 
-	if !slot.CanWrite(&all_user) {
+	if !slot.CanWrite(&allUser) {
 		t.Fatalf("All user should have write permissions")
 	}
 }
@@ -126,12 +119,9 @@ func TestBroadcastSlotWriteManagerFailure(t *testing.T) {
 			return "", fmt.Errorf("broadcast failed")
 		},
 	}
-	slot, err := newBroadcastSlot(make(map[string]string), manager, "test_slot")
-	if err != nil {
-		t.Fatalf("Slot must not return error: %s", err)
-	}
+	slot := newBroadcastSlot(make(map[string]string), manager, "test_slot")
 
-	_, err = slot.Write("test_value", nil)
+	_, err := slot.Write("test_value", nil)
 	if err == nil {
 		t.Fatalf("Error should be returned when manager broadcast fails")
 	}

@@ -314,7 +314,7 @@ func requestToJoin(joinAddr, managerAddr, nodeID, user, pass string) (map[string
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("Failed to join cluster, response status: %s", resp.Status)
+		return nil, "", fmt.Errorf("failed to join cluster, response status: %s", resp.Status)
 	}
 
 	// Parse response for peers and leader
@@ -323,7 +323,7 @@ func requestToJoin(joinAddr, managerAddr, nodeID, user, pass string) (map[string
 		Leader string            `json:"leader"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, "", fmt.Errorf("Failed to decode join response: %w", err)
+		return nil, "", fmt.Errorf("failed to decode join response: %w", err)
 	}
 
 	return result.Peers, result.Leader, nil

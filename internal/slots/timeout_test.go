@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/spf13/viper"
+
+	"github.com/dankomiocevic/ghoti/internal/auth"
 )
 
 func loadTimeoutSlot(t *testing.T) Slot {
@@ -35,41 +36,41 @@ func TestTimeoutMemory(t *testing.T) {
 }
 
 func TestTimeoutRead(t *testing.T) {
-	read_user, _ := auth.GetUser("read", "pass")
-	write_user, _ := auth.GetUser("write", "pass")
-	all_user, _ := auth.GetUser("allu", "pass")
+	readUser, _ := auth.GetUser("read", "pass")
+	writeUser, _ := auth.GetUser("write", "pass")
+	allUser, _ := auth.GetUser("allu", "pass")
 
 	slot := loadTimeoutSlot(t)
 
-	if !slot.CanRead(&read_user) {
+	if !slot.CanRead(&readUser) {
 		t.Fatalf("we should be able to read with the read user")
 	}
 
-	if slot.CanRead(&write_user) {
+	if slot.CanRead(&writeUser) {
 		t.Fatalf("we should not be able to read with the write user")
 	}
 
-	if !slot.CanRead(&all_user) {
+	if !slot.CanRead(&allUser) {
 		t.Fatalf("we should be able to read with the read/write user")
 	}
 }
 
 func TestTimeoutWrite(t *testing.T) {
-	read_user, _ := auth.GetUser("read", "pass")
-	write_user, _ := auth.GetUser("write", "pass")
-	all_user, _ := auth.GetUser("allu", "pass")
+	readUser, _ := auth.GetUser("read", "pass")
+	writeUser, _ := auth.GetUser("write", "pass")
+	allUser, _ := auth.GetUser("allu", "pass")
 
 	slot := loadTimeoutSlot(t)
 
-	if slot.CanWrite(&read_user) {
+	if slot.CanWrite(&readUser) {
 		t.Fatalf("we should not be able to write with the read user")
 	}
 
-	if !slot.CanWrite(&write_user) {
+	if !slot.CanWrite(&writeUser) {
 		t.Fatalf("we should be able to write with the write user")
 	}
 
-	if !slot.CanWrite(&all_user) {
+	if !slot.CanWrite(&allUser) {
 		t.Fatalf("we should be able to write with the read/write user")
 	}
 }
@@ -86,11 +87,11 @@ func TestTimeoutMemoryMissingConfig(t *testing.T) {
 }
 
 func TestMultipleWrites(t *testing.T) {
-	_, client_one := net.Pipe()
-	_, client_two := net.Pipe()
+	_, clientOne := net.Pipe()
+	_, clientTwo := net.Pipe()
 	slot := loadTimeoutSlot(t)
 
-	resp, err := slot.Write("Hello!", client_one)
+	resp, err := slot.Write("Hello!", clientOne)
 	if err != nil {
 		t.Fatalf("error writing slot: %s", err)
 	}
@@ -104,12 +105,12 @@ func TestMultipleWrites(t *testing.T) {
 		t.Fatalf("wrong value stored in slot: %s", resp)
 	}
 
-	_, err = slot.Write("Hello!", client_two)
+	_, err = slot.Write("Hello!", clientTwo)
 	if err == nil {
 		t.Fatalf("Writing before timeout should fail")
 	}
 
-	resp, err = slot.Write("Hello Again!", client_one)
+	resp, err = slot.Write("Hello Again!", clientOne)
 	if err != nil {
 		t.Fatalf("error writing slot: %s", err)
 	}
@@ -124,7 +125,7 @@ func TestMultipleWrites(t *testing.T) {
 	}
 
 	time.Sleep(1 * time.Second)
-	resp, err = slot.Write("Hello back!", client_two)
+	resp, err = slot.Write("Hello back!", clientTwo)
 	if err != nil {
 		t.Fatalf("error writing slot: %s", err)
 	}
@@ -138,7 +139,7 @@ func TestMultipleWrites(t *testing.T) {
 		t.Fatalf("wrong value stored in slot: %s", resp)
 	}
 
-	_, err = slot.Write("Hello!", client_one)
+	_, err = slot.Write("Hello!", clientOne)
 	if err == nil {
 		t.Fatalf("Writing before timeout should fail")
 	}
