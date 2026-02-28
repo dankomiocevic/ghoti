@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
-	"github.com/dankomiocevic/ghoti/internal/connection_manager"
+	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
 )
 
 type broadcastSlot struct {
@@ -14,10 +14,10 @@ type broadcastSlot struct {
 	value   string
 	slotID  string
 	mu      sync.RWMutex
-	manager connection_manager.ConnectionManager
+	manager connectionmanager.ConnectionManager
 }
 
-func newBroadcastSlot(users map[string]string, conn connection_manager.ConnectionManager, id string) *broadcastSlot {
+func newBroadcastSlot(users map[string]string, conn connectionmanager.ConnectionManager, id string) *broadcastSlot {
 	return &broadcastSlot{
 		users:   users,
 		value:   "",

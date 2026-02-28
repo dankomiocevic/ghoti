@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
-	"github.com/dankomiocevic/ghoti/internal/connection_manager"
+	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
 )
 
 type MockConnectionManager struct {
@@ -20,7 +20,7 @@ func (m *MockConnectionManager) StartListening(string) error {
 	return nil
 }
 
-func (m *MockConnectionManager) ServeConnections(connection_manager.CallbackFn) error {
+func (m *MockConnectionManager) ServeConnections(connectionmanager.CallbackFn) error {
 	return nil
 }
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/cluster"
-	"github.com/dankomiocevic/ghoti/internal/connection_manager"
+	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
 	"github.com/dankomiocevic/ghoti/internal/metrics"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 )
@@ -42,7 +42,7 @@ type Config struct {
 	Cluster     cluster.ClusterConfig
 	Logging     LoggingConfig
 	Metrics     metrics.Config
-	Connections connection_manager.ConnectionManager
+	Connections connectionmanager.ConnectionManager
 	Protocol    string
 }
 
@@ -83,7 +83,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	//TODO: Move this out of the config package
-	config.Connections = connection_manager.GetConnectionManager(config.Protocol)
+	config.Connections = connectionmanager.GetConnectionManager(config.Protocol)
 
 	config.ConfigureSlots()
 

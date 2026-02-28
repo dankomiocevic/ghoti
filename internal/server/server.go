@@ -9,7 +9,7 @@ import (
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
-	"github.com/dankomiocevic/ghoti/internal/connection_manager"
+	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
 	"github.com/dankomiocevic/ghoti/internal/errors"
 	"github.com/dankomiocevic/ghoti/internal/metrics"
 	"github.com/dankomiocevic/ghoti/internal/slots"
@@ -18,7 +18,7 @@ import (
 type Server struct {
 	slotsArray  [1000]slots.Slot
 	usersMap    map[string]auth.User
-	connections connection_manager.ConnectionManager
+	connections connectionmanager.ConnectionManager
 	cluster     cluster.Cluster
 }
 
@@ -44,7 +44,7 @@ func (s *Server) Stop() {
 	s.connections.Close()
 }
 
-func (s *Server) HandleMessage(size int, data []byte, conn *connection_manager.Connection) error {
+func (s *Server) HandleMessage(size int, data []byte, conn *connectionmanager.Connection) error {
 	start := time.Now()
 	defer func() { metrics.RecordRequest(time.Since(start)) }()
 
@@ -104,7 +104,7 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connection_manager.C
 	return nil
 }
 
-func processRead(conn *connection_manager.Connection, currentSlot slots.Slot, msg Message) error {
+func processRead(conn *connectionmanager.Connection, currentSlot slots.Slot, msg Message) error {
 	if currentSlot.CanRead(&conn.LoggedUser) {
 		value := currentSlot.Read()
 		err := sendSlotData(msg, conn, value)
@@ -120,7 +120,7 @@ func processRead(conn *connection_manager.Connection, currentSlot slots.Slot, ms
 	return err
 }
 
-func processWrite(conn *connection_manager.Connection, currentSlot slots.Slot, msg Message) error {
+func processWrite(conn *connectionmanager.Connection, currentSlot slots.Slot, msg Message) error {
 	if !currentSlot.CanWrite(&conn.LoggedUser) {
 		slog.Info("Connection trying to write on slot without permission",
 			slog.Int("slot", msg.Slot),
@@ -156,7 +156,7 @@ func processWrite(conn *connection_manager.Connection, currentSlot slots.Slot, m
 	return err
 }
 
-func sendSlotData(msg Message, conn *connection_manager.Connection, value string) error {
+func sendSlotData(msg Message, conn *connectionmanager.Connection, value string) error {
 	var sb strings.Builder
 	sb.WriteString("v")
 	sb.WriteString(fmt.Sprintf("%03d", msg.Slot))
@@ -175,7 +175,7 @@ func sendSlotData(msg Message, conn *connection_manager.Connection, value string
 	return nil
 }
 
-func processUsername(conn *connection_manager.Connection, msg Message) error {
+func processUsername(conn *connectionmanager.Connection, msg Message) error {
 	err := auth.ValidateUsername(msg.Value)
 	if err != nil {
 		res := errors.Error("WRONG_USER")
@@ -208,7 +208,7 @@ func processUsername(conn *connection_manager.Connection, msg Message) error {
 	return nil
 }
 
-func processPassword(s *Server, conn *connection_manager.Connection, msg Message) error {
+func processPassword(s *Server, conn *connectionmanager.Connection, msg Message) error {
 	user, err := auth.GetUser(conn.Username, msg.Value)
 	if err != nil {
 		res := errors.Error("WRONG_PASS")

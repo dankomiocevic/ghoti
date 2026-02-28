@@ -1,4 +1,4 @@
-package connection_manager
+package connectionmanager
 
 import (
 	"bufio"

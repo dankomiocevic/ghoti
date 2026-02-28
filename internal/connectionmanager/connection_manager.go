@@ -1,4 +1,4 @@
-package connection_manager
+package connectionmanager
 
 type CallbackFn func(int, []byte, *Connection) error
 
