@@ -1,4 +1,4 @@
-package errors
+package errs
 
 type TranscientError struct {
 	Err string

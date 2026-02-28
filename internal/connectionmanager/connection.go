@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
-	"github.com/dankomiocevic/ghoti/internal/errors"
+	"github.com/dankomiocevic/ghoti/internal/errs"
 )
 
 type Event struct {
@@ -44,11 +44,11 @@ func (c *Connection) ReceiveMessage() (int, error) {
 		// If the error was a timeout, continue receiving data in
 		// next loop
 		if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
-			return 0, errors.TranscientError{Err: "Timeout receiving data"}
+			return 0, errs.TranscientError{Err: "Timeout receiving data"}
 		}
 
 		if err == io.EOF {
-			return 0, errors.PermanentError{Err: "Connection closed"}
+			return 0, errs.PermanentError{Err: "Connection closed"}
 		}
 
 		slog.Error("Error receiving data from connection", slog.Any("error", err))
@@ -56,7 +56,7 @@ func (c *Connection) ReceiveMessage() (int, error) {
 			slog.String("id", c.ID),
 			slog.String("remote_addr", c.NetworkConn.RemoteAddr().String()),
 		)
-		return 0, errors.PermanentError{Err: "Connection closed"}
+		return 0, errs.PermanentError{Err: "Connection closed"}
 	}
 
 	return size, nil
@@ -79,7 +79,7 @@ func (c *Connection) SendEvent(data string) error {
 	select {
 	case c.Events <- event:
 	default:
-		return errors.PermanentError{Err: "Could not send event, channel full"}
+		return errs.PermanentError{Err: "Could not send event, channel full"}
 	}
 
 	// Wait for the callback to be called
@@ -90,14 +90,14 @@ func (c *Connection) SendEvent(data string) error {
 		case eventID + " OK":
 			return nil
 		case eventID + " TIMEOUT":
-			return errors.TranscientError{Err: "Timeout waiting for response"}
+			return errs.TranscientError{Err: "Timeout waiting for response"}
 		case eventID + " ERROR":
-			return errors.TranscientError{Err: "Error sending event"}
+			return errs.TranscientError{Err: "Error sending event"}
 		default:
-			return errors.TranscientError{Err: "Unknown response for event " + eventID + ": " + response}
+			return errs.TranscientError{Err: "Unknown response for event " + eventID + ": " + response}
 		}
 	case <-time.After(200 * time.Millisecond):
-		return errors.TranscientError{Err: "Timeout waiting for callback"}
+		return errs.TranscientError{Err: "Timeout waiting for callback"}
 	}
 }
 

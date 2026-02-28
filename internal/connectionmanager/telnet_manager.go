@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/dankomiocevic/ghoti/internal/errors"
+	"github.com/dankomiocevic/ghoti/internal/errs"
 )
 
 type TelnetManager struct {
@@ -81,9 +81,9 @@ func (m *TelnetManager) handleUserConnection(callback CallbackFn, conn Connectio
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
 			switch err.(type) {
-			case errors.TranscientError:
+			case errs.TranscientError:
 				continue
-			case errors.PermanentError:
+			case errs.PermanentError:
 				return
 			default:
 				slog.Error("Unidentified error reading message",
@@ -96,7 +96,7 @@ func (m *TelnetManager) handleUserConnection(callback CallbackFn, conn Connectio
 		// If the message is a telnet message, check if it finishes with a carriage return
 		// and line feed (CRLF), return an error otherwise
 		if conn.Buffer[size-2] != 13 || conn.Buffer[size-1] != 10 {
-			res := errors.Error("PARSE_ERROR")
+			res := errs.Error("PARSE_ERROR")
 			slog.Debug("Message not terminated with CRLF",
 				slog.String("remote_addr", conn.ID),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
@@ -110,11 +110,11 @@ func (m *TelnetManager) handleUserConnection(callback CallbackFn, conn Connectio
 		err = callback(size, conn.Buffer, &conn)
 		if err != nil {
 			switch err.(type) {
-			case errors.TranscientError:
+			case errs.TranscientError:
 				slog.Error(err.Error(),
 					slog.String("id", conn.ID))
 				continue
-			case errors.PermanentError:
+			case errs.PermanentError:
 				slog.Error(err.Error(),
 					slog.String("id", conn.ID))
 				return
