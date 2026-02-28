@@ -7,13 +7,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
 	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
 	"github.com/dankomiocevic/ghoti/internal/metrics"
 	"github.com/dankomiocevic/ghoti/internal/server"
-
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 type ExitControl interface {
@@ -38,7 +38,7 @@ func NewRunCommand() *cobra.Command {
 
 	defaultConfig := config.DefaultConfig()
 	flags := cmd.Flags()
-	flags.String("addr", defaultConfig.TcpAddr, "the host:port address to serve the server on")
+	flags.String("addr", defaultConfig.TCPAddr, "the host:port address to serve the server on")
 	viper.BindPFlag("addr", cmd.Flags().Lookup("addr"))
 
 	return cmd

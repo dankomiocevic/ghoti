@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/spf13/viper"
+
+	"github.com/dankomiocevic/ghoti/internal/auth"
 )
 
 func loadBucketSlot(t *testing.T) Slot {
@@ -392,7 +393,7 @@ func TestTokenBucketWithInvalidPeriod(t *testing.T) {
 		t.Fatalf("Expected error when creating token bucket with invalid period")
 	}
 
-	expectedError := "Period value is invalid on token_bucket slot: invalid"
+	expectedError := "period value is invalid on token_bucket slot: invalid"
 	if err.Error() != expectedError {
 		t.Fatalf("Expected error message '%s', got '%s'", expectedError, err.Error())
 	}

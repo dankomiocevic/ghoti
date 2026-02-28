@@ -154,7 +154,7 @@ func (c *RaftCluster) Join(nodeID, addr string) error {
 	if f.Error() != nil {
 		return f.Error()
 	}
-	slog.Info("Node joined the cluster successfuly",
+	slog.Info("Node joined the cluster successfully",
 		slog.String("node_id", nodeID),
 		slog.String("node_addr", addr),
 	)

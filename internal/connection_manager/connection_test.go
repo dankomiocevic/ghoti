@@ -63,7 +63,7 @@ func loadConnection(_ *testing.T) *Connection {
 	conn := &MockConnection{}
 
 	return &Connection{
-		Id:          uuid.NewString(),
+		ID:          uuid.NewString(),
 		Quit:        make(chan interface{}),
 		Events:      make(chan Event, 10),
 		NetworkConn: conn,
@@ -165,9 +165,9 @@ func TestBatchingMultipleEvents(t *testing.T) {
 
 	// Send multiple events directly to the channel
 	for i := 0; i < 5; i++ {
-		eventId := uuid.NewString()
+		eventID := uuid.NewString()
 		event := Event{
-			id:       eventId,
+			id:       eventID,
 			data:     []byte("test_data_" + string(rune('A'+i))),
 			callback: conn.Callback,
 			timeout:  time.Now().Add(200 * time.Millisecond),
@@ -201,7 +201,7 @@ func TestBatchingMultipleEvents(t *testing.T) {
 	}
 }
 
-// TestBatchingFullBatch tests that exactly 20 events trigger immediate sending
+// TestBatchingFullBatch tests that exactly 20 events trigger immediate sending.
 func TestBatchingFullBatch(t *testing.T) {
 	conn := loadConnection(t)
 
@@ -210,9 +210,9 @@ func TestBatchingFullBatch(t *testing.T) {
 
 	// Send exactly 20 events (full batch) directly to the channel
 	for i := range 20 {
-		eventId := uuid.NewString()
+		eventID := uuid.NewString()
 		event := Event{
-			id:       eventId,
+			id:       eventID,
 			data:     []byte("test_data_" + string(rune('A'+i))),
 			callback: conn.Callback,
 			timeout:  time.Now().Add(200 * time.Millisecond),
@@ -238,7 +238,7 @@ func TestBatchingFullBatch(t *testing.T) {
 	}
 }
 
-// TestBatchingTimeoutHandling tests that timed-out events are handled correctly
+// TestBatchingTimeoutHandling tests that timed-out events are handled correctly.
 func TestBatchingTimeoutHandling(t *testing.T) {
 	conn := loadConnection(t)
 
@@ -246,9 +246,9 @@ func TestBatchingTimeoutHandling(t *testing.T) {
 	go conn.EventProcessor()
 
 	// Create an event that will timeout
-	eventId := uuid.NewString()
+	eventID := uuid.NewString()
 	event := Event{
-		id:       eventId,
+		id:       eventID,
 		data:     []byte("test_data"),
 		callback: conn.Callback,
 		timeout:  time.Now().Add(-1 * time.Millisecond), // Already timed out
@@ -263,7 +263,7 @@ func TestBatchingTimeoutHandling(t *testing.T) {
 	// Check that we received a timeout response
 	select {
 	case response := <-conn.Callback:
-		if response != eventId+" TIMEOUT" {
+		if response != eventID+" TIMEOUT" {
 			t.Fatalf("Expected timeout response, got '%s'", response)
 		}
 	case <-time.After(100 * time.Millisecond):
@@ -271,7 +271,7 @@ func TestBatchingTimeoutHandling(t *testing.T) {
 	}
 }
 
-// TestBatchingMixedTimeoutEvents tests handling of mixed valid and timed-out events
+// TestBatchingMixedTimeoutEvents tests handling of mixed valid and timed-out events.
 func TestBatchingMixedTimeoutEvents(t *testing.T) {
 	conn := loadConnection(t)
 
@@ -279,18 +279,18 @@ func TestBatchingMixedTimeoutEvents(t *testing.T) {
 	go conn.EventProcessor()
 
 	// Create events with different timeouts
-	validEventId := uuid.NewString()
-	timeoutEventId := uuid.NewString()
+	validEventID := uuid.NewString()
+	timeoutEventID := uuid.NewString()
 
 	validEvent := Event{
-		id:       validEventId,
+		id:       validEventID,
 		data:     []byte("valid_data"),
 		callback: conn.Callback,
 		timeout:  time.Now().Add(200 * time.Millisecond),
 	}
 
 	timeoutEvent := Event{
-		id:       timeoutEventId,
+		id:       timeoutEventID,
 		data:     []byte("timeout_data"),
 		callback: conn.Callback,
 		timeout:  time.Now().Add(-1 * time.Millisecond), // Already timed out
@@ -334,7 +334,7 @@ func TestBatchingMixedTimeoutEvents(t *testing.T) {
 	}
 }
 
-// TestBatchingAllTimeoutEvents tests that all timed-out events are handled correctly
+// TestBatchingAllTimeoutEvents tests that all timed-out events are handled correctly.
 func TestBatchingAllTimeoutEvents(t *testing.T) {
 	conn := loadConnection(t)
 
@@ -342,9 +342,9 @@ func TestBatchingAllTimeoutEvents(t *testing.T) {
 	go conn.EventProcessor()
 
 	for range 3 {
-		eventId := uuid.NewString()
+		eventID := uuid.NewString()
 		event := Event{
-			id:       eventId,
+			id:       eventID,
 			data:     []byte("timeout_data"),
 			callback: conn.Callback,
 			timeout:  time.Now().Add(-1 * time.Millisecond), // Already timed out
@@ -374,7 +374,7 @@ func TestBatchingAllTimeoutEvents(t *testing.T) {
 	}
 }
 
-// TestBatchingChannelEmptyTrigger tests that events are sent when channel is empty
+// TestBatchingChannelEmptyTrigger tests that events are sent when channel is empty.
 func TestBatchingChannelEmptyTrigger(t *testing.T) {
 	conn := loadConnection(t)
 
@@ -403,7 +403,7 @@ func TestBatchingChannelEmptyTrigger(t *testing.T) {
 	}
 }
 
-// TestBatchingCallbackValidation tests that callbacks are sent correctly after batching
+// TestBatchingCallbackValidation tests that callbacks are sent correctly after batching.
 func TestBatchingCallbackValidation(t *testing.T) {
 	conn := loadConnection(t)
 
@@ -411,12 +411,12 @@ func TestBatchingCallbackValidation(t *testing.T) {
 	go conn.EventProcessor()
 
 	// Send multiple events and collect their IDs
-	eventIds := make([]string, 5)
+	eventIDs := make([]string, 5)
 	for i := 0; i < 5; i++ {
-		eventId := uuid.NewString()
-		eventIds[i] = eventId
+		eventID := uuid.NewString()
+		eventIDs[i] = eventID
 		event := Event{
-			id:       eventId,
+			id:       eventID,
 			data:     []byte("test_data_" + string(rune('A'+i))),
 			callback: conn.Callback,
 			timeout:  time.Now().Add(200 * time.Millisecond),
@@ -448,14 +448,14 @@ func TestBatchingCallbackValidation(t *testing.T) {
 			t.Fatalf("Expected OK response for event %d, got '%s'", i, response)
 		}
 		// Verify the event ID matches
-		expectedId := eventIds[i]
-		if !strings.HasPrefix(response, expectedId) {
-			t.Fatalf("Expected callback for event %s, got '%s'", expectedId, response)
+		expectedID := eventIDs[i]
+		if !strings.HasPrefix(response, expectedID) {
+			t.Fatalf("Expected callback for event %s, got '%s'", expectedID, response)
 		}
 	}
 }
 
-// TestBatchingCallbackOrder tests that callbacks are sent in the correct order
+// TestBatchingCallbackOrder tests that callbacks are sent in the correct order.
 func TestBatchingCallbackOrder(t *testing.T) {
 	conn := loadConnection(t)
 
@@ -463,10 +463,10 @@ func TestBatchingCallbackOrder(t *testing.T) {
 	go conn.EventProcessor()
 
 	// Send events with specific IDs to track order
-	eventIds := []string{"event1", "event2", "event3"}
-	for i, eventId := range eventIds {
+	eventIDs := []string{"event1", "event2", "event3"}
+	for i, eventID := range eventIDs {
 		event := Event{
-			id:       eventId,
+			id:       eventID,
 			data:     []byte(fmt.Sprintf("data_%d", i+1)),
 			callback: conn.Callback,
 			timeout:  time.Now().Add(200 * time.Millisecond),
@@ -478,14 +478,14 @@ func TestBatchingCallbackOrder(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Check that callbacks are received in order
-	for i, expectedId := range eventIds {
+	for i, expectedID := range eventIDs {
 		select {
 		case response := <-conn.Callback:
-			if !strings.HasPrefix(response, expectedId) {
-				t.Fatalf("Expected callback for event %s at position %d, got '%s'", expectedId, i, response)
+			if !strings.HasPrefix(response, expectedID) {
+				t.Fatalf("Expected callback for event %s at position %d, got '%s'", expectedID, i, response)
 			}
 			if !strings.HasSuffix(response, " OK") {
-				t.Fatalf("Expected OK response for event %s, got '%s'", expectedId, response)
+				t.Fatalf("Expected OK response for event %s, got '%s'", expectedID, response)
 			}
 		case <-time.After(100 * time.Millisecond):
 			t.Fatalf("Timeout waiting for callback %d", i)
@@ -493,7 +493,7 @@ func TestBatchingCallbackOrder(t *testing.T) {
 	}
 }
 
-// TestBatchingCallbackWithErrors tests callback behavior when network write fails
+// TestBatchingCallbackWithErrors tests callback behavior when network write fails.
 func TestBatchingCallbackWithErrors(t *testing.T) {
 	conn := loadConnection(t)
 
@@ -505,12 +505,12 @@ func TestBatchingCallbackWithErrors(t *testing.T) {
 	go conn.EventProcessor()
 
 	// Send multiple events
-	eventIds := make([]string, 3)
+	eventIDs := make([]string, 3)
 	for i := 0; i < 3; i++ {
-		eventId := uuid.NewString()
-		eventIds[i] = eventId
+		eventID := uuid.NewString()
+		eventIDs[i] = eventID
 		event := Event{
-			id:       eventId,
+			id:       eventID,
 			data:     []byte("test_data"),
 			callback: conn.Callback,
 			timeout:  time.Now().Add(200 * time.Millisecond),
@@ -529,9 +529,9 @@ func TestBatchingCallbackWithErrors(t *testing.T) {
 				t.Fatalf("Expected ERROR response for event %d, got '%s'", i, response)
 			}
 			// Verify the event ID matches
-			expectedId := eventIds[i]
-			if !strings.HasPrefix(response, expectedId) {
-				t.Fatalf("Expected callback for event %s, got '%s'", expectedId, response)
+			expectedID := eventIDs[i]
+			if !strings.HasPrefix(response, expectedID) {
+				t.Fatalf("Expected callback for event %s, got '%s'", expectedID, response)
 			}
 		case <-time.After(100 * time.Millisecond):
 			t.Fatalf("Timeout waiting for callback %d", i)
@@ -539,7 +539,7 @@ func TestBatchingCallbackWithErrors(t *testing.T) {
 	}
 }
 
-// TestBatchingCallbackMixedTimeout tests callback behavior with mixed valid and timeout events
+// TestBatchingCallbackMixedTimeout tests callback behavior with mixed valid and timeout events.
 func TestBatchingCallbackMixedTimeout(t *testing.T) {
 	conn := loadConnection(t)
 
@@ -547,18 +547,18 @@ func TestBatchingCallbackMixedTimeout(t *testing.T) {
 	go conn.EventProcessor()
 
 	// Create events with different timeouts
-	validEventId := uuid.NewString()
-	timeoutEventId := uuid.NewString()
+	validEventID := uuid.NewString()
+	timeoutEventID := uuid.NewString()
 
 	validEvent := Event{
-		id:       validEventId,
+		id:       validEventID,
 		data:     []byte("valid_data"),
 		callback: conn.Callback,
 		timeout:  time.Now().Add(200 * time.Millisecond),
 	}
 
 	timeoutEvent := Event{
-		id:       timeoutEventId,
+		id:       timeoutEventID,
 		data:     []byte("timeout_data"),
 		callback: conn.Callback,
 		timeout:  time.Now().Add(-1 * time.Millisecond), // Already timed out
@@ -605,10 +605,10 @@ func TestBatchingCallbackMixedTimeout(t *testing.T) {
 	foundValid := false
 	foundTimeout := false
 	for _, response := range responses {
-		if strings.HasPrefix(response, validEventId) && strings.HasSuffix(response, " OK") {
+		if strings.HasPrefix(response, validEventID) && strings.HasSuffix(response, " OK") {
 			foundValid = true
 		}
-		if strings.HasPrefix(response, timeoutEventId) && strings.HasSuffix(response, " TIMEOUT") {
+		if strings.HasPrefix(response, timeoutEventID) && strings.HasSuffix(response, " TIMEOUT") {
 			foundTimeout = true
 		}
 	}

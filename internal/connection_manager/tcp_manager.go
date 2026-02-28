@@ -15,7 +15,7 @@ import (
 	"github.com/dankomiocevic/ghoti/internal/metrics"
 )
 
-type TcpManager struct {
+type TCPManager struct {
 	lock        sync.RWMutex
 	connections map[string]Connection
 	listener    net.Listener
@@ -23,19 +23,19 @@ type TcpManager struct {
 	quit        chan interface{}
 }
 
-func NewTcpManager() *TcpManager {
-	return &TcpManager{
+func NewTCPManager() *TCPManager {
+	return &TCPManager{
 		quit:        make(chan interface{}),
 		lock:        sync.RWMutex{},
 		connections: make(map[string]Connection),
 	}
 }
 
-func (c *TcpManager) GetAddr() string {
+func (c *TCPManager) GetAddr() string {
 	return c.listener.Addr().String()
 }
 
-func (c *TcpManager) StartListening(tcpAddr string) error {
+func (c *TCPManager) StartListening(tcpAddr string) error {
 	l, err := net.Listen("tcp", tcpAddr)
 	if err != nil {
 		return err
@@ -45,7 +45,7 @@ func (c *TcpManager) StartListening(tcpAddr string) error {
 	return nil
 }
 
-func (c *TcpManager) ServeConnections(callback CallbackFn) error {
+func (c *TCPManager) ServeConnections(callback CallbackFn) error {
 	for {
 		conn, err := c.listener.Accept()
 		if err != nil {
@@ -59,7 +59,7 @@ func (c *TcpManager) ServeConnections(callback CallbackFn) error {
 		} else {
 			connection := c.Add(conn, 41)
 			slog.Debug("Connection received",
-				slog.String("id", connection.Id),
+				slog.String("id", connection.ID),
 				slog.String("remote_addr", conn.RemoteAddr().String()),
 			)
 
@@ -72,11 +72,11 @@ func (c *TcpManager) ServeConnections(callback CallbackFn) error {
 	}
 }
 
-func (c *TcpManager) handleUserConnection(callback CallbackFn, conn Connection) {
-	defer c.Delete(conn.Id)
+func (c *TCPManager) handleUserConnection(callback CallbackFn, conn Connection) {
+	defer c.Delete(conn.ID)
 	defer conn.Close()
 	slog.Debug("Handling user connection",
-		slog.String("remote_addr", conn.Id),
+		slog.String("remote_addr", conn.ID),
 		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 	)
 
@@ -85,7 +85,7 @@ func (c *TcpManager) handleUserConnection(callback CallbackFn, conn Connection) 
 		select {
 		case <-conn.Quit:
 			slog.Debug("Connection quit",
-				slog.String("remote_addr", conn.Id),
+				slog.String("remote_addr", conn.ID),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
 			return
@@ -95,7 +95,7 @@ func (c *TcpManager) handleUserConnection(callback CallbackFn, conn Connection) 
 		size, err := conn.ReceiveMessage()
 		if err != nil {
 			slog.Debug(err.Error(),
-				slog.String("remote_addr", conn.Id),
+				slog.String("remote_addr", conn.ID),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
 			switch err.(type) {
@@ -105,7 +105,7 @@ func (c *TcpManager) handleUserConnection(callback CallbackFn, conn Connection) 
 				return
 			default:
 				slog.Error("Unidentified error reading message",
-					slog.String("id", conn.Id),
+					slog.String("id", conn.ID),
 					slog.Any("error", err))
 				return
 			}
@@ -114,35 +114,35 @@ func (c *TcpManager) handleUserConnection(callback CallbackFn, conn Connection) 
 		if conn.Buffer[size-1] != 10 {
 			res := errors.Error("PARSE_ERROR")
 			slog.Debug("Message not terminated with newline",
-				slog.String("remote_addr", conn.Id),
+				slog.String("remote_addr", conn.ID),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
 			conn.SendEvent(res.Response("xxx"))
 			continue
 		}
-		size -= 1
+		size--
 
 		err = callback(size, conn.Buffer, &conn)
 		if err != nil {
 			switch err.(type) {
 			case errors.TranscientError:
 				slog.Error(err.Error(),
-					slog.String("id", conn.Id))
+					slog.String("id", conn.ID))
 				continue
 			case errors.PermanentError:
 				slog.Error(err.Error(),
-					slog.String("id", conn.Id))
+					slog.String("id", conn.ID))
 				return
 			default:
 				slog.Error("Unidentified error type",
-					slog.String("id", conn.Id),
+					slog.String("id", conn.ID),
 					slog.Any("error", err))
 			}
 		}
 	}
 }
 
-func (c *TcpManager) Add(conn net.Conn, bufferSize int) Connection {
+func (c *TCPManager) Add(conn net.Conn, bufferSize int) Connection {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -160,7 +160,7 @@ func (c *TcpManager) Add(conn net.Conn, bufferSize int) Connection {
 
 	buf := make([]byte, bufferSize)
 	connection := Connection{
-		Id:          id,
+		ID:          id,
 		Quit:        make(chan interface{}),
 		Events:      make(chan Event, 128),
 		NetworkConn: conn,
@@ -172,12 +172,12 @@ func (c *TcpManager) Add(conn net.Conn, bufferSize int) Connection {
 		Timeout:     timeoutDuration,
 	}
 
-	c.connections[connection.Id] = connection
-	metrics.IncrConnectedClients()
-	return connection
+	c.connections[connection.ID] = connection
+  metrics.IncrConnectedClients()
+  return connection
 }
 
-func (c *TcpManager) Delete(id string) {
+func (c *TCPManager) Delete(id string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -194,7 +194,7 @@ func (c *TcpManager) Delete(id string) {
 	metrics.DecrConnectedClients()
 }
 
-func (c *TcpManager) Close() {
+func (c *TCPManager) Close() {
 	close(c.quit)
 
 	slog.Debug("Closing listener")
@@ -209,7 +209,7 @@ func (c *TcpManager) Close() {
 
 	for _, conn := range conns {
 		slog.Debug("Closing connection",
-			slog.String("id", conn.Id),
+			slog.String("id", conn.ID),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 
@@ -220,14 +220,14 @@ func (c *TcpManager) Close() {
 	c.wg.Wait()
 }
 
-func (c *TcpManager) Broadcast(data string) (string, error) {
+func (c *TCPManager) Broadcast(data string) (string, error) {
 	callback := make(chan string, 100)
 	defer close(callback)
 	dataBytes := []byte(data)
 
-	eventId := uuid.NewString()
+	eventID := uuid.NewString()
 	event := Event{
-		id:       eventId,
+		id:       eventID,
 		data:     dataBytes,
 		callback: callback,
 		timeout:  time.Now().Add(200 * time.Millisecond),
@@ -253,7 +253,7 @@ func (c *TcpManager) Broadcast(data string) (string, error) {
 				// Start consuming messages from the callback channel that might be ready
 				select {
 				case response := <-callback:
-					if response == eventId+" OK" {
+					if response == eventID+" OK" {
 						received++
 					} else {
 						errors++
@@ -268,16 +268,17 @@ func (c *TcpManager) Broadcast(data string) (string, error) {
 	timeout := time.Now().Add(200 * time.Millisecond)
 
 	// Wait for all the missing responses
+outerLoop:
 	for received+errors < sent {
 		select {
 		case response := <-callback:
-			if response == eventId+" OK" {
+			if response == eventID+" OK" {
 				received++
 			} else {
 				errors++
 			}
-		case <-time.After(timeout.Sub(time.Now())):
-			break
+		case <-time.After(time.Until(timeout)):
+			break outerLoop
 		}
 	}
 

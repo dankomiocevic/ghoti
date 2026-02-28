@@ -118,10 +118,8 @@ func TestClusterMultiNode(t *testing.T) {
 	var leaderNodeConfig, followerNodeConfig ClusterConfig
 	if nodeTwo.IsLeader() {
 		leaderNodeConfig = configTwo
-		followerNodeConfig = configThree
 	} else {
 		leaderNodeConfig = configThree
-		followerNodeConfig = configTwo
 	}
 
 	// Adding node one again

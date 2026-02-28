@@ -12,7 +12,6 @@ import (
 type tickerSlot struct {
 	users  map[string]string
 	value  int64
-	size   int64
 	rate   int
 	window int64
 	mu     sync.Mutex
@@ -20,11 +19,11 @@ type tickerSlot struct {
 
 func newTickerSlot(refreshRate, initialValue int, users map[string]string) (*tickerSlot, error) {
 	if refreshRate < 1 {
-		return nil, fmt.Errorf("Refresh rate cannot be zero")
+		return nil, fmt.Errorf("refresh rate cannot be zero")
 	}
 
 	if initialValue < 0 {
-		return nil, fmt.Errorf("Initial value cannot be negative")
+		return nil, fmt.Errorf("initial value cannot be negative")
 	}
 
 	return &tickerSlot{value: int64(initialValue), rate: refreshRate, window: currentWindowMillis(refreshRate), users: users}, nil
@@ -61,16 +60,16 @@ func (m *tickerSlot) CanWrite(u *auth.User) bool {
 func (m *tickerSlot) Write(data string, from net.Conn) (string, error) {
 	dataInt, err := strconv.ParseInt(data, 10, 64)
 	if err != nil {
-		return "", fmt.Errorf("Data must be an integer")
+		return "", fmt.Errorf("data must be an integer")
 	}
 
 	if dataInt < 0 {
-		return "", fmt.Errorf("Data cannot be negative")
+		return "", fmt.Errorf("data cannot be negative")
 	}
 
 	m.mu.Lock()
 	m.window = currentWindowMillis(m.rate)
-	m.value = int64(dataInt)
+	m.value = dataInt
 	m.mu.Unlock()
 
 	return strconv.FormatInt(dataInt, 10), nil
