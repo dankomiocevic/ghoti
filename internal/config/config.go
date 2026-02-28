@@ -8,9 +8,9 @@ import (
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/cluster"
-	"github.com/dankomiocevic/ghoti/internal/connection_manager"
-	"github.com/dankomiocevic/ghoti/internal/metrics"
+	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
 	"github.com/dankomiocevic/ghoti/internal/slots"
+	"github.com/dankomiocevic/ghoti/internal/telemetry"
 )
 
 var SupportedLogLevels = map[string]slog.Level{
@@ -41,8 +41,8 @@ type Config struct {
 	Users       map[string]auth.User
 	Cluster     cluster.ClusterConfig
 	Logging     LoggingConfig
-	Metrics     metrics.Config
-	Connections connection_manager.ConnectionManager
+	Metrics     telemetry.Config
+	Connections connectionmanager.ConnectionManager
 	Protocol    string
 }
 
@@ -83,7 +83,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	//TODO: Move this out of the config package
-	config.Connections = connection_manager.GetConnectionManager(config.Protocol)
+	config.Connections = connectionmanager.GetConnectionManager(config.Protocol)
 
 	config.ConfigureSlots()
 
@@ -204,40 +204,40 @@ var supportedRotations = map[string]bool{
 
 // LoadMetrics reads the optional "metrics:" YAML section and populates c.Metrics.
 // Metrics are disabled by default; they must be explicitly enabled with
-// "metrics.enabled: true".
+// "telemetry.enabled: true".
 func (c *Config) LoadMetrics() error {
 	if !viper.IsSet("metrics") {
 		return nil
 	}
 
-	c.Metrics.Enabled = viper.GetBool("metrics.enabled")
+	c.Metrics.Enabled = viper.GetBool("telemetry.enabled")
 	if !c.Metrics.Enabled {
 		return nil
 	}
 
-	c.Metrics.OutputDir = viper.GetString("metrics.output_dir")
+	c.Metrics.OutputDir = viper.GetString("telemetry.output_dir")
 	if c.Metrics.OutputDir == "" {
-		return fmt.Errorf("metrics.output_dir is required when metrics is enabled")
+		return fmt.Errorf("telemetry.output_dir is required when metrics is enabled")
 	}
 
-	if viper.IsSet("metrics.rotation") {
-		c.Metrics.Rotation = viper.GetString("metrics.rotation")
+	if viper.IsSet("telemetry.rotation") {
+		c.Metrics.Rotation = viper.GetString("telemetry.rotation")
 		if !supportedRotations[c.Metrics.Rotation] {
 			return fmt.Errorf("unsupported metrics rotation %q: must be \"hourly\" or \"daily\"", c.Metrics.Rotation)
 		}
 	}
 
-	if viper.IsSet("metrics.retain") {
-		c.Metrics.Retain = viper.GetInt("metrics.retain")
+	if viper.IsSet("telemetry.retain") {
+		c.Metrics.Retain = viper.GetInt("telemetry.retain")
 		if c.Metrics.Retain < 0 {
-			return fmt.Errorf("metrics.retain must be >= 0")
+			return fmt.Errorf("telemetry.retain must be >= 0")
 		}
 	}
 
-	if viper.IsSet("metrics.interval") {
-		c.Metrics.Interval = viper.GetInt("metrics.interval")
+	if viper.IsSet("telemetry.interval") {
+		c.Metrics.Interval = viper.GetInt("telemetry.interval")
 		if c.Metrics.Interval < 1 {
-			return fmt.Errorf("metrics.interval must be at least 1 second")
+			return fmt.Errorf("telemetry.interval must be at least 1 second")
 		}
 	}
 

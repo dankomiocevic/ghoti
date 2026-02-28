@@ -1,4 +1,4 @@
-// Package metrics provides a lightweight, lock-free metrics collection system
+// Package telemetry provides a lightweight, lock-free metrics collection system
 // for Ghoti. All counter and gauge operations use atomic primitives so they
 // impose negligible overhead on request-handling goroutines.
 //
@@ -24,7 +24,7 @@
 //	// In request handler:
 //	start := time.Now()
 //	defer func() { metrics.RecordRequest(time.Since(start)) }()
-package metrics
+package telemetry
 
 import (
 	"sync/atomic"

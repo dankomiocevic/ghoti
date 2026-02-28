@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
-	"github.com/dankomiocevic/ghoti/internal/connection_manager"
+	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
 )
 
 type Slot interface {
@@ -18,7 +18,7 @@ type Slot interface {
 	CanWrite(*auth.User) bool
 }
 
-func GetSlot(v *viper.Viper, conn connection_manager.ConnectionManager, id string) (Slot, error) {
+func GetSlot(v *viper.Viper, conn connectionmanager.ConnectionManager, id string) (Slot, error) {
 	kind := v.GetString("kind")
 	usersConfig := v.GetStringMap("users")
 

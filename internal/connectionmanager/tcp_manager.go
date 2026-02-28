@@ -1,4 +1,4 @@
-package connection_manager
+package connectionmanager
 
 import (
 	"log/slog"
@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
-	"github.com/dankomiocevic/ghoti/internal/errors"
-	"github.com/dankomiocevic/ghoti/internal/metrics"
+	"github.com/dankomiocevic/ghoti/internal/errs"
+	"github.com/dankomiocevic/ghoti/internal/telemetry"
 )
 
 type TCPManager struct {
@@ -99,9 +99,9 @@ func (c *TCPManager) handleUserConnection(callback CallbackFn, conn Connection) 
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
 			switch err.(type) {
-			case errors.TranscientError:
+			case errs.TranscientError:
 				continue
-			case errors.PermanentError:
+			case errs.PermanentError:
 				return
 			default:
 				slog.Error("Unidentified error reading message",
@@ -112,7 +112,7 @@ func (c *TCPManager) handleUserConnection(callback CallbackFn, conn Connection) 
 		}
 
 		if conn.Buffer[size-1] != 10 {
-			res := errors.Error("PARSE_ERROR")
+			res := errs.Error("PARSE_ERROR")
 			slog.Debug("Message not terminated with newline",
 				slog.String("remote_addr", conn.ID),
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
@@ -125,11 +125,11 @@ func (c *TCPManager) handleUserConnection(callback CallbackFn, conn Connection) 
 		err = callback(size, conn.Buffer, &conn)
 		if err != nil {
 			switch err.(type) {
-			case errors.TranscientError:
+			case errs.TranscientError:
 				slog.Error(err.Error(),
 					slog.String("id", conn.ID))
 				continue
-			case errors.PermanentError:
+			case errs.PermanentError:
 				slog.Error(err.Error(),
 					slog.String("id", conn.ID))
 				return
@@ -173,7 +173,7 @@ func (c *TCPManager) Add(conn net.Conn, bufferSize int) Connection {
 	}
 
 	c.connections[connection.ID] = connection
-	metrics.IncrConnectedClients()
+	telemetry.IncrConnectedClients()
 	return connection
 }
 
@@ -191,7 +191,7 @@ func (c *TCPManager) Delete(id string) {
 	}
 
 	delete(c.connections, id)
-	metrics.DecrConnectedClients()
+	telemetry.DecrConnectedClients()
 }
 
 func (c *TCPManager) Close() {

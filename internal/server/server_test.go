@@ -13,7 +13,7 @@ import (
 
 	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
-	"github.com/dankomiocevic/ghoti/internal/connection_manager"
+	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 )
 
@@ -24,7 +24,7 @@ func generateConfig(port string) *config.Config {
 		c.Protocol = viper.GetString("protocol")
 	}
 
-	c.Connections = connection_manager.GetConnectionManager(c.Protocol)
+	c.Connections = connectionmanager.GetConnectionManager(c.Protocol)
 
 	viper.Set("addr", "localhost:"+port)
 	c.TCPAddr = viper.GetString("addr")

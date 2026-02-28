@@ -1,6 +1,6 @@
-// Package build provides build information that is linked into the application. Other
+// Package appinfo provides build information that is linked into the application. Other
 // packages within this project can use this information in logs etc..
-package build
+package appinfo
 
 var (
 	// Version is the build version of the app (e.g. v0.1.0).

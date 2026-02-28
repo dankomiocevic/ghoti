@@ -12,8 +12,8 @@ import (
 
 	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
-	"github.com/dankomiocevic/ghoti/internal/metrics"
 	"github.com/dankomiocevic/ghoti/internal/server"
+	"github.com/dankomiocevic/ghoti/internal/telemetry"
 )
 
 type ExitControl interface {
@@ -86,10 +86,10 @@ func runWithExit(e ExitControl) {
 	}
 
 	if config.Metrics.Enabled {
-		metrics.Enable()
+		telemetry.Enable()
 		metricsStop := make(chan struct{})
 		defer close(metricsStop)
-		go metrics.Run(config.Metrics, metricsStop)
+		go telemetry.Run(config.Metrics, metricsStop)
 	}
 
 	s := server.NewServer(config, clus)
