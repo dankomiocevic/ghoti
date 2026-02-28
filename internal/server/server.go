@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
 	"github.com/dankomiocevic/ghoti/internal/connection_manager"
 	"github.com/dankomiocevic/ghoti/internal/errors"
+	"github.com/dankomiocevic/ghoti/internal/metrics"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 )
 
@@ -43,6 +45,9 @@ func (s *Server) Stop() {
 }
 
 func (s *Server) HandleMessage(size int, data []byte, conn *connection_manager.Connection) error {
+	start := time.Now()
+	defer func() { metrics.RecordRequest(time.Since(start)) }()
+
 	msg, err := ParseMessage(size, data)
 	if err != nil {
 		res := errors.Error("PARSE_ERROR")

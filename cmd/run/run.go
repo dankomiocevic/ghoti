@@ -12,6 +12,7 @@ import (
 
 	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
+	"github.com/dankomiocevic/ghoti/internal/metrics"
 	"github.com/dankomiocevic/ghoti/internal/server"
 )
 
@@ -82,6 +83,13 @@ func runWithExit(e ExitControl) {
 		clus.Start()
 	} else {
 		clus = cluster.NewEmptyCluster()
+	}
+
+	if config.Metrics.Enabled {
+		metrics.Enable()
+		metricsStop := make(chan struct{})
+		defer close(metricsStop)
+		go metrics.Run(config.Metrics, metricsStop)
 	}
 
 	s := server.NewServer(config, clus)
