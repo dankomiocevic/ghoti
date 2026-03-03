@@ -280,7 +280,7 @@ func (s *joinServer) handleCoordinator(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *joinServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
+func (s *joinServer) handleHeartbeat(w http.ResponseWriter, _ *http.Request) {
 	s.cluster.mu.RLock()
 	isUp := s.cluster.isUp
 	s.cluster.mu.RUnlock()
