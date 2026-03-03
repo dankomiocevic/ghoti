@@ -356,12 +356,9 @@ Ghoti clusters are created to increment availability, they are not supposed to p
 
 Ghoti does not do replication because it affects performance, and Ghoti does not persist data so there is no real reason to replicate data in the cluster.
 
-In order to simplify the implementation and having a working version, I am using a [RAFT algorithm implementation](https://github.com/hashicorp/raft). But, I am not really happy with the outcome because I am not using most of the features like replication and I would like to have a 2 node cluster as the suggested approach.
-I am planning on replacing this algorithm with a simpler one.
+Ghoti uses a bully election algorithm for leader election. This is a simple approach that fits well because Ghoti only needs redundancy for availability purposes, not replication. The bully algorithm avoids the overhead of more complex consensus protocols like RAFT, which provide features (such as log replication) that Ghoti does not need.
 
-Why I want a 2-node cluster as default? Because Ghoti only needs to have redundancy for availability purposes, it doesn't need replication. These algorithms have a lot of extra features that are not really needed. I am using this implementation because I know it is stable and I want to be sure the rest of the software is fully tested before working on this.
-
-But why 2? Because there are two main reasons to use the cluster mode:
+A 2-node cluster is the suggested default configuration. Why 2? Because there are two main reasons to use the cluster mode:
 - One of the main reasons is to be able to perform deployments with minimal downtime. So you can replace one node, then convert it to leader and replace the other one. That generates minimal impact.
 - If there is an issue with one of the nodes, the other one can take over. 
 
@@ -372,7 +369,6 @@ If there is something really bad happening (like an issue during a deployment), 
 This list is not exhaustive, but it is a good starting point to understand what is missing and what is planned for the future.
 Here are some of the things that are planned for the future:
 - Add support for WebSockets.
-- Replace the Cluster implementation with a simpler one.
 - Add metrics and monitoring (Prometheus, OpenTelemetry, etc).
 - Implement missing slots.
 - Add benchmark for the performance of the slots.

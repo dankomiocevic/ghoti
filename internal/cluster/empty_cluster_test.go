@@ -2,8 +2,6 @@ package cluster
 
 import (
 	"testing"
-
-	"github.com/hashicorp/raft"
 )
 
 func TestEmptyCluster(t *testing.T) {
@@ -24,11 +22,6 @@ func TestEmptyCluster(t *testing.T) {
 		t.Fatalf("Method Remove should always return nil")
 	}
 
-	err = c.Bootstrap().Error()
-	if err != nil {
-		t.Fatalf("Method bootstrap should always return nil promise")
-	}
-
 	leader := c.IsLeader()
 	if !leader {
 		t.Fatalf("Empty cluster must always have one leader")
@@ -39,13 +32,8 @@ func TestEmptyCluster(t *testing.T) {
 		t.Fatalf("Empty cluster must have empty leader node name")
 	}
 
-	err = c.Shutdown().Error()
+	err = c.Shutdown()
 	if err != nil {
-		t.Fatalf("Method shudtdown should always return nil promise")
-	}
-
-	state := c.state()
-	if state != raft.Leader {
-		t.Fatalf("Empty cluster state must always be leader")
+		t.Fatalf("Method shutdown should always return nil")
 	}
 }

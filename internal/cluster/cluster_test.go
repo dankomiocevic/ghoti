@@ -1,11 +1,8 @@
 package cluster
 
 import (
-	"math"
 	"testing"
 	"time"
-
-	"github.com/hashicorp/raft"
 )
 
 func TestClusterSingleNode(t *testing.T) {
@@ -22,18 +19,17 @@ func TestClusterSingleNode(t *testing.T) {
 		t.Fatalf("failed to start cluster: %s", err)
 	}
 
-	// Exponential retry until set as leader
-	baseDelay := 100 * time.Millisecond
-	for i := 0; i < 7; i++ {
-		if c.state() == raft.Leader {
-			return
-		}
+	// Give time for the node to bootstrap as leader
+	time.Sleep(200 * time.Millisecond)
 
-		secRetry := math.Pow(2, float64(i))
-		delay := time.Duration(secRetry) * baseDelay
-		time.Sleep(delay)
+	if !c.IsLeader() {
+		t.Fatalf("Single node cluster node not set as leader")
 	}
-	t.Fatalf("Single node cluster node not set as leader")
+
+	err = c.Shutdown()
+	if err != nil {
+		t.Fatalf("failed to shutdown cluster: %s", err)
+	}
 }
 
 func TestClusterWrongConfig(t *testing.T) {
@@ -45,8 +41,8 @@ func TestClusterWrongConfig(t *testing.T) {
 	}
 }
 
-func TestClusterMissingBind(t *testing.T) {
-	config := ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:1234", Bind: ""}
+func TestClusterMissingManagerAddr(t *testing.T) {
+	config := ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "", Bind: ""}
 
 	c, err := NewCluster(config)
 	if err != nil {
