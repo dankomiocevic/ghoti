@@ -36,6 +36,11 @@ func NewServer(config *config.Config, cluster cluster.Cluster) *Server {
 	s.slotsArray = config.Slots
 	s.usersMap = config.Users
 
+	// Provide the users map to the HTTP manager so it can verify Basic Auth credentials.
+	if httpMgr, ok := s.connections.(*connectionmanager.HTTPManager); ok {
+		httpMgr.SetUsers(s.usersMap)
+	}
+
 	go s.connections.ServeConnections(s.HandleMessage)
 	return s
 }

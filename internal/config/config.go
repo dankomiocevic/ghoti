@@ -28,6 +28,7 @@ var SupportedLogFormat = map[string]bool{
 var SupportedProtocols = map[string]bool{
 	"standard": true,
 	"telnet":   true,
+	"http":     true,
 }
 
 type LoggingConfig struct {
