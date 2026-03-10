@@ -17,31 +17,18 @@ import (
 	"github.com/dankomiocevic/ghoti/internal/telemetry"
 )
 
-// fakeAddr implements net.Addr for connections that don't have a real TCP socket.
-type fakeAddr struct {
-	network string
-	addr    string
-}
-
-func (f *fakeAddr) Network() string { return f.network }
-func (f *fakeAddr) String() string  { return f.addr }
-
 // chanConn implements net.Conn backed by a channel, used for HTTP request/response handling.
 // Writes from the EventProcessor are captured in writeCh so the HTTP handler can read them.
 type chanConn struct {
-	writeCh    chan []byte
-	closeCh    chan struct{}
-	closeOnce  sync.Once
-	remoteAddr *fakeAddr
-	localAddr  *fakeAddr
+	writeCh   chan []byte
+	closeCh   chan struct{}
+	closeOnce sync.Once
 }
 
-func newChanConn(remote string) *chanConn {
+func newChanConn() *chanConn {
 	return &chanConn{
-		writeCh:    make(chan []byte, 16),
-		closeCh:    make(chan struct{}),
-		remoteAddr: &fakeAddr{"tcp", remote},
-		localAddr:  &fakeAddr{"tcp", "0.0.0.0:0"},
+		writeCh: make(chan []byte, 16),
+		closeCh: make(chan struct{}),
 	}
 }
 
@@ -63,32 +50,28 @@ func (c *chanConn) Write(b []byte) (int, error) {
 	}
 }
 
-func (c *chanConn) Read(b []byte) (int, error)         { return 0, io.EOF }
-func (c *chanConn) Close() error                        { c.closeOnce.Do(func() { close(c.closeCh) }); return nil }
-func (c *chanConn) RemoteAddr() net.Addr                { return c.remoteAddr }
-func (c *chanConn) LocalAddr() net.Addr                 { return c.localAddr }
-func (c *chanConn) SetDeadline(t time.Time) error       { return nil }
-func (c *chanConn) SetReadDeadline(t time.Time) error   { return nil }
-func (c *chanConn) SetWriteDeadline(t time.Time) error  { return nil }
+func (c *chanConn) Read([]byte) (int, error)         { return 0, io.EOF }
+func (c *chanConn) Close() error                     { c.closeOnce.Do(func() { close(c.closeCh) }); return nil }
+func (c *chanConn) RemoteAddr() net.Addr             { return nil }
+func (c *chanConn) LocalAddr() net.Addr              { return nil }
+func (c *chanConn) SetDeadline(time.Time) error      { return nil }
+func (c *chanConn) SetReadDeadline(time.Time) error  { return nil }
+func (c *chanConn) SetWriteDeadline(time.Time) error { return nil }
 
 // sseConn implements net.Conn that writes SSE-formatted events to an http.ResponseWriter.
 // Each line of data written to this conn is emitted as an SSE event.
 type sseConn struct {
-	writer     http.ResponseWriter
-	flusher    http.Flusher
-	closeCh    chan struct{}
-	closeOnce  sync.Once
-	remoteAddr *fakeAddr
-	localAddr  *fakeAddr
+	writer    http.ResponseWriter
+	flusher   http.Flusher
+	closeCh   chan struct{}
+	closeOnce sync.Once
 }
 
-func newSSEConn(w http.ResponseWriter, flusher http.Flusher, remote string) *sseConn {
+func newSSEConn(w http.ResponseWriter, flusher http.Flusher) *sseConn {
 	return &sseConn{
-		writer:     w,
-		flusher:    flusher,
-		closeCh:    make(chan struct{}),
-		remoteAddr: &fakeAddr{"tcp", remote},
-		localAddr:  &fakeAddr{"tcp", "0.0.0.0:0"},
+		writer:  w,
+		flusher: flusher,
+		closeCh: make(chan struct{}),
 	}
 }
 
@@ -110,13 +93,13 @@ func (c *sseConn) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func (c *sseConn) Read(b []byte) (int, error)         { return 0, io.EOF }
-func (c *sseConn) Close() error                        { c.closeOnce.Do(func() { close(c.closeCh) }); return nil }
-func (c *sseConn) RemoteAddr() net.Addr                { return c.remoteAddr }
-func (c *sseConn) LocalAddr() net.Addr                 { return c.localAddr }
-func (c *sseConn) SetDeadline(t time.Time) error       { return nil }
-func (c *sseConn) SetReadDeadline(t time.Time) error   { return nil }
-func (c *sseConn) SetWriteDeadline(t time.Time) error  { return nil }
+func (c *sseConn) Read([]byte) (int, error)         { return 0, io.EOF }
+func (c *sseConn) Close() error                     { c.closeOnce.Do(func() { close(c.closeCh) }); return nil }
+func (c *sseConn) RemoteAddr() net.Addr             { return nil }
+func (c *sseConn) LocalAddr() net.Addr              { return nil }
+func (c *sseConn) SetDeadline(time.Time) error      { return nil }
+func (c *sseConn) SetReadDeadline(time.Time) error  { return nil }
+func (c *sseConn) SetWriteDeadline(time.Time) error { return nil }
 
 // HTTPManager implements ConnectionManager using HTTP for commands and SSE for broadcasts.
 //
@@ -308,7 +291,7 @@ func (h *HTTPManager) handleSlot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fconn := newChanConn(r.RemoteAddr)
+	fconn := newChanConn()
 	conn := h.createConnection(fconn)
 	conn.LoggedUser = user
 	if user.Name != "" {
@@ -322,7 +305,7 @@ func (h *HTTPManager) handleSlot(w http.ResponseWriter, r *http.Request) {
 	var msgStr string
 	switch r.Method {
 	case http.MethodGet:
-		msgStr = fmt.Sprintf("r%s", path)
+		msgStr = "r" + path
 	case http.MethodPost:
 		body, err := io.ReadAll(io.LimitReader(r.Body, 37))
 		if err != nil {
@@ -334,7 +317,7 @@ func (h *HTTPManager) handleSlot(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "value too long (max 36 characters)", http.StatusBadRequest)
 			return
 		}
-		msgStr = fmt.Sprintf("w%s%s", path, value)
+		msgStr = "w" + path + value
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -358,11 +341,11 @@ func (h *HTTPManager) handleSlot(w http.ResponseWriter, r *http.Request) {
 
 // writeHTTPResponse translates a ghoti protocol response line into an HTTP response.
 //
-//   v000value  → 200 OK, body: "value"
-//   e000006    → 403 Forbidden  (WRITE_PERMISSION / READ_PERMISSION)
-//   e000005    → 404 Not Found  (MISSING_SLOT)
-//   e000000    → 503            (NOT_LEADER)
-//   e000...    → 400 Bad Request
+//	v000value  → 200 OK, body: "value"
+//	e000006    → 403 Forbidden  (WRITE_PERMISSION / READ_PERMISSION)
+//	e000005    → 404 Not Found  (MISSING_SLOT)
+//	e000000    → 503            (NOT_LEADER)
+//	e000...    → 400 Bad Request
 func (h *HTTPManager) writeHTTPResponse(w http.ResponseWriter, response string) {
 	response = strings.TrimRight(response, "\n")
 	if len(response) == 0 {
@@ -391,7 +374,7 @@ func (h *HTTPManager) writeHTTPResponse(w http.ResponseWriter, response string) 
 		case "000": // NOT_LEADER
 			http.Error(w, "not the cluster leader", http.StatusServiceUnavailable)
 		default:
-			http.Error(w, fmt.Sprintf("error: %s", errCode), http.StatusBadRequest)
+			http.Error(w, "error: "+errCode, http.StatusBadRequest)
 		}
 	default:
 		slog.Warn("Unexpected response from server", slog.String("response", response))
@@ -425,7 +408,7 @@ func (h *HTTPManager) handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	sconn := newSSEConn(w, flusher, r.RemoteAddr)
+	sconn := newSSEConn(w, flusher)
 	conn := h.createConnection(sconn)
 	conn.LoggedUser = user
 	if user.Name != "" {
