@@ -369,7 +369,6 @@ If there is something really bad happening (like an issue during a deployment), 
 
 This list is not exhaustive, but it is a good starting point to understand what is missing and what is planned for the future.
 Here are some of the things that are planned for the future:
-- Add support for WebSockets.
 - Add metrics and monitoring (Prometheus, OpenTelemetry, etc).
 - Implement missing slots.
 - Add benchmark for the performance of the slots.
