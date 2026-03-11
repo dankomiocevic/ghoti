@@ -33,8 +33,6 @@ func (m *broadcastSlot) Read() string {
 	return m.value
 }
 
-func (m *broadcastSlot) IsStreaming() bool { return true }
-
 func (m *broadcastSlot) CanRead(u *auth.User) bool {
 	if len(m.users) == 0 {
 		return true

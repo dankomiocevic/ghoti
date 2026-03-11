@@ -11,14 +11,6 @@ type ConnectionManager interface {
 	Close()
 }
 
-// StreamingSlot is an optional interface that slot types can implement to indicate
-// they support long-lived subscriptions. When an HTTP GET request targets a slot
-// that implements this interface, the HTTP manager opens an SSE stream instead of
-// returning an immediate value.
-type StreamingSlot interface {
-	IsStreaming() bool
-}
-
 func GetConnectionManager(protocol string) ConnectionManager {
 	switch protocol {
 	case "standard":
