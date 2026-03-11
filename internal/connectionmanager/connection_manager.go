@@ -17,6 +17,8 @@ func GetConnectionManager(protocol string) ConnectionManager {
 		return NewTCPManager()
 	case "telnet":
 		return NewTelnetManager()
+	case "http":
+		return NewHTTPManager()
 	default:
 		return nil
 	}

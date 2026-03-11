@@ -36,6 +36,15 @@ func NewServer(config *config.Config, cluster cluster.Cluster) *Server {
 	s.slotsArray = config.Slots
 	s.usersMap = config.Users
 
+	// Provide the users map to the HTTP manager so it can verify Basic Auth credentials,
+	// and the pre-computed set of streaming (broadcast) slot indices from config.
+	if httpMgr, ok := s.connections.(*connectionmanager.HTTPManager); ok {
+		httpMgr.SetUsers(s.usersMap)
+		httpMgr.SetStreamChecker(func(slot int) bool {
+			return config.StreamingSlots[slot]
+		})
+	}
+
 	go s.connections.ServeConnections(s.HandleMessage)
 	return s
 }

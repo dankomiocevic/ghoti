@@ -28,6 +28,7 @@ var SupportedLogFormat = map[string]bool{
 var SupportedProtocols = map[string]bool{
 	"standard": true,
 	"telnet":   true,
+	"http":     true,
 }
 
 type LoggingConfig struct {
@@ -36,24 +37,26 @@ type LoggingConfig struct {
 }
 
 type Config struct {
-	TCPAddr     string
-	Slots       [1000]slots.Slot
-	Users       map[string]auth.User
-	Cluster     cluster.ClusterConfig
-	Logging     LoggingConfig
-	Metrics     telemetry.Config
-	Connections connectionmanager.ConnectionManager
-	Protocol    string
+	TCPAddr        string
+	Slots          [1000]slots.Slot
+	StreamingSlots map[int]bool
+	Users          map[string]auth.User
+	Cluster        cluster.ClusterConfig
+	Logging        LoggingConfig
+	Metrics        telemetry.Config
+	Connections    connectionmanager.ConnectionManager
+	Protocol       string
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		TCPAddr:  "localhost:9090",
-		Slots:    [1000]slots.Slot{},
-		Users:    make(map[string]auth.User),
-		Cluster:  cluster.ClusterConfig{},
-		Logging:  LoggingConfig{Level: slog.LevelInfo, Format: "text"},
-		Protocol: "standard",
+		TCPAddr:        "localhost:9090",
+		Slots:          [1000]slots.Slot{},
+		StreamingSlots: make(map[int]bool),
+		Users:          make(map[string]auth.User),
+		Cluster:        cluster.ClusterConfig{},
+		Logging:        LoggingConfig{Level: slog.LevelInfo, Format: "text"},
+		Protocol:       "standard",
 	}
 }
 
@@ -167,8 +170,12 @@ func (c *Config) ConfigureSlots() {
 		key := fmt.Sprintf("slot_%03d", i)
 		num := fmt.Sprintf("%03d", i)
 		if viper.IsSet(key) {
-			slot, _ := slots.GetSlot(viper.Sub(key), c.Connections, num)
+			sub := viper.Sub(key)
+			slot, _ := slots.GetSlot(sub, c.Connections, num)
 			c.Slots[i] = slot
+			if sub.GetString("kind") == "broadcast" {
+				c.StreamingSlots[i] = true
+			}
 		}
 	}
 }

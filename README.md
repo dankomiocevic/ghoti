@@ -85,11 +85,12 @@ NOTE: Async events can happen at any time.
 The core protocol is always the same despite the variant selected, but there are different options to use as a transport layer. The following are the available options:
 - standard: The protocol works as described in the previous section, it is a plain TCP connection that requires messages to be sent in plain text and terminated with a newline character. This is the default option.
 - telnet: This option is the same as the standard option but it allows the use of the telnet protocol to connect to the server. This option is useful when you want to use a telnet client to connect to the server. The main difference is that the messages are terminated with a return of carriage and a newline character, as specified in the standard telnet protocol.
+- http: Exposes the server over HTTP. Slots can be read with `GET /slot/<id>` and written with `POST /slot/<id>`. For **broadcast** slots, a `GET` request opens a persistent [Server-Sent Events (SSE)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) stream, so the client receives each broadcast event pushed in real time without polling. Which slots are streaming is determined from the configuration at startup, so there is no runtime overhead per request. Authentication uses HTTP Basic Auth.
 
 Example config:
 
 ```yaml
-protocol: telnet
+protocol: http
 ```
 
 ## Configuration 
@@ -368,7 +369,6 @@ If there is something really bad happening (like an issue during a deployment), 
 
 This list is not exhaustive, but it is a good starting point to understand what is missing and what is planned for the future.
 Here are some of the things that are planned for the future:
-- Add support for WebSockets.
 - Add metrics and monitoring (Prometheus, OpenTelemetry, etc).
 - Implement missing slots.
 - Add benchmark for the performance of the slots.
