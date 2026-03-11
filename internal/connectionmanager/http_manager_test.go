@@ -179,22 +179,22 @@ func TestHTTPManagerValueTooLong(t *testing.T) {
 	}
 }
 
-func TestHTTPManagerSSEReceivesBroadcast(t *testing.T) {
-	// Use a real HTTP test server for SSE because httptest.NewRecorder
-	// does not implement http.Flusher.
+func TestHTTPManagerBroadcastSlotGetOpenSSE(t *testing.T) {
+	// GET on a slot whose index the streamChecker reports as streaming should
+	// upgrade to an SSE connection instead of returning an immediate value.
+	// Use a real HTTP test server because httptest.NewRecorder does not implement
+	// http.Flusher.
 	h := buildTestManager(echoCallback)
+	// Treat slot 3 (/003) as a broadcast (streaming) slot.
+	h.SetStreamChecker(func(slot int) bool { return slot == 3 })
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/subscribe" {
-			h.handleSSE(w, r)
-		}
-	}))
+	srv := httptest.NewServer(http.HandlerFunc(h.handleSlot))
 	defer srv.Close()
 
-	// Connect SSE subscriber. http.Get returns once the server flushes the
-	// response headers, which happens after h.addSSEConnection – so by the
-	// time we proceed, the connection is already registered for broadcasts.
-	resp, err := http.Get(srv.URL + "/subscribe")
+	// GET /003 – http.Get returns once the server flushes the response headers,
+	// which happens after addSSEConnection, so the connection is registered for
+	// broadcasts by the time we proceed.
+	resp, err := http.Get(srv.URL + "/003")
 	if err != nil {
 		t.Fatalf("SSE connect failed: %v", err)
 	}
@@ -204,8 +204,8 @@ func TestHTTPManagerSSEReceivesBroadcast(t *testing.T) {
 		t.Fatalf("expected 200 from SSE endpoint, got %d", resp.StatusCode)
 	}
 
-	// Broadcast a message and verify all registered connections receive it.
-	stats, err := h.Broadcast("a000hello\n")
+	// Broadcast a message and verify the SSE subscriber receives it.
+	stats, err := h.Broadcast("a003hello\n")
 	if err != nil {
 		t.Fatalf("Broadcast error: %v", err)
 	}
@@ -232,11 +232,29 @@ func TestHTTPManagerSSEReceivesBroadcast(t *testing.T) {
 
 	select {
 	case got := <-done:
-		if got != "a000hello" {
-			t.Fatalf("expected SSE event 'a000hello', got %q", got)
+		if got != "a003hello" {
+			t.Fatalf("expected SSE event 'a003hello', got %q", got)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for SSE event")
+	}
+}
+
+// TestHTTPManagerNonBroadcastSlotGetReturnsValue verifies that a GET on a slot
+// that the streamChecker does not flag as streaming returns an immediate value,
+// even when a streamChecker is installed.
+func TestHTTPManagerNonBroadcastSlotGetReturnsValue(t *testing.T) {
+	h := buildTestManager(echoCallback)
+	// Only slot 3 is streaming; slot 0 should behave normally.
+	h.SetStreamChecker(func(slot int) bool { return slot == 3 })
+
+	req := httptest.NewRequest(http.MethodGet, "/000", nil)
+	rr := httptest.NewRecorder()
+
+	h.handleSlot(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 for regular slot GET, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
 

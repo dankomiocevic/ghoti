@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -104,20 +105,21 @@ func (c *sseConn) SetWriteDeadline(time.Time) error { return nil }
 // HTTPManager implements ConnectionManager using HTTP for commands and SSE for broadcasts.
 //
 // HTTP endpoints:
-//   - GET  /{slot}    – read slot (e.g. GET /000)
-//   - POST /{slot}    – write slot; request body is the value (e.g. POST /000 with body "hello")
-//   - GET  /subscribe – SSE stream; receives all broadcast events as SSE data lines
+//   - GET  /{slot} – read slot value (e.g. GET /000); if the slot is a broadcast slot
+//     the connection is upgraded to an SSE stream that receives future events.
+//   - POST /{slot} – write slot; request body is the value (e.g. POST /000 with body "hello")
 //
 // Authentication uses HTTP Basic Auth, matched against the users map provided via SetUsers.
 // Anonymous access is allowed when no credentials are sent (slots without user restrictions).
 type HTTPManager struct {
-	lock        sync.RWMutex
-	connections map[string]Connection
-	httpServer  *http.Server
-	wg          sync.WaitGroup
-	quit        chan interface{}
-	callback    CallbackFn
-	users       map[string]auth.User
+	lock          sync.RWMutex
+	connections   map[string]Connection
+	httpServer    *http.Server
+	wg            sync.WaitGroup
+	quit          chan interface{}
+	callback      CallbackFn
+	users         map[string]auth.User
+	streamChecker func(int) bool
 }
 
 func NewHTTPManager() *HTTPManager {
@@ -134,6 +136,13 @@ func (h *HTTPManager) SetUsers(users map[string]auth.User) {
 	h.users = users
 }
 
+// SetStreamChecker provides a function that reports whether a slot index is a
+// broadcast (streaming) slot. When set, GET requests on streaming slots open an
+// SSE connection instead of returning an immediate value.
+func (h *HTTPManager) SetStreamChecker(fn func(int) bool) {
+	h.streamChecker = fn
+}
+
 func (h *HTTPManager) GetAddr() string {
 	if h.httpServer != nil {
 		return h.httpServer.Addr
@@ -143,7 +152,6 @@ func (h *HTTPManager) GetAddr() string {
 
 func (h *HTTPManager) StartListening(addr string) error {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/subscribe", h.handleSSE)
 	mux.HandleFunc("/", h.handleSlot)
 	h.httpServer = &http.Server{
 		Addr:    addr,
@@ -270,13 +278,15 @@ func (h *HTTPManager) authenticate(r *http.Request) (auth.User, bool) {
 	return user, true
 }
 
-// handleSlot handles GET /{slot} (read) and POST /{slot} (write) requests.
+// handleSlot handles GET /{slot} and POST /{slot}.
+//
+// For GET on a broadcast slot (as determined by the streamChecker), the connection
+// is upgraded to an SSE stream and kept open until the client disconnects; broadcast
+// events are delivered as SSE data lines.
+//
+// For GET on any other slot, the current value is returned immediately.
+// For POST, the request body (up to 36 bytes) is written to the slot.
 func (h *HTTPManager) handleSlot(w http.ResponseWriter, r *http.Request) {
-	if h.callback == nil {
-		http.Error(w, "server not ready", http.StatusServiceUnavailable)
-		return
-	}
-
 	// Parse the 3-digit slot number from the URL path.
 	path := strings.TrimPrefix(r.URL.Path, "/")
 	if len(path) != 3 {
@@ -288,6 +298,21 @@ func (h *HTTPManager) handleSlot(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		w.Header().Set("WWW-Authenticate", `Basic realm="ghoti"`)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// For GET requests on a streaming (broadcast) slot, open an SSE stream.
+	if r.Method == http.MethodGet {
+		slotNum, err := strconv.Atoi(path)
+		if err == nil && h.streamChecker != nil && h.streamChecker(slotNum) {
+			h.openBroadcastStream(w, r, user)
+			return
+		}
+	}
+
+	// Regular request/response for GET (non-broadcast) and POST.
+	if h.callback == nil {
+		http.Error(w, "server not ready", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -382,24 +407,13 @@ func (h *HTTPManager) writeHTTPResponse(w http.ResponseWriter, response string) 
 	}
 }
 
-// handleSSE handles GET /subscribe, opening a persistent SSE stream.
-// The client receives all broadcast events as SSE data lines until it disconnects.
-func (h *HTTPManager) handleSSE(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+// openBroadcastStream upgrades a GET request on a broadcast slot to a persistent SSE stream.
+// The caller receives all future broadcast events as SSE data lines until it disconnects.
+// No immediate value is returned; the connection stays open waiting for writes to the slot.
+func (h *HTTPManager) openBroadcastStream(w http.ResponseWriter, r *http.Request, user auth.User) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming not supported", http.StatusInternalServerError)
-		return
-	}
-
-	user, ok := h.authenticate(r)
-	if !ok {
-		w.Header().Set("WWW-Authenticate", `Basic realm="ghoti"`)
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
