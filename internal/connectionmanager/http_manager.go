@@ -432,18 +432,23 @@ func (h *HTTPManager) openBroadcastStream(w http.ResponseWriter, r *http.Request
 
 	h.addSSEConnection(conn)
 
-	h.wg.Add(1)
-	go conn.EventProcessor()
+	// Flush the response headers before starting the EventProcessor goroutine
+	// so that the initial Flush and the goroutine's Flush calls never race on
+	// the same ResponseWriter.
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
 
 	slog.Debug("SSE subscriber connected",
 		slog.String("id", conn.ID),
 		slog.String("remote_addr", r.RemoteAddr),
 	)
 
-	// Flush the response headers immediately so the client knows the SSE stream
-	// is open and http.Get (or equivalent) returns on the client side.
-	w.WriteHeader(http.StatusOK)
-	flusher.Flush()
+	processorDone := make(chan struct{})
+	h.wg.Add(1)
+	go func() {
+		defer close(processorDone)
+		conn.EventProcessor()
+	}()
 
 	<-r.Context().Done()
 
@@ -454,5 +459,8 @@ func (h *HTTPManager) openBroadcastStream(w http.ResponseWriter, r *http.Request
 
 	h.Delete(conn.ID)
 	conn.Close()
+	// Wait for EventProcessor to finish all writes before returning, so the
+	// HTTP framework's finishRequest does not race with a concurrent Flush.
+	<-processorDone
 	h.wg.Done()
 }
