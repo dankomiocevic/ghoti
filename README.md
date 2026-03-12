@@ -68,7 +68,7 @@ In the case of commands that are not related to a specifc slot, the slot number 
 
 `exxx003`
 
-Where `e` indicates is an error response, `xxx` is the slot number and `009` is the error code.:w
+Where `e` indicates is an error response, `xxx` is the slot number and `009` is the error code.
 
 To identify the error code, the list of error codes can be found [here](internal/errors/README.md).
 
@@ -369,7 +369,6 @@ If there is something really bad happening (like an issue during a deployment), 
 
 This list is not exhaustive, but it is a good starting point to understand what is missing and what is planned for the future.
 Here are some of the things that are planned for the future:
-- Add metrics and monitoring (Prometheus, OpenTelemetry, etc).
 - Implement missing slots.
 - Add benchmark for the performance of the slots.
 - Add docker support.
