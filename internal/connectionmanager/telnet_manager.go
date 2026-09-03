@@ -3,6 +3,7 @@ package connectionmanager
 import (
 	"log/slog"
 	"net"
+	"time"
 
 	"github.com/dankomiocevic/ghoti/internal/errs"
 )
@@ -141,4 +142,8 @@ func (m *TelnetManager) Close() {
 
 func (m *TelnetManager) Broadcast(data string) (string, error) {
 	return m.tcpManager.Broadcast(data)
+}
+
+func (m *TelnetManager) Multicast(data string, targets []net.Conn, timeout time.Duration) (MulticastResult, error) {
+	return m.tcpManager.Multicast(data, targets, timeout)
 }

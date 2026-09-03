@@ -220,6 +220,17 @@ func (c *TCPManager) Close() {
 	c.wg.Wait()
 }
 
+func (c *TCPManager) Multicast(data string, targets []net.Conn, timeout time.Duration) (MulticastResult, error) {
+	c.lock.RLock()
+	connections := make([]Connection, 0, len(c.connections))
+	for _, conn := range c.connections {
+		connections = append(connections, conn)
+	}
+	c.lock.RUnlock()
+
+	return multicastToConnections(connections, targets, data, timeout), nil
+}
+
 func (c *TCPManager) Broadcast(data string) (string, error) {
 	callback := make(chan string, 100)
 	defer close(callback)

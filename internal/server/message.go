@@ -20,6 +20,8 @@ var SupportedCommands = map[string]bool{
 	"p": true,
 	"j": true,
 	"q": true,
+	"s": true,
+	"d": true,
 }
 
 func ParseMessage(size int, buf []byte) (Message, error) {
