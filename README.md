@@ -386,6 +386,37 @@ When a slot has no defined list of users, then it will have anonymous access by 
 
 For example, the slot 003 in the configuration can be accessed by anyone, even if is not logged in.
 
+## Metrics
+
+Ghoti can optionally collect lightweight runtime metrics (connected clients, requests per second, average request latency) and write them to rotating files in the [Prometheus exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/). Collection uses lock-free atomic counters, so it adds negligible overhead to request handling, and is disabled by default.
+
+To enable it, add a `metrics:` section to the configuration:
+
+```yaml
+metrics:
+  enabled: true
+  output_dir: /var/log/ghoti/metrics  # directory where metric files are written
+  rotation: daily                     # "daily" (default) or "hourly"
+  retain: 7                           # number of rotation files to keep (default: 7)
+  interval: 10                        # seconds between metric snapshots (default: 10)
+```
+
+|Config      |Description                                                          |
+|------------|----------------------------------------------------------------------|
+|enabled     |Enables metrics collection and writing. Default: false.               |
+|output_dir  |Directory where metric files are written. Required when enabled.     |
+|rotation    |How often a new file is started: `daily` or `hourly`. Default: `daily`.|
+|retain      |Number of rotation files to keep; older files are deleted. Default: 7.|
+|interval    |Seconds between metric snapshots. Default: 10.                        |
+
+Each snapshot exposes the following metrics:
+
+|Metric                                     |Description                                                  |
+|--------------------------------------------|--------------------------------------------------------------|
+|`ghoti_connected_clients`                    |Number of currently connected clients (gauge).                |
+|`ghoti_requests_per_second`                  |Requests processed per second over the last interval (gauge).|
+|`ghoti_request_duration_milliseconds`        |Average request duration in milliseconds over the last interval (gauge).|
+
 ## Cluster configuration (Experimental)
 
 Ghoti clusters are created to increment availability, they are not supposed to propagate information to other nodes in order to increase data persistence. When a cluster node fails, another node will take its place but it will start on a clean state without keeping track of the information stored before.
