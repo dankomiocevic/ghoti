@@ -48,6 +48,12 @@ func generateConfig(port string) *config.Config {
 	slotFour, _ := slots.GetSlot(viper.Sub("slot_004"), c.Connections, "004")
 	c.Slots[4] = slotFour
 
+	viper.Set("slot_005.kind", "multicast")
+	viper.Set("slot_005.timeout", 300)
+	viper.Set("slot_005.dereg_tries", 2)
+	slotFive, _ := slots.GetSlot(viper.Sub("slot_005"), c.Connections, "005")
+	c.Slots[5] = slotFive
+
 	viper.Set("users.pepe", "passw0rd")
 	viper.Set("users.bobby", "otherPassw0rd")
 	viper.Set("users.sammy", "samPassw0rd")
@@ -413,5 +419,135 @@ func TestTelnetSupport(t *testing.T) {
 
 	if response != "v000Hello\n" {
 		t.Fatalf("unexpected server response: [%s]", response)
+	}
+}
+
+func TestMulticastSubscribeAndReceiveEvent(t *testing.T) {
+	s, subscriber := runServer(t)
+	defer s.Stop()
+	defer subscriber.Close()
+
+	response := sendData(t, subscriber, "s005\n")
+	if response != "v0051\n" {
+		t.Fatalf("unexpected subscribe response: %s", response)
+	}
+
+	sender, err := net.Dial("tcp", s.connections.GetAddr())
+	if err != nil {
+		t.Fatalf("couldn't connect second client: %v", err)
+	}
+	defer sender.Close()
+
+	asyncCh := make(chan string, 1)
+	go func() {
+		reader := bufio.NewReader(subscriber)
+		data, _ := reader.ReadBytes('\n')
+		asyncCh <- string(data)
+	}()
+
+	writeResponse := sendData(t, sender, "w005HelloWorld\n")
+	if writeResponse != "v0051/1/0\n" {
+		t.Fatalf("unexpected write response: %s", writeResponse)
+	}
+
+	select {
+	case event := <-asyncCh:
+		if event != "a005HelloWorld\n" {
+			t.Fatalf("unexpected async event: %s", event)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for the async event")
+	}
+}
+
+func TestMulticastDoesNotReachNonSubscribedClients(t *testing.T) {
+	s, sender := runServer(t)
+	defer s.Stop()
+	defer sender.Close()
+
+	nonSubscribed, err := net.Dial("tcp", s.connections.GetAddr())
+	if err != nil {
+		t.Fatalf("couldn't connect second client: %v", err)
+	}
+	defer nonSubscribed.Close()
+
+	writeResponse := sendData(t, sender, "w005HelloWorld\n")
+	if writeResponse != "v0050/0/0\n" {
+		t.Fatalf("unexpected write response: %s", writeResponse)
+	}
+
+	nonSubscribed.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+	buf := make([]byte, 64)
+	n, readErr := nonSubscribed.Read(buf)
+	if readErr == nil {
+		t.Fatalf("non subscribed client should not receive data, got: %s", string(buf[:n]))
+	}
+}
+
+func TestMulticastDeregister(t *testing.T) {
+	s, subscriber := runServer(t)
+	defer s.Stop()
+	defer subscriber.Close()
+
+	response := sendData(t, subscriber, "s005\n")
+	if response != "v0051\n" {
+		t.Fatalf("unexpected subscribe response: %s", response)
+	}
+
+	response = sendData(t, subscriber, "d005\n")
+	if response != "v0050\n" {
+		t.Fatalf("unexpected deregister response: %s", response)
+	}
+
+	sender, err := net.Dial("tcp", s.connections.GetAddr())
+	if err != nil {
+		t.Fatalf("couldn't connect second client: %v", err)
+	}
+	defer sender.Close()
+
+	writeResponse := sendData(t, sender, "w005HelloWorld\n")
+	if writeResponse != "v0050/0/0\n" {
+		t.Fatalf("unexpected write response: %s", writeResponse)
+	}
+}
+
+func TestMulticastUnsupportedOnOtherSlots(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	response := sendData(t, conn, "s000\n")
+	if response != "e000010\n" {
+		t.Fatalf("unexpected response: %s", response)
+	}
+
+	response = sendData(t, conn, "d000\n")
+	if response != "e000010\n" {
+		t.Fatalf("unexpected response: %s", response)
+	}
+}
+
+// Slot 4 is password protected (see generateConfig). An unauthenticated
+// connection has no read permission on it, so register/deregister must be
+// rejected the same way a plain read would be.
+func TestMulticastRegisterPermissionDenied(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	response := sendData(t, conn, "s004\n")
+	if response != "e004008\n" {
+		t.Fatalf("unexpected response: %s", response)
+	}
+}
+
+func TestMulticastDeregisterPermissionDenied(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	response := sendData(t, conn, "d004\n")
+	if response != "e004008\n" {
+		t.Fatalf("unexpected response: %s", response)
 	}
 }

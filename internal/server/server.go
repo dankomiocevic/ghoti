@@ -110,6 +110,14 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connectionmanager.Co
 	if msg.Command == 'r' {
 		return processRead(conn, currentSlot, msg)
 	}
+
+	if msg.Command == 's' {
+		return processRegister(conn, currentSlot, msg)
+	}
+
+	if msg.Command == 'd' {
+		return processDeregister(conn, currentSlot, msg)
+	}
 	return nil
 }
 
@@ -127,6 +135,76 @@ func processRead(conn *connectionmanager.Connection, currentSlot slots.Slot, msg
 	res := errs.Error("READ_PERMISSION")
 	err := conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 	return err
+}
+
+func processRegister(conn *connectionmanager.Connection, currentSlot slots.Slot, msg Message) error {
+	if !currentSlot.CanRead(&conn.LoggedUser) {
+		slog.Error("Connection trying to register on slot without permission",
+			slog.Int("slot", msg.Slot),
+			slog.String("id", conn.ID),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		res := errs.Error("READ_PERMISSION")
+		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+	}
+
+	groupSlot, ok := currentSlot.(slots.GroupSlot)
+	if !ok {
+		slog.Debug("Connection trying to register on a slot that does not support it",
+			slog.Int("slot", msg.Slot),
+			slog.String("id", conn.ID),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		res := errs.Error("UNSUPPORTED_COMMAND")
+		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+	}
+
+	value, err := groupSlot.Register(conn.NetworkConn)
+	if err != nil {
+		res := errs.Error("WRITE_FAILED")
+		slog.Error("Error registering in slot",
+			slog.Int("slot", msg.Slot),
+			slog.Any("error", err),
+		)
+		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+	}
+
+	return sendSlotData(msg, conn, value)
+}
+
+func processDeregister(conn *connectionmanager.Connection, currentSlot slots.Slot, msg Message) error {
+	if !currentSlot.CanRead(&conn.LoggedUser) {
+		slog.Error("Connection trying to deregister on slot without permission",
+			slog.Int("slot", msg.Slot),
+			slog.String("id", conn.ID),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		res := errs.Error("READ_PERMISSION")
+		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+	}
+
+	groupSlot, ok := currentSlot.(slots.GroupSlot)
+	if !ok {
+		slog.Debug("Connection trying to deregister on a slot that does not support it",
+			slog.Int("slot", msg.Slot),
+			slog.String("id", conn.ID),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		res := errs.Error("UNSUPPORTED_COMMAND")
+		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+	}
+
+	value, err := groupSlot.Deregister(conn.NetworkConn)
+	if err != nil {
+		res := errs.Error("WRITE_FAILED")
+		slog.Error("Error deregistering in slot",
+			slog.Int("slot", msg.Slot),
+			slog.Any("error", err),
+		)
+		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+	}
+
+	return sendSlotData(msg, conn, value)
 }
 
 func processWrite(conn *connectionmanager.Connection, currentSlot slots.Slot, msg Message) error {

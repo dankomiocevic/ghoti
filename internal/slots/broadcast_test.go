@@ -2,7 +2,9 @@ package slots
 
 import (
 	"fmt"
+	"net"
 	"testing"
+	"time"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
@@ -10,10 +12,15 @@ import (
 
 type MockConnectionManager struct {
 	BroadcastFunc func(message string) (string, error)
+	MulticastFunc func(message string, targets []net.Conn, timeout time.Duration) (connectionmanager.MulticastResult, error)
 }
 
 func (m *MockConnectionManager) Broadcast(message string) (string, error) {
 	return m.BroadcastFunc(message)
+}
+
+func (m *MockConnectionManager) Multicast(message string, targets []net.Conn, timeout time.Duration) (connectionmanager.MulticastResult, error) {
+	return m.MulticastFunc(message, targets, timeout)
 }
 
 func (m *MockConnectionManager) StartListening(string) error {

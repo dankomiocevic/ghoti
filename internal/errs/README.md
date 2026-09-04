@@ -110,3 +110,9 @@ The message that was received does not match the expectations for a valid messag
 The user does not have permission to read in this slot.
 
 The requested slot doesn't have read permissions enabled for the current logged in user. If there is no logged in user, then the slot has not open-read permissions.
+
+## 010: UNSUPPORTED_COMMAND
+
+The command sent is not supported by this slot.
+
+The `s` (subscribe) and `d` (deregister) commands are only supported by slots that manage a group of clients, such as the multicast slot. Sending them to any other kind of slot returns this error.

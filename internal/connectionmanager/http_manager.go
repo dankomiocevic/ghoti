@@ -241,6 +241,19 @@ outerLoop:
 	return fmt.Sprintf("%d/%d/%d", received, sent, errors), nil
 }
 
+// Multicast sends the data only to the connections listed in targets and
+// waits up to timeout for the confirmations.
+func (h *HTTPManager) Multicast(data string, targets []net.Conn, timeout time.Duration) (MulticastResult, error) {
+	h.lock.RLock()
+	connections := make([]Connection, 0, len(h.connections))
+	for _, conn := range h.connections {
+		connections = append(connections, conn)
+	}
+	h.lock.RUnlock()
+
+	return multicastToConnections(connections, targets, data, timeout), nil
+}
+
 // createConnection builds a Connection wrapping the provided net.Conn.
 func (h *HTTPManager) createConnection(nc net.Conn) Connection {
 	return Connection{

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/spf13/viper"
 
@@ -16,6 +17,14 @@ type Slot interface {
 	Write(string, net.Conn) (string, error)
 	CanRead(*auth.User) bool
 	CanWrite(*auth.User) bool
+}
+
+// GroupSlot is implemented by slots that support clients registering or
+// deregistering to receive messages, such as the multicast slot.
+type GroupSlot interface {
+	Slot
+	Register(net.Conn) (string, error)
+	Deregister(net.Conn) (string, error)
 }
 
 func GetSlot(v *viper.Viper, conn connectionmanager.ConnectionManager, id string) (Slot, error) {
@@ -123,6 +132,26 @@ func GetSlot(v *viper.Viper, conn connectionmanager.ConnectionManager, id string
 
 	if kind == "atomic" {
 		return &atomicSlot{value: 0, users: users}, nil
+	}
+
+	if kind == "multicast" {
+		timeoutMillis := 200
+		if v.IsSet("timeout") {
+			timeoutMillis = v.GetInt("timeout")
+		}
+		if timeoutMillis < 1 {
+			return nil, fmt.Errorf("timeout must be bigger than zero for multicast slot")
+		}
+
+		deregTries := 3
+		if v.IsSet("dereg_tries") {
+			deregTries = v.GetInt("dereg_tries")
+		}
+		if deregTries < 1 {
+			return nil, fmt.Errorf("dereg_tries must be bigger than zero for multicast slot")
+		}
+
+		return newMulticastSlot(users, conn, id, time.Duration(timeoutMillis)*time.Millisecond, deregTries), nil
 	}
 
 	return nil, errors.New("invalid kind of slot")

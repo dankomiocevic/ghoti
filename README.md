@@ -80,6 +80,20 @@ Same as the other examples, it would contain the `a` response, then the slot (in
 
 NOTE: Async events can happen at any time.
 
+Some slots manage a group of clients that should receive their events, instead of all the connected clients (see multicast slots). To join that group a client can use the `s` (subscribe) command, and to leave it the `d` (deregister) command, both followed by the three digits identifying the slot:
+
+`s005`
+
+The response works the same way as a read, a non-zero value means the client is now part of the group:
+
+`v0051`
+
+`d005`
+
+`v0050`
+
+Sending `s` or `d` to a slot that does not support groups of clients returns an error.
+
 ### Protocol variants
 
 The core protocol is always the same despite the variant selected, but there are different options to use as a transport layer. The following are the available options:
@@ -235,32 +249,53 @@ This means that the message was sent to 5 clients, 3 received it and 2 failed.
 
 Writes will propagate the written value to all other clients. Reads will read the last written value.
 
-### Multicast signal propagation (TBD)
+### Multicast signal propagation
 
-Similar to the Broadcast slot but this slot allows to send a message to a specific group of clients. This type of multicast **requires 2 consecutive slots:**
-- Register/Deregister: This slot allows a client to register or deregister from the multicast. If the client is registered, it will receive the events. To register a client can write a value on this slot, to deregister it can write zero. If a client reads this slot, then a non-zero value means the client is already registered and a zero value means is not.
-- Message: This will send a message the same way as the Broadcast slot but it will only send it to registered clients. Writes will propagate the written value to all other clients. Reads will read the last written value.
+Similar to the Broadcast slot but this slot allows to send a message to a specific group of clients, instead of every connected client.
+
+Unlike the Broadcast slot, a client has to join the group before it can receive events. This is done with the `s` (subscribe) command described in the Protocol section. A client that no longer wants to receive events can leave the group with the `d` (deregister) command. Reading the slot with `s`/`d` returns whether the client is now a member: a non-zero value means it is registered, zero means it is not.
+
+Writing to this slot works the same way as the Broadcast slot, but the message is only sent to the clients that are currently registered:
+
+```
+>s005
+<v0051
+>w005HelloWorld
+<a005HelloWorld
+<v0051/1/0
+```
+
+In this example, the client subscribes to slot `005`, then a message is written to it. The subscribed client receives the async event and the write is acknowledged with `1/1/0`, meaning 1 client received it out of 1 that was sent to, with 0 failures.
+
+If a registered client fails to receive `dereg_tries` consecutive messages (for example because it disconnected without deregistering), it is automatically removed from the group.
+
+Reads (`r`) on this slot return the last message written, same as the Broadcast slot.
 
 |Config          | Description |
 |----------------|-------------|
-| timeout        | Time to wait for a confirmation on the clients that the message was received. |
-| dereg_tries    | Number of messages that are tried on a client until is de-registered. |
+| timeout        | Time in milliseconds to wait for a confirmation on the clients that the message was received. Default: 200 |
+| dereg_tries    | Number of consecutive failed messages tried on a client until is de-registered. Default: 3 |
 
+Example config:
+```yaml
+slot_005:
+  type: multicast
+  timeout: 200
+  dereg_tries: 3
+```
 
 ### Random signal propagation (TBD)
 
 This signal propagation slot works like the Multicast signal propagation explained before but with a major diference, the message is not sent to all registered clients, but only one. It uses a pseudo-random generator to distribute the messages among the clients.
 
-It also **requires 2 slots**:
-- Register/Deregister: This slot allows a client to register or deregister from the multicast. If the client is registered, it will receive the events. To register a client can write a value on this slot, to deregister it can write zero. If a client reads this slot, then a non-zero value means the client is already registered and a zero value means is not.
-- Message: This will send a message the same way as the Broadcast slot but it will only send it to registered clients. Writes will propagate the written value to all other clients. Reads will read the last written value.
+Same as the Multicast slot, clients join and leave the group with the `s` and `d` commands described in the Protocol section.
 
 It has the same configuration as the previous slot:
 
 |Config          | Description |
 |----------------|-------------|
-| timeout        | Time to wait for a confirmation on the clients that the message was received. |
-| dereg_tries    | Number of messages that are tried on a client until is de-registered. |
+| timeout        | Time in milliseconds to wait for a confirmation on the clients that the message was received. |
+| dereg_tries    | Number of consecutive failed messages tried on a client until is de-registered. |
 
 
 ### Ticker (watchdog)
