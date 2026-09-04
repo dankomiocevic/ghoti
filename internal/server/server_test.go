@@ -526,3 +526,28 @@ func TestMulticastUnsupportedOnOtherSlots(t *testing.T) {
 		t.Fatalf("unexpected response: %s", response)
 	}
 }
+
+// Slot 4 is password protected (see generateConfig). An unauthenticated
+// connection has no read permission on it, so register/deregister must be
+// rejected the same way a plain read would be.
+func TestMulticastRegisterPermissionDenied(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	response := sendData(t, conn, "s004\n")
+	if response != "e004008\n" {
+		t.Fatalf("unexpected response: %s", response)
+	}
+}
+
+func TestMulticastDeregisterPermissionDenied(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	response := sendData(t, conn, "d004\n")
+	if response != "e004008\n" {
+		t.Fatalf("unexpected response: %s", response)
+	}
+}

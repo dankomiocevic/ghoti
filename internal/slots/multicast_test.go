@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
+
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
 )
@@ -225,6 +227,33 @@ func TestMulticastSlotSuccessResetsFailureCounter(t *testing.T) {
 	}
 }
 
+// If a member deregisters while a Write's manager.Multicast call is still in
+// flight, the reconciliation step must not resurrect it into the members map.
+func TestMulticastSlotWriteSkipsConcurrentlyDeregisteredMember(t *testing.T) {
+	conn := &fakeConn{name: "leaving"}
+
+	var slot *multicastSlot
+	slot = loadMulticastSlot(func(message string, targets []net.Conn, timeout time.Duration) (connectionmanager.MulticastResult, error) {
+		// Simulate the client deregistering while the send is still in flight.
+		if _, err := slot.Deregister(conn); err != nil {
+			t.Fatalf("unexpected error deregistering: %v", err)
+		}
+		return connectionmanager.MulticastResult{Sent: 1, Received: 1}, nil
+	})
+
+	if _, err := slot.Register(conn); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, err := slot.Write("hello", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, ok := slot.members[conn]; ok {
+		t.Fatalf("member should stay deregistered, not be resurrected by reconciliation")
+	}
+}
+
 func TestMulticastSlotWriteManagerFailure(t *testing.T) {
 	conn := &fakeConn{name: "a"}
 	slot := loadMulticastSlot(func(message string, targets []net.Conn, timeout time.Duration) (connectionmanager.MulticastResult, error) {
@@ -238,5 +267,63 @@ func TestMulticastSlotWriteManagerFailure(t *testing.T) {
 	_, err := slot.Write("hello", nil)
 	if err == nil {
 		t.Fatalf("Error should be returned when manager multicast fails")
+	}
+}
+
+func TestMulticastGetSlotDefaults(t *testing.T) {
+	v := viper.New()
+	v.Set("kind", "multicast")
+
+	slot, err := GetSlot(v, nil, "005")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	multicast := slot.(*multicastSlot)
+	if multicast.timeout != 200*time.Millisecond {
+		t.Fatalf("expected default timeout of 200ms, got %s", multicast.timeout)
+	}
+	if multicast.deregTries != 3 {
+		t.Fatalf("expected default dereg_tries of 3, got %d", multicast.deregTries)
+	}
+}
+
+func TestMulticastGetSlotCustomConfig(t *testing.T) {
+	v := viper.New()
+	v.Set("kind", "multicast")
+	v.Set("timeout", 500)
+	v.Set("dereg_tries", 5)
+
+	slot, err := GetSlot(v, nil, "005")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	multicast := slot.(*multicastSlot)
+	if multicast.timeout != 500*time.Millisecond {
+		t.Fatalf("expected timeout of 500ms, got %s", multicast.timeout)
+	}
+	if multicast.deregTries != 5 {
+		t.Fatalf("expected dereg_tries of 5, got %d", multicast.deregTries)
+	}
+}
+
+func TestMulticastGetSlotInvalidTimeout(t *testing.T) {
+	v := viper.New()
+	v.Set("kind", "multicast")
+	v.Set("timeout", 0)
+
+	if _, err := GetSlot(v, nil, "005"); err == nil {
+		t.Fatalf("expected an error for a non-positive timeout")
+	}
+}
+
+func TestMulticastGetSlotInvalidDeregTries(t *testing.T) {
+	v := viper.New()
+	v.Set("kind", "multicast")
+	v.Set("dereg_tries", 0)
+
+	if _, err := GetSlot(v, nil, "005"); err == nil {
+		t.Fatalf("expected an error for a non-positive dereg_tries")
 	}
 }
