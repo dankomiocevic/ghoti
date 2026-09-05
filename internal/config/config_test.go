@@ -436,3 +436,49 @@ users:
 		t.Fatalf("wrong user password loaded")
 	}
 }
+
+func TestClusterLeaderEndpointEnabled(t *testing.T) {
+	resetViper(t, `
+cluster:
+  node: some_node
+  user: pepe
+  pass: shadow
+  manager:
+    type: join_server
+    addr: "10.0.0.1:3456"
+  leader:
+    enabled: true
+`)
+
+	config := DefaultConfig()
+	err := config.LoadCluster()
+	if err != nil {
+		t.Fatalf("cluster configuration failed to load: %s", err)
+	}
+
+	if !config.Cluster.LeaderEnabled {
+		t.Fatalf("cluster leader endpoint must be enabled")
+	}
+}
+
+func TestClusterLeaderEndpointDisabledByDefault(t *testing.T) {
+	resetViper(t, `
+cluster:
+  node: some_node
+  user: pepe
+  pass: shadow
+  manager:
+    type: join_server
+    addr: "10.0.0.1:3456"
+`)
+
+	config := DefaultConfig()
+	err := config.LoadCluster()
+	if err != nil {
+		t.Fatalf("cluster configuration failed to load: %s", err)
+	}
+
+	if config.Cluster.LeaderEnabled {
+		t.Fatalf("cluster leader endpoint must be disabled when not configured")
+	}
+}

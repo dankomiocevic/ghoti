@@ -18,9 +18,11 @@ type joinServer struct {
 	join    string
 	nodeID  string
 	cluster *BullyCluster
-	ln      net.Listener
-	server  *http.Server
-	wg      sync.WaitGroup
+	// leaderEnabled controls whether the GET /leader endpoint is served.
+	leaderEnabled bool
+	ln            net.Listener
+	server        *http.Server
+	wg            sync.WaitGroup
 }
 
 func (s *joinServer) Start() error {
@@ -87,6 +89,10 @@ func (s *joinServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.handleCoordinator(w, r)
 	case "/heartbeat":
 		s.handleHeartbeat(w, r)
+	case "/leader":
+		s.handleLeader(w, r)
+	default:
+		w.WriteHeader(http.StatusNotFound)
 	}
 }
 
@@ -290,6 +296,31 @@ func (s *joinServer) handleHeartbeat(w http.ResponseWriter, _ *http.Request) {
 	} else {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
+}
+
+// handleLeader reports whether this node is the cluster leader.
+//
+// It is meant to be polled by an external load balancer health check so that
+// traffic is only sent to the leader: the leader answers 200 and every
+// follower answers 503, taking itself out of rotation.
+//
+// The endpoint is only served when cluster.leader.enabled is set, and it is
+// deliberately unauthenticated because load balancer health checks cannot
+// send credentials.
+func (s *joinServer) handleLeader(w http.ResponseWriter, _ *http.Request) {
+	if !s.leaderEnabled {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	if s.cluster.IsLeader() {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "leader")
+		return
+	}
+
+	w.WriteHeader(http.StatusServiceUnavailable)
+	fmt.Fprintf(w, "not leader: %s", s.cluster.GetLeader())
 }
 
 func requestToJoin(joinAddr, managerAddr, nodeID, user, pass string) (map[string]string, string, error) {

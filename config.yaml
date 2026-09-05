@@ -12,6 +12,19 @@ log:
 #  retain: 7                            # number of rotation files to keep (default: 7)
 #  interval: 10                         # seconds between metric snapshots (default: 10)
 
+# Cluster mode is disabled by default. Uncomment and configure to enable.
+#cluster:
+#  node: node1                  # unique node ID, decides election priority
+#  user: cluster_user           # inter-node credentials (min 4 characters)
+#  pass: cluster_pass
+#  manager:
+#    type: join_server
+#    addr: "0.0.0.0:2222"       # where this node's cluster server listens
+#    join: "10.0.0.2:2222"      # existing member to join; omit to bootstrap
+#  leader:
+#    enabled: true              # serve GET /leader for load balancer health
+#                               # checks: 200 on the leader, 503 on followers
+
 slot_000:
   kind: broadcast
 

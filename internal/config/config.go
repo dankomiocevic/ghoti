@@ -144,6 +144,10 @@ func (c *Config) LoadCluster() error {
 		if viper.IsSet("cluster.manager.addr") {
 			c.Cluster.ManagerAddr = viper.GetString("cluster.manager.addr")
 		}
+
+		// The leader endpoint is opt-in: it is only served when explicitly
+		// enabled with cluster.leader.enabled.
+		c.Cluster.LeaderEnabled = viper.GetBool("cluster.leader.enabled")
 	}
 
 	return nil

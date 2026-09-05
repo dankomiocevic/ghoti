@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -382,5 +384,121 @@ func TestCoordinatorEndpointWrongAuth(t *testing.T) {
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("Coordinator endpoint should return 400 for wrong auth, got %d", resp.StatusCode)
+	}
+}
+
+func TestLeaderEndpointWhenLeader(t *testing.T) {
+	mgrAddr := "localhost:2345"
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr, LeaderEnabled: true}
+
+	cluster := newTestCluster(*config)
+	cluster.SetLeader("node1")
+
+	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster, leaderEnabled: true}
+
+	req := httptest.NewRequest("GET", fmt.Sprintf("http://%s/leader", mgrAddr), nil)
+	w := httptest.NewRecorder()
+
+	js.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Leader endpoint should return 200 OK on the leader, got %d", resp.StatusCode)
+	}
+}
+
+func TestLeaderEndpointWhenNotLeader(t *testing.T) {
+	mgrAddr := "localhost:2345"
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr, LeaderEnabled: true}
+
+	cluster := newTestCluster(*config)
+	cluster.SetLeader("node2")
+
+	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster, leaderEnabled: true}
+
+	req := httptest.NewRequest("GET", fmt.Sprintf("http://%s/leader", mgrAddr), nil)
+	w := httptest.NewRecorder()
+
+	js.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("Leader endpoint should return 503 on a follower, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read response body: %s", err)
+	}
+
+	if !strings.Contains(string(body), "node2") {
+		t.Fatalf("Leader endpoint should report the current leader, got %q", string(body))
+	}
+}
+
+func TestLeaderEndpointWhenDisabled(t *testing.T) {
+	mgrAddr := "localhost:2345"
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+
+	cluster := newTestCluster(*config)
+	cluster.SetLeader("node1")
+
+	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
+
+	req := httptest.NewRequest("GET", fmt.Sprintf("http://%s/leader", mgrAddr), nil)
+	w := httptest.NewRecorder()
+
+	js.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("Leader endpoint should return 404 when disabled, got %d", resp.StatusCode)
+	}
+}
+
+func TestUnknownPathReturnsNotFound(t *testing.T) {
+	mgrAddr := "localhost:2345"
+	config := &ClusterConfig{Node: "node1", ManagerJoin: "", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: mgrAddr}
+
+	cluster := newTestCluster(*config)
+
+	js := &joinServer{addr: config.ManagerAddr, user: config.User, pass: config.Pass, cluster: cluster}
+
+	req := httptest.NewRequest("GET", fmt.Sprintf("http://%s/does_not_exist", mgrAddr), nil)
+	w := httptest.NewRecorder()
+
+	js.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("Unknown paths should return 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestManagerPassesLeaderEnabled(t *testing.T) {
+	config := &ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerType: "join_server", ManagerAddr: "localhost:2345", LeaderEnabled: true}
+
+	cluster := newTestCluster(*config)
+
+	m, err := GetManager(config, cluster)
+	if err != nil {
+		t.Fatalf("failed to get manager: %s", err)
+	}
+
+	js, ok := m.(*joinServer)
+	if !ok {
+		t.Fatalf("expected a joinServer manager")
+	}
+
+	if !js.leaderEnabled {
+		t.Fatalf("GetManager must propagate LeaderEnabled to the join server")
 	}
 }
