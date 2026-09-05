@@ -2,7 +2,6 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/dankomiocevic/ghoti.svg)](https://pkg.go.dev/github.com/dankomiocevic/ghoti)
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fdankomiocevic%2Fghoti.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fdankomiocevic%2Fghoti?ref=badge_shield)
-[![Go Report](https://goreportcard.com/badge/github.com/dankomiocevic/ghoti)](https://goreportcard.com/report/github.com/dankomiocevic/ghoti)
 [![Codecov](https://img.shields.io/codecov/c/github/dankomiocevic/ghoti)](https://app.codecov.io/gh/dankomiocevic/ghoti)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dankomiocevic/ghoti/badge)](https://securityscorecards.dev/viewer/?uri=github.com/dankomiocevic/ghoti)
 
@@ -32,15 +31,62 @@ This is why by enforcing the no-persistence and reminding you about that "system
 ## Protocol
 
 Ghoti uses slots to communicate, if you ever worked with microcontrollers you would get the similarities with registers.
-The idea is that you can either write or read a slot. Slots cannot have more than 36 characters of data and go from slot #0 to slot #999.
+The idea is that you can either write or read a slot. Slots hold at most 36 bytes of data and go from slot #0 to slot #999.
 
 All messages are plain text in order to simplify the protocol among different programming languages.
+
+### Framing and limits
+
+These rules are exact and apply to every command described below.
+
+|Rule|Value|
+|----|-----|
+|Request size|At least 4 bytes and at most 40 bytes, not counting the terminator. The only exception is `q`, which may be sent on its own.|
+|Slot value size|At most 36 bytes.|
+|Unit of measurement|**Bytes, not characters or Unicode code points.** Lengths are never counted in code points, so 36 ASCII characters fit, 18 two-byte characters (`é`) fit, and 9 four-byte emoji fit, but 36 two-byte characters are rejected with `001`.|
+|Encoding|The value is an opaque byte string. Ghoti never validates, normalises or transcodes it, and returns exactly the bytes it received.|
+|Request terminator|A single `\n` on the `standard` transport, `\r\n` on `telnet`. The `http` transport has no terminator, one command is one request. See [Protocol variants](#protocol-variants).|
+|Response terminator|Always a single `\n`, on every transport, including `telnet`.|
+|Requests per write|**Exactly one.** See below.|
+
+**One command per TCP write.** Ghoti reads each request with a single read into a fixed buffer and requires the request to end at the end of that read. This has two consequences that clients must respect:
+
+- **Commands cannot be pipelined.** If two commands arrive in the same TCP segment, only the first one is executed and the second is discarded *silently*, with no error response. A client must send one command and wait for its response before sending the next one.
+- **A command must not be split across writes.** If a command arrives in two segments, each fragment is answered with a separate `exxx001` parse error. The command is never reassembled.
+
+**Framing responses.** Ghoti batches pending responses and async events, so a single read on the client may return several messages concatenated. Clients must split the incoming stream on `\n` and never assume that one read yields one message. For example, a write to a broadcast slot can arrive as a single segment holding both the async event and the confirmation, one per line:
+
+```
+a004HelloWorld
+v0042/2/0
+```
+
+**Ordering.** Responses to commands sent on the same connection are returned in the order the commands were sent: Ghoti handles a connection's commands one at a time and finishes writing each response before reading the next command. Async events (`a`) originate from other connections and may appear before or after any response, but never in the middle of one. There is no ordering guarantee across different connections.
+
+**Response types.** The first byte of every message identifies its type: `v` (value), `e` (error) or `a` (async event). Clients should treat any other leading byte as unknown, discard the message up to the next `\n`, and continue reading rather than closing the connection; this keeps clients working when new response types are added.
+
+**Retries.** A command may be retried safely only if it is idempotent, and the table below is the authority on which are:
+
+|Command and slot|Safe to retry|
+|----------------|-------------|
+|`r` on simple memory, timeout memory, broadcast, multicast|Yes|
+|`r` on atomic counter|**No**, every read increments the counter|
+|`r` on token bucket, leaky bucket|**No**, every read consumes from the bucket|
+|`r` on ticker|**No**, every read advances the countdown|
+|`w` on simple memory, timeout memory, atomic counter, ticker|Yes, the value is absolute|
+|`w` on broadcast, multicast|**No**, every write re-sends the event to every client|
+|`s`, `d`|Yes, both are idempotent|
+|`u`, `p`|A failed `p` closes the connection, so a retry means opening a new connection and starting the login again|
+
+Because a lost response cannot be told apart from a command that was never executed, a client that needs at-most-once semantics for the non-idempotent commands has to reconcile the state itself, for example by reading the slot back where the slot type allows it.
+
+### Commands
 
 In order to read a slot you can send a read request. That would be the command `r`, then three digits defining the slot number .
 
 `r000`
 
-This will trigger a value response with the information about the slot. The response `v` indicates is a value response, then three digits to determine the slot and up to 36 characters to define the value.
+This will trigger a value response with the information about the slot. The response `v` indicates is a value response, then three digits to determine the slot and up to 36 bytes to define the value.
 
 `v0006396A64C-1C2C-4BFC-B8F1-034758018CAC`
 
@@ -50,27 +96,27 @@ When a client wants to write a value on a slot, they can use the `w` command:
 
 `w000HelloWorld`
 
-This will write the value `HelloWorld` on the slot `000`. The value can be any string with a maximum of 36 characters.
+This will write the value `HelloWorld` on the slot `000`. The value can be any byte string with a maximum of 36 bytes.
 Same as the read command, the server will return the written value:
 
 `v000HelloWorld`
 
 If there is any issue with a command, the server will return an error with a code that can be used to identify the issue:
 
-`e000009`
+`e000008`
 
 In this case, the error code has 3 parts:
 - `e` indicates is an error response.
 - `000` is the slot number.
-- `009` is the error code.
+- `008` is the error code.
 
-In the case of commands that are not related to a specifc slot, the slot number will be "xxx". For example, if you want to login, the command to enter the password would be `p` and it won't be related to any slot. The response when the password is empty would be:
+In the case of commands that are not related to a specifc slot, the slot number will be "xxx". For example, if you want to login, the command to enter the password would be `p` and it won't be related to any slot. The response when the password is too short would be:
 
 `exxx003`
 
-Where `e` indicates is an error response, `xxx` is the slot number and `009` is the error code.
+Where `e` indicates is an error response, `xxx` is the slot number and `003` is the error code.
 
-To identify the error code, the list of error codes can be found [here](internal/errors/README.md).
+To identify the error code, the list of error codes can be found [here](internal/errs/README.md).
 
 In some cases there are messages sent as async events from the server (see broadcast slots), these kind of messages are sent at any time and use the `a` (async) response:
 
@@ -92,14 +138,42 @@ The response works the same way as a read, a non-zero value means the client is 
 
 `v0050`
 
-Sending `s` or `d` to a slot that does not support groups of clients returns an error.
+Sending `s` or `d` to a slot that does not support groups of clients returns error `010`.
+
+A client can close its own connection cleanly with the `q` (quit) command. It takes no slot number and the server does not answer it, it just closes the connection:
+
+`q`
+
+### Command summary
+
+|Command|Form|Answered with|
+|-------|----|-------------|
+|`r`|`r` + 3-digit slot|`v` + slot + value, or `e`|
+|`w`|`w` + 3-digit slot + value (up to 36 bytes)|`v` + slot + value, or `e`|
+|`s`|`s` + 3-digit slot|`v` + slot + `1`, or `e`|
+|`d`|`d` + 3-digit slot|`v` + slot + `0`, or `e`|
+|`u`|`u` + username|`v` + username, or `e`|
+|`p`|`p` + password|`v` + username, or `e`|
+|`q`|`q`|Nothing, the connection is closed|
+
+Any other command byte is rejected with `exxx001`. The bytes after the slot number are ignored for every command except `w`, so `r000JUNK` is treated as `r000`.
 
 ### Protocol variants
 
 The core protocol is always the same despite the variant selected, but there are different options to use as a transport layer. The following are the available options:
 - standard: The protocol works as described in the previous section, it is a plain TCP connection that requires messages to be sent in plain text and terminated with a newline character. This is the default option.
 - telnet: This option is the same as the standard option but it allows the use of the telnet protocol to connect to the server. This option is useful when you want to use a telnet client to connect to the server. The main difference is that the messages are terminated with a return of carriage and a newline character, as specified in the standard telnet protocol.
-- http: Exposes the server over HTTP. Slots can be read with `GET /slot/<id>` and written with `POST /slot/<id>`. For **broadcast** slots, a `GET` request opens a persistent [Server-Sent Events (SSE)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) stream, so the client receives each broadcast event pushed in real time without polling. Which slots are streaming is determined from the configuration at startup, so there is no runtime overhead per request. Authentication uses HTTP Basic Auth.
+- http: Exposes the server over HTTP. Slots can be read with `GET /<id>` and written with `POST /<id>`, where `<id>` is the 3-digit slot number, so reading slot 0 is `GET /000`. Any other path shape is rejected with `400`. The request body of a `POST` is the value, and a trailing `\n` or `\r\n` in it is stripped. For **broadcast** slots, a `GET` request opens a persistent [Server-Sent Events (SSE)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) stream, so the client receives each broadcast event pushed in real time without polling. Which slots are streaming is determined from the configuration at startup, so there is no runtime overhead per request. Authentication uses HTTP Basic Auth.
+
+Line endings are strict and differ per transport:
+
+|Transport|Request terminator|Response terminator|
+|---------|------------------|-------------------|
+|standard|`\n`. A request ending in `\r\n` is accepted, but the `\r` is kept as part of the value, so `w000abc\r\n` stores `abc\r`. Always send a bare `\n`.|`\n`|
+|telnet|`\r\n` only. A request ending in a bare `\n` is rejected with `exxx001`.|`\n`, **not** `\r\n`|
+|http|Not applicable, one command per request.|Not applicable|
+
+Over HTTP the response is translated into a status code: `200` with the value as the body, `403` for a permission error, `404` for a slot that is not configured, `503` when the node is not the cluster leader, and `400` for any other error. The `s`, `d`, `u`, `p` and `q` commands have no HTTP equivalent, so multicast groups cannot be joined over this transport.
 
 Example config:
 
@@ -118,14 +192,14 @@ This way the applications can use a single server to solve more than one problem
 
 ### Simple memory slot
 
-This is the most basic slot where a value can be stored. The value has a maximum of 36 characters. You can read and write on the value and there are no restrictions.
+This is the most basic slot where a value can be stored. The value has a maximum of 36 bytes. You can read and write on the value and there are no restrictions.
 This slot has also no configuration.
 
 Example config:
 
 ```yaml
 slot_000:
-  type: simple_memory
+  kind: simple_memory
 ```
 
 ### Timeout memory slot
@@ -139,12 +213,20 @@ The timeout can be configured:
 |------------|------------------------------------|
 |timeout     |Timeout value configured in seconds.|
 
-All clients can read from this slot, but only the owner can write. If any other client tries to write it will fail. If there is no owner, the first client that writes becomes the owner.
+All clients can read from this slot, but only the owner can write. If any other client tries to write it will fail with error `007`. If there is no owner, the first client that writes becomes the owner.
+
+**The owner is the connection, not the user or the host.** Ownership is tracked by the TCP connection that performed the write, so it is not affected by which user is logged in on it, and two connections from the same process or the same authenticated user are two different owners.
+
+This has consequences a client has to plan for:
+
+- **A lost connection does not release the slot.** Ownership is only released when the timeout expires. A client that reconnects immediately after a drop is a new owner and its writes are rejected with `007` for the remainder of the timeout, so the timeout is effectively the recovery time after a crash. Pick it accordingly.
+- **The timeout is only refreshed by writes.** Reading the slot does not extend ownership.
+- **Over the `http` transport every request is its own connection**, so no HTTP client can ever be the owner of two consecutive writes. Timeout memory slots are only usable over `standard` and `telnet`.
 
 Example config:
 ```yaml
 slot_001:
-  type: timeout_memory
+  kind: timeout_memory
   timeout: 10
 ```
 
@@ -179,7 +261,7 @@ Writes have no effect on this slot. Reads will return the number of tokens (or z
 Example config:
 ```yaml
 slot_002:
-  type: token_bucket
+  kind: token_bucket
   bucket_size: 100
   period: second
   refresh_rate: 50
@@ -204,30 +286,35 @@ Writes have no effect on this slot. Reads will return 1 if the token was accepte
 Example config:
 ```yaml
 slot_003:
-  type: leaky_bucket
+  kind: leaky_bucket
   bucket_size: 100
   refresh_rate: 1000
 ```
 
 ### Broadcast signal propagation
 
-Anything sent to this slot is propagated as a message to all the other clients. Any client connected to Ghoti at this point will receive the event at least once.
+Anything sent to this slot is propagated as a message to every connected client, including the one that wrote it. Any client connected to Ghoti at this point will receive the event at least once.
 This means that the message could be received more than once.
 
 The message is sent as an async event, the receiving client will receive the message at any time.
 The message format is the following:
 
 ```
->a000HelloWorld
+<a000HelloWorld
 ```
 
 Where `a` is the async event, `000` is the slot number and `HelloWorld` is the message.
 
-The message to be sent has a maximum of 36 characters, this allows to send an ID or a UUID to all the hosts.
+The message to be sent has a maximum of 36 bytes, this allows to send an ID or a UUID to all the hosts.
 
 This kind of slot is used to notify other clients about a new event or to propagate a signal.
 
-There is no configuration for this slot.
+There is no configuration for this slot beyond selecting the kind:
+
+```yaml
+slot_000:
+  kind: broadcast
+```
 
 This slot will only acknowledge the command when all the messages are sent, so take into account that the more clients connected or the hardest those clients are to reach, it will delay the confirmation. The confirmation contains the following information:
 
@@ -235,19 +322,23 @@ This slot will only acknowledge the command when all the messages are sent, so t
 v000a/b/c
 ```
 Where:
-- `a` is the number of clients that received the message.
-- `b` is the number of clients that are connected.
+- `a` is the number of clients that acknowledged the message.
+- `b` is the number of clients the message was dispatched to, which is every connection open at that moment, **including the one that wrote the slot**.
 - `c` is the number of failures.
 
-Example:
+Note that `a + c` can be lower than `b`: the server waits up to 200 ms for the acknowledgements and stops counting after that.
+
+Example, with five connections open including the writer:
 ```
->w001HelloWorld
-<a001HelloWorld
+>w000HelloWorld
+<a000HelloWorld
 <v0003/5/2
 ```
-This means that the message was sent to 5 clients, 3 received it and 2 failed.
+This means that the message was dispatched to 5 clients, 3 acknowledged it and 2 failed.
 
-Writes will propagate the written value to all other clients. Reads will read the last written value.
+The writer receives its own message too, so a client that writes to a broadcast slot must expect the `a` event for its own write before the `v` confirmation.
+
+Writes will propagate the written value to all the connected clients. Reads will read the last written value.
 
 ### Multicast signal propagation
 
@@ -279,7 +370,7 @@ Reads (`r`) on this slot return the last message written, same as the Broadcast 
 Example config:
 ```yaml
 slot_005:
-  type: multicast
+  kind: multicast
   timeout: 200
   dereg_tries: 3
 ```
@@ -307,14 +398,18 @@ In other words, if a client writes `600` on this slot, then waits 9 minutes and 
 
 |Config          | Description |
 |----------------|-------------|
-| initial_value  | Initial value for the ticker. Default: 0 |
-| refresh_rate	 | The number of milliseconds per tick. Default: 1000 |
+| initial_value  | Initial value for the ticker. Required, must not be negative. |
+| refresh_rate	 | The number of milliseconds per tick. Required, must be at least 1. |
+
+Both options are required and the server refuses to start if either is missing.
+
+Writes must be a non-negative integer in decimal, anything else is rejected with error `007`. The countdown is evaluated lazily on read, so the value only moves when the slot is read.
 
 Example config:
 
 ```yaml
 slot_003:
-  type: ticker
+  kind: ticker
   initial_value: 600
   refresh_rate: 1000
 ```
@@ -323,11 +418,18 @@ slot_003:
 
 This slot contains an integer number and allows to increment its value atomically.
 
-You can write a positive integer to the slot and it will set the current value to that number.
+You can write a non-negative integer to the slot and it will set the current value to that number. A negative value or anything that is not an integer is rejected with error `007`.
 
-When reading this slot, it will return the current value and increment it by one atomically.
+**Reading this slot increments it and returns the value after the increment.** A slot that has just been created returns `1` on the first read, `2` on the second, and so on; after a write of `5` the next read returns `6`. When the counter reaches the maximum value of a signed 64-bit integer it wraps back to `0`.
 
-There is no configuration needed for this slot.
+Since every read has a side effect, a read on this slot must never be retried blindly. See the retry table in the Protocol section.
+
+There is no configuration for this slot beyond selecting the kind:
+
+```yaml
+slot_002:
+  kind: atomic
+```
 
 ## Auth
 
@@ -354,6 +456,14 @@ receive< vmy_service
 The server will respond with the `v` value returning the username of the logged in user or `e` if there is an error. It is recommended using this feature only through a secure connection, on a very secure network or through TTL because the passwords will not be encoded.
 
 Now, all the interactions with the server will be throught the autenticated user.
+
+The login has rules that a client has to follow exactly:
+
+- **Both commands must be sent, in order.** `u` only records the name on the connection, it does not check it against the configured users, so `u` on an unknown name still answers with `v` and that name. The credentials are only verified when `p` arrives. A connection that sends `u` and never sends `p` stays unauthenticated.
+- **Username and password must both be at least 4 bytes long**, and at most 39. The username must also match `^[a-zA-Z][a-zA-Z0-9_]*$`, so it starts with a letter and continues with letters, numbers or underscores.
+- **Any login failure closes the connection.** The server writes the error and then disconnects, so the client has to open a new connection to try again. This applies to a malformed username (`002`), a password that is too short (`003`) and a username and password pair that does not match the configuration (`004`).
+- Sending `u` again on an already authenticated connection **drops the authentication**: the connection goes back to anonymous until a matching `p` is accepted.
+- Over the `http` transport this exchange does not exist, credentials go in the HTTP Basic Auth header on every request instead.
 
 After defining the users, we can update the slots with the specific permissions:
 

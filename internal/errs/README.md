@@ -57,19 +57,31 @@ This example shows that the `nodeA` is the node that should be contacted instead
 
 Error when parsing the message.
 
-This means that the received message does not follow the communication protocol. Please review the main README or Documentation to identify valid messages.
+This means that the received message does not follow the communication protocol. Please review the main README or Documentation to identify valid messages. The cases that produce it are:
+
+- The message is not terminated correctly for the transport in use: a missing `\n` on `standard`, or a missing `\r\n` on `telnet`.
+- The message is shorter than 4 bytes, `q` excepted.
+- The message is longer than 40 bytes, not counting the terminator. This is measured in **bytes**, so a value of multi-byte characters reaches the limit sooner than its character count suggests.
+- The command byte is not one of the supported commands.
+- The three bytes after the command are not a decimal number, for commands that address a slot.
+
+This error is never associated with a slot, so it is always returned as `exxx001`.
 
 ## 002: WRONG_USER
 
-The user is empty or contains invalid characters.
+The user is too short or contains invalid characters.
 
-This could be because the username was empty or that the username contains special characters. The username can only contain letters, numbers or underscore.
+This could be because the username is shorter than 4 bytes, or that the username contains special characters. The username must start with a letter and can only continue with letters, numbers or underscore, which is the regular expression `^[a-zA-Z][a-zA-Z0-9_]*$`.
+
+The connection is closed after this error.
 
 ## 003: WRONG_PASS
 
-The password is empty.
+The password is too short.
 
-This could be because the password sent is an empty string or because there was a invalid username defined before.
+This could be because the password sent is shorter than 4 bytes, or because there was an invalid username defined before.
+
+The connection is closed after this error.
 
 ## 004: WRONG_LOGIN
 
@@ -77,11 +89,13 @@ There is no username and password matching.
 
 There is no user and password in the configuration that matches the login information being sent.
 
+The connection is closed after this error.
+
 ## 005: MISSING_SLOT
 
-There is no slot specified in the command.
+The slot addressed by the command is not configured.
 
-The command was sent with an invalid slot defined.
+The slot number is syntactically valid and within range, but no slot of that number is defined in the configuration. Unlike the login errors, this response carries the requested slot number rather than `xxx`, for example `e999005`.
 
 ## 006: WRITE_PERMISSION
 
@@ -93,7 +107,12 @@ The requested slot doesn't have write permissions enabled for the current logged
 
 The write operation on this slot failed.
 
-Depending on the type of slot, the write operation can fail because of multiple reasons.
+Depending on the kind of slot, the write operation can fail because of multiple reasons. The ones currently returned are:
+
+- On a `timeout_memory` slot, the writing connection is not the owner and the owner's timeout has not expired yet.
+- On an `atomic` or `ticker` slot, the value written is not a non-negative decimal integer.
+
+Note that this is not a permission error: `006` means the logged in user is not allowed to write the slot at all, while `007` means the write was allowed but the slot rejected it.
 
 ## 008: READ_PERMISSION
 
@@ -107,9 +126,7 @@ The message sent does not have the right format.
 
 The message that was received does not match the expectations for a valid message, for more information please refer to the documentation or the repository README to check the message formatting rules.
 
-The user does not have permission to read in this slot.
-
-The requested slot doesn't have read permissions enabled for the current logged in user. If there is no logged in user, then the slot has not open-read permissions.
+This code is reserved and is not currently returned by the server: malformed messages are reported as `001` instead. It is kept so that the code stays stable if the two cases are ever separated.
 
 ## 010: UNSUPPORTED_COMMAND
 
