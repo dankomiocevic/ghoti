@@ -179,6 +179,52 @@ func TestMessageNotTerminated(t *testing.T) {
 	}
 }
 
+// stillServing asserts that the server keeps accepting and answering new
+// connections, so that a message from one client cannot take the server down
+// for everybody else.
+func stillServing(t *testing.T, s *Server, request string) {
+	t.Helper()
+
+	conn, err := net.Dial("tcp", s.connections.GetAddr())
+	if err != nil {
+		t.Fatalf("server stopped accepting connections: %v", err)
+	}
+	defer conn.Close()
+
+	if response := sendData(t, conn, request); response != "v000Hello\n" {
+		t.Fatalf("unexpected server response: %s", response)
+	}
+}
+
+func TestEmptyMessage(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	response := sendData(t, conn, "\n")
+	if !strings.HasPrefix(response, "e") {
+		t.Fatalf("unexpected server response: %s", response)
+	}
+
+	stillServing(t, s, "w000Hello\n")
+}
+
+func TestEmptyMessageOnTelnet(t *testing.T) {
+	viper.Set("protocol", "telnet")
+
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+	defer viper.Set("protocol", "standard")
+
+	response := sendData(t, conn, "\n")
+	if !strings.HasPrefix(response, "e") {
+		t.Fatalf("unexpected server response: %s", response)
+	}
+
+	stillServing(t, s, "w000Hello\r\n")
+}
+
 func TestReadInANonConfiguredSlot(t *testing.T) {
 	s, conn := runServer(t)
 	defer s.Stop()
