@@ -272,7 +272,7 @@ func TestHTTPManagerBroadcastWithNoSubscribers(t *testing.T) {
 }
 
 func TestChanConnWriteAndRead(t *testing.T) {
-	c := newChanConn()
+	c := newChanConn("192.0.2.1:5555")
 	defer c.Close()
 
 	msg := []byte("hello")
@@ -291,7 +291,7 @@ func TestChanConnWriteAndRead(t *testing.T) {
 }
 
 func TestChanConnCloseReturnsEOF(t *testing.T) {
-	c := newChanConn()
+	c := newChanConn("192.0.2.1:5555")
 	c.Close()
 
 	n, err := c.Write([]byte("data"))
@@ -302,7 +302,7 @@ func TestChanConnCloseReturnsEOF(t *testing.T) {
 
 func TestSSEConnFormatsEvents(t *testing.T) {
 	rr := httptest.NewRecorder()
-	sc := newSSEConn(rr, rr)
+	sc := newSSEConn(rr, rr, "192.0.2.1:5555")
 
 	sc.Write([]byte("a000hello\n")) //nolint:errcheck
 
@@ -314,7 +314,7 @@ func TestSSEConnFormatsEvents(t *testing.T) {
 
 func TestSSEConnFormatsMultipleEvents(t *testing.T) {
 	rr := httptest.NewRecorder()
-	sc := newSSEConn(rr, rr)
+	sc := newSSEConn(rr, rr, "192.0.2.1:5555")
 
 	// Two events batched together (as sendBatchedEvents would produce)
 	sc.Write([]byte("a000hello\n\na001world\n")) //nolint:errcheck
