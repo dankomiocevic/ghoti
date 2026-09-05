@@ -431,6 +431,26 @@ A 2-node cluster is the suggested default configuration. Why 2? Because there ar
 
 If there is something really bad happening (like an issue during a deployment), then the only impact is an increased downtime. If this increased downtime needed to enable a new node is too high, then you can add a third node.
 
+### Routing traffic to the leader
+
+Only the leader of a cluster serves client requests; followers answer every command with a `NOT_LEADER` error. To put a load balancer in front of the cluster, enable the leader endpoint:
+
+```yaml
+cluster:
+  node: "node1"
+  user: "cluster_user"
+  pass: "cluster_pass"
+  manager:
+    type: "join_server"
+    addr: "0.0.0.0:2222"
+  leader:
+    enabled: true
+```
+
+This serves `GET /leader` on the cluster manager address, which returns `200` on the leader and `503` on every follower. Point a load balancer health check at it and traffic follows the leader automatically, including after a failover. The endpoint is unauthenticated so that health checks can reach it, and it is disabled by default.
+
+See [cluster.md](cluster.md) for the full cluster documentation.
+
 # Next steps
 
 This list is not exhaustive, but it is a good starting point to understand what is missing and what is planned for the future.

@@ -40,8 +40,9 @@ All inter-node communication happens over HTTP. Each node runs a `joinServer` th
 | `/election`     | POST   | Bully election message — "I am starting an election"         |
 | `/coordinator`  | POST   | Leader announcement — "I am the new leader"                  |
 | `/heartbeat`    | GET    | Health check — used by followers to verify the leader is up  |
+| `/leader`       | GET    | Leader check for external load balancers (opt-in)            |
 
-All endpoints (except `/heartbeat`) require HTTP Basic Authentication with the cluster credentials.
+All endpoints (except `/heartbeat` and `/leader`) require HTTP Basic Authentication with the cluster credentials. Any other path returns `404`.
 
 ### Leader-Only Operations
 
@@ -62,6 +63,7 @@ Cluster configuration is provided via the Ghoti config file (YAML). The cluster 
 | `cluster.manager.type` | Yes      | Membership manager type. Currently only `join_server` is supported.         |
 | `cluster.manager.addr` | Yes      | Address where this node's cluster management HTTP server listens.           |
 | `cluster.manager.join` | No       | Address of an existing node to join. Leave empty to bootstrap a new cluster.|
+| `cluster.leader.enabled` | No     | Serve the `GET /leader` endpoint for load balancers. Defaults to `false`.   |
 
 ### Example: Bootstrap Node (First Node)
 
@@ -93,6 +95,36 @@ cluster:
 ```
 
 The `join` field points to the manager address of any existing cluster member. On startup, the joining node sends a `/join` request and receives the current peer list and leader identity.
+
+### Leader Endpoint for Load Balancers
+
+Setting `cluster.leader.enabled` adds a `GET /leader` endpoint to the cluster management server:
+
+```yaml
+cluster:
+  node: "node1"
+  user: "cluster_user"
+  pass: "cluster_pass"
+  manager:
+    type: "join_server"
+    addr: "0.0.0.0:2222"
+  leader:
+    enabled: true
+```
+
+The endpoint answers with the node's current role:
+
+| Node state    | Status | Body                    |
+|---------------|--------|-------------------------|
+| Leader        | `200`  | `leader`                |
+| Follower      | `503`  | `not leader: <node ID>` |
+| Flag not set  | `404`  | —                       |
+
+This is meant for a load balancer that must send all traffic to the leader: point its health check at `/leader`. Every follower fails the health check and takes itself out of rotation, so the load balancer converges on the leader, and follows it after a failover.
+
+Note that this endpoint is **unauthenticated**, because load balancer health checks cannot send credentials. It only discloses which node is the leader, but it is served on `cluster.manager.addr` — the port used for inter-node traffic — so the load balancer needs network access to that port in addition to the peer nodes.
+
+Because this endpoint is served by the cluster management server, it only exists on nodes with a `cluster` section configured. A standalone node has no leader to report and will never answer it.
 
 ### Node ID and Election Priority
 
