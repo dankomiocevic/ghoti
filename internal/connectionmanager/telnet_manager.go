@@ -96,7 +96,7 @@ func (m *TelnetManager) handleUserConnection(callback CallbackFn, conn Connectio
 
 		// If the message is a telnet message, check if it finishes with a carriage return
 		// and line feed (CRLF), return an error otherwise
-		if conn.Buffer[size-2] != 13 || conn.Buffer[size-1] != 10 {
+		if size < 2 || conn.Buffer[size-2] != 13 || conn.Buffer[size-1] != 10 {
 			res := errs.Error("PARSE_ERROR")
 			slog.Debug("Message not terminated with CRLF",
 				slog.String("remote_addr", conn.ID),
