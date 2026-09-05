@@ -26,6 +26,10 @@ var SupportedCommands = map[string]bool{
 
 func ParseMessage(size int, buf []byte) (Message, error) {
 	input := string(buf[:size])
+	if len(input) < 1 {
+		return Message{}, errors.New("Message is empty")
+	}
+
 	command := input[:1]
 	fmt.Printf("Input: [%s]\n", input)
 
