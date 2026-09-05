@@ -18,18 +18,29 @@ import (
 	"github.com/dankomiocevic/ghoti/internal/telemetry"
 )
 
+// httpRemoteAddr adapts the client address string net/http hands us
+// (http.Request.RemoteAddr) into a net.Addr, so the synthetic connections
+// below never hand back a nil net.Addr: code such as the server's logging
+// calls RemoteAddr().String() unconditionally on every connection type.
+type httpRemoteAddr string
+
+func (a httpRemoteAddr) Network() string { return "tcp" }
+func (a httpRemoteAddr) String() string  { return string(a) }
+
 // chanConn implements net.Conn backed by a channel, used for HTTP request/response handling.
 // Writes from the EventProcessor are captured in writeCh so the HTTP handler can read them.
 type chanConn struct {
-	writeCh   chan []byte
-	closeCh   chan struct{}
-	closeOnce sync.Once
+	writeCh    chan []byte
+	closeCh    chan struct{}
+	closeOnce  sync.Once
+	remoteAddr net.Addr
 }
 
-func newChanConn() *chanConn {
+func newChanConn(remoteAddr string) *chanConn {
 	return &chanConn{
-		writeCh: make(chan []byte, 16),
-		closeCh: make(chan struct{}),
+		writeCh:    make(chan []byte, 16),
+		closeCh:    make(chan struct{}),
+		remoteAddr: httpRemoteAddr(remoteAddr),
 	}
 }
 
@@ -53,7 +64,7 @@ func (c *chanConn) Write(b []byte) (int, error) {
 
 func (c *chanConn) Read([]byte) (int, error)         { return 0, io.EOF }
 func (c *chanConn) Close() error                     { c.closeOnce.Do(func() { close(c.closeCh) }); return nil }
-func (c *chanConn) RemoteAddr() net.Addr             { return nil }
+func (c *chanConn) RemoteAddr() net.Addr             { return c.remoteAddr }
 func (c *chanConn) LocalAddr() net.Addr              { return nil }
 func (c *chanConn) SetDeadline(time.Time) error      { return nil }
 func (c *chanConn) SetReadDeadline(time.Time) error  { return nil }
@@ -62,17 +73,19 @@ func (c *chanConn) SetWriteDeadline(time.Time) error { return nil }
 // sseConn implements net.Conn that writes SSE-formatted events to an http.ResponseWriter.
 // Each line of data written to this conn is emitted as an SSE event.
 type sseConn struct {
-	writer    http.ResponseWriter
-	flusher   http.Flusher
-	closeCh   chan struct{}
-	closeOnce sync.Once
+	writer     http.ResponseWriter
+	flusher    http.Flusher
+	closeCh    chan struct{}
+	closeOnce  sync.Once
+	remoteAddr net.Addr
 }
 
-func newSSEConn(w http.ResponseWriter, flusher http.Flusher) *sseConn {
+func newSSEConn(w http.ResponseWriter, flusher http.Flusher, remoteAddr string) *sseConn {
 	return &sseConn{
-		writer:  w,
-		flusher: flusher,
-		closeCh: make(chan struct{}),
+		writer:     w,
+		flusher:    flusher,
+		closeCh:    make(chan struct{}),
+		remoteAddr: httpRemoteAddr(remoteAddr),
 	}
 }
 
@@ -96,7 +109,7 @@ func (c *sseConn) Write(b []byte) (int, error) {
 
 func (c *sseConn) Read([]byte) (int, error)         { return 0, io.EOF }
 func (c *sseConn) Close() error                     { c.closeOnce.Do(func() { close(c.closeCh) }); return nil }
-func (c *sseConn) RemoteAddr() net.Addr             { return nil }
+func (c *sseConn) RemoteAddr() net.Addr             { return c.remoteAddr }
 func (c *sseConn) LocalAddr() net.Addr              { return nil }
 func (c *sseConn) SetDeadline(time.Time) error      { return nil }
 func (c *sseConn) SetReadDeadline(time.Time) error  { return nil }
@@ -329,7 +342,7 @@ func (h *HTTPManager) handleSlot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fconn := newChanConn()
+	fconn := newChanConn(r.RemoteAddr)
 	conn := h.createConnection(fconn)
 	conn.LoggedUser = user
 	if user.Name != "" {
@@ -435,7 +448,7 @@ func (h *HTTPManager) openBroadcastStream(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	sconn := newSSEConn(w, flusher)
+	sconn := newSSEConn(w, flusher, r.RemoteAddr)
 	conn := h.createConnection(sconn)
 	conn.LoggedUser = user
 	if user.Name != "" {

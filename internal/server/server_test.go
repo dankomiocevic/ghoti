@@ -2,8 +2,10 @@ package server
 
 import (
 	"bufio"
+	"io"
 	"math/rand/v2"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -77,6 +79,23 @@ func runServer(t *testing.T) (*Server, net.Conn) {
 	}
 
 	return s, conn
+}
+
+// runHTTPServer starts a real Server wired to the http protocol, exactly as
+// production does, and returns the base URL to send requests to. Unlike
+// buildTestManager in the connectionmanager package, this exercises the real
+// server.HandleMessage callback instead of a stub.
+func runHTTPServer(t *testing.T) (*Server, string) {
+	viper.Set("protocol", "http")
+	t.Cleanup(func() { viper.Set("protocol", "standard") })
+
+	port := "9" + strconv.Itoa(rand.IntN(899)+100)
+	s := NewServer(generateConfig(port), cluster.NewEmptyCluster())
+
+	// wait for the HTTP server to start
+	time.Sleep(time.Duration(100) * time.Millisecond)
+
+	return s, "http://localhost:" + port
 }
 
 func sendData(t *testing.T, conn net.Conn, data string) string {
@@ -176,6 +195,50 @@ func TestMessageNotTerminated(t *testing.T) {
 	response := sendData(t, conn, "r0")
 	if !strings.HasPrefix(response, "e") {
 		t.Fatalf("unexpected server response: %s", response)
+	}
+}
+
+func TestHTTPGetSlotValue(t *testing.T) {
+	s, baseURL := runHTTPServer(t)
+	defer s.Stop()
+
+	resp, err := http.Get(baseURL + "/000")
+	if err != nil {
+		t.Fatalf("GET request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("couldn't read response body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status code: %d, body: %s", resp.StatusCode, body)
+	}
+}
+
+func TestHTTPPostSlotValue(t *testing.T) {
+	s, baseURL := runHTTPServer(t)
+	defer s.Stop()
+
+	resp, err := http.Post(baseURL+"/000", "text/plain", strings.NewReader("Hello"))
+	if err != nil {
+		t.Fatalf("POST request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("couldn't read response body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status code: %d, body: %s", resp.StatusCode, body)
+	}
+
+	if string(body) != "Hello" {
+		t.Fatalf("unexpected response body: %s", body)
 	}
 }
 
