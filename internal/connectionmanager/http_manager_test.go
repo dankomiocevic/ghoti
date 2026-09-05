@@ -300,6 +300,25 @@ func TestChanConnCloseReturnsEOF(t *testing.T) {
 	}
 }
 
+// TestChanConnRemoteAddr guards against regressing to a nil RemoteAddr():
+// server.go logs conn.NetworkConn.RemoteAddr().String() unconditionally, so a
+// nil net.Addr here panics every HTTP request.
+func TestChanConnRemoteAddr(t *testing.T) {
+	c := newChanConn("203.0.113.5:4242")
+	defer c.Close()
+
+	addr := c.RemoteAddr()
+	if addr == nil {
+		t.Fatal("RemoteAddr() returned nil")
+	}
+	if addr.String() != "203.0.113.5:4242" {
+		t.Fatalf("unexpected RemoteAddr: %s", addr.String())
+	}
+	if addr.Network() != "tcp" {
+		t.Fatalf("unexpected Network: %s", addr.Network())
+	}
+}
+
 func TestSSEConnFormatsEvents(t *testing.T) {
 	rr := httptest.NewRecorder()
 	sc := newSSEConn(rr, rr, "192.0.2.1:5555")
@@ -323,5 +342,25 @@ func TestSSEConnFormatsMultipleEvents(t *testing.T) {
 	expected := "data: a000hello\n\ndata: a001world\n\n"
 	if body != expected {
 		t.Fatalf("expected %q, got %q", expected, body)
+	}
+}
+
+// TestSSEConnRemoteAddr guards against regressing to a nil RemoteAddr() on the
+// SSE connection, the same class of bug as TestChanConnRemoteAddr but on the
+// broadcast-stream path (openBroadcastStream), which is otherwise never
+// exercised by a real server since it never calls HandleMessage.
+func TestSSEConnRemoteAddr(t *testing.T) {
+	rr := httptest.NewRecorder()
+	sc := newSSEConn(rr, rr, "203.0.113.5:4242")
+
+	addr := sc.RemoteAddr()
+	if addr == nil {
+		t.Fatal("RemoteAddr() returned nil")
+	}
+	if addr.String() != "203.0.113.5:4242" {
+		t.Fatalf("unexpected RemoteAddr: %s", addr.String())
+	}
+	if addr.Network() != "tcp" {
+		t.Fatalf("unexpected Network: %s", addr.Network())
 	}
 }
