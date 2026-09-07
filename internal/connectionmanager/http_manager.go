@@ -304,6 +304,21 @@ func (h *HTTPManager) authenticate(r *http.Request) (auth.User, bool) {
 	return user, true
 }
 
+// isSlotPath reports whether the path is exactly three ASCII digits.
+// Anything else, including the signs and spaces that strconv.Atoi would
+// accept, is not a valid slot number.
+func isSlotPath(path string) bool {
+	if len(path) != 3 {
+		return false
+	}
+	for i := 0; i < len(path); i++ {
+		if path[i] < '0' || path[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // handleSlot handles GET /{slot} and POST /{slot}.
 //
 // For GET on a broadcast slot (as determined by the streamChecker), the connection
@@ -315,7 +330,7 @@ func (h *HTTPManager) authenticate(r *http.Request) (auth.User, bool) {
 func (h *HTTPManager) handleSlot(w http.ResponseWriter, r *http.Request) {
 	// Parse the 3-digit slot number from the URL path.
 	path := strings.TrimPrefix(r.URL.Path, "/")
-	if len(path) != 3 {
+	if !isSlotPath(path) {
 		http.Error(w, "slot must be a 3-digit number (e.g. GET /000)", http.StatusBadRequest)
 		return
 	}
