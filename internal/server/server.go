@@ -67,8 +67,6 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connectionmanager.Co
 		return conn.SendEvent(res.Response("xxx"))
 	}
 
-	currentSlot := s.slotsArray[msg.Slot]
-
 	if msg.Command == 'q' {
 		slog.Debug("Client disconnected",
 			slog.String("id", conn.ID),
@@ -93,6 +91,19 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connectionmanager.Co
 		return processPassword(s, conn, msg)
 	}
 
+	// The parser guarantees the slot is within range, this check keeps the
+	// array access safe if a message ever reaches this point another way.
+	if msg.Slot < 0 || msg.Slot >= TotalSlots {
+		res := errs.Error("PARSE_ERROR")
+		slog.Debug("Slot out of range",
+			slog.Int("slot", msg.Slot),
+			slog.String("id", conn.ID),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+		return conn.SendEvent(res.Response("xxx"))
+	}
+
+	currentSlot := s.slotsArray[msg.Slot]
 	if currentSlot == nil {
 		res := errs.Error("MISSING_SLOT")
 		slog.Debug("Missing slot",

@@ -41,8 +41,10 @@ These rules are exact and apply to every command described below.
 
 |Rule|Value|
 |----|-----|
-|Request size|At least 4 bytes and at most 40 bytes, not counting the terminator. The only exception is `q`, which may be sent on its own.|
+|Request size|At least 4 bytes and at most 40 bytes, not counting the terminator. The only exception is `q`, which is exactly one byte on its own.|
 |Slot value size|At most 36 bytes.|
+|Slot number|Exactly three ASCII digits, `000` to `999`. Signs, spaces and padding are rejected with `exxx001`, so `r-01`, `r+01` and `r 01` are all errors.|
+|Trailing bytes|Only `w` takes bytes after the slot number. For `r`, `s` and `d` the request ends at the third digit, and anything after it is rejected with `exxx001`.|
 |Unit of measurement|**Bytes, not characters or Unicode code points.** Lengths are never counted in code points, so 36 ASCII characters fit, 18 two-byte characters (`é`) fit, and 9 four-byte emoji fit, but 36 two-byte characters are rejected with `001`.|
 |Encoding|The value is an opaque byte string. Ghoti never validates, normalises or transcodes it, and returns exactly the bytes it received.|
 |Request terminator|A single `\n` on the `standard` transport, `\r\n` on `telnet`. The `http` transport has no terminator, one command is one request. See [Protocol variants](#protocol-variants).|
@@ -51,7 +53,7 @@ These rules are exact and apply to every command described below.
 
 **One command per TCP write.** Ghoti reads each request with a single read into a fixed buffer and requires the request to end at the end of that read. This has two consequences that clients must respect:
 
-- **Commands cannot be pipelined.** If two commands arrive in the same TCP segment, only the first one is executed and the second is discarded *silently*, with no error response. A client must send one command and wait for its response before sending the next one.
+- **Commands cannot be pipelined.** If two commands arrive in the same TCP segment, the whole read is treated as a single request. For `r`, `s` and `d` the bytes of the second command are trailing bytes, so the request is rejected with `exxx001` and neither command runs. For `w` they are absorbed into the value, so `w000a\nw001b` stores `a\nw001b` in slot `000`. A client must send one command and wait for its response before sending the next one.
 - **A command must not be split across writes.** If a command arrives in two segments, each fragment is answered with a separate `exxx001` parse error. The command is never reassembled.
 
 **Framing responses.** Ghoti batches pending responses and async events, so a single read on the client may return several messages concatenated. Clients must split the incoming stream on `\n` and never assume that one read yields one message. For example, a write to a broadcast slot can arrive as a single segment holding both the async event and the confirmation, one per line:
@@ -140,7 +142,7 @@ The response works the same way as a read, a non-zero value means the client is 
 
 Sending `s` or `d` to a slot that does not support groups of clients returns error `010`.
 
-A client can close its own connection cleanly with the `q` (quit) command. It takes no slot number and the server does not answer it, it just closes the connection:
+A client can close its own connection cleanly with the `q` (quit) command. It takes no slot number and no arguments, so the request is exactly one byte and anything after it is rejected with `exxx001`. The server does not answer it, it just closes the connection:
 
 `q`
 
@@ -156,20 +158,20 @@ A client can close its own connection cleanly with the `q` (quit) command. It ta
 |`p`|`p` + password|`v` + username, or `e`|
 |`q`|`q`|Nothing, the connection is closed|
 
-Any other command byte is rejected with `exxx001`. The bytes after the slot number are ignored for every command except `w`, so `r000JUNK` is treated as `r000`.
+Any other command byte is rejected with `exxx001`, and so is a slot number that is not exactly three ASCII digits. Only `w` takes bytes after the slot number, so `r000JUNK` is rejected with `exxx001` rather than treated as `r000`.
 
 ### Protocol variants
 
 The core protocol is always the same despite the variant selected, but there are different options to use as a transport layer. The following are the available options:
 - standard: The protocol works as described in the previous section, it is a plain TCP connection that requires messages to be sent in plain text and terminated with a newline character. This is the default option.
 - telnet: This option is the same as the standard option but it allows the use of the telnet protocol to connect to the server. This option is useful when you want to use a telnet client to connect to the server. The main difference is that the messages are terminated with a return of carriage and a newline character, as specified in the standard telnet protocol.
-- http: Exposes the server over HTTP. Slots can be read with `GET /<id>` and written with `POST /<id>`, where `<id>` is the 3-digit slot number, so reading slot 0 is `GET /000`. Any other path shape is rejected with `400`. The request body of a `POST` is the value, and a trailing `\n` or `\r\n` in it is stripped. For **broadcast** slots, a `GET` request opens a persistent [Server-Sent Events (SSE)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) stream, so the client receives each broadcast event pushed in real time without polling. Which slots are streaming is determined from the configuration at startup, so there is no runtime overhead per request. Authentication uses HTTP Basic Auth.
+- http: Exposes the server over HTTP. Slots can be read with `GET /<id>` and written with `POST /<id>`, where `<id>` is exactly three ASCII digits, so reading slot 0 is `GET /000`. Any other path shape, including `/+00`, `/-01` and `/1`, is rejected with `400`. The request body of a `POST` is the value, and a trailing `\n` or `\r\n` in it is stripped. For **broadcast** slots, a `GET` request opens a persistent [Server-Sent Events (SSE)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) stream, so the client receives each broadcast event pushed in real time without polling. Which slots are streaming is determined from the configuration at startup, so there is no runtime overhead per request. Authentication uses HTTP Basic Auth.
 
 Line endings are strict and differ per transport:
 
 |Transport|Request terminator|Response terminator|
 |---------|------------------|-------------------|
-|standard|`\n`. A request ending in `\r\n` is accepted, but the `\r` is kept as part of the value, so `w000abc\r\n` stores `abc\r`. Always send a bare `\n`.|`\n`|
+|standard|`\n` only. The `\r` of a `\r\n` ending is kept as part of the request, so `w000abc\r\n` stores `abc\r` and `r000\r\n` is rejected with `exxx001` as a read with trailing bytes. Always send a bare `\n`.|`\n`|
 |telnet|`\r\n` only. A request ending in a bare `\n` is rejected with `exxx001`.|`\n`, **not** `\r\n`|
 |http|Not applicable, one command per request.|Not applicable|
 

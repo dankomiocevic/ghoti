@@ -56,6 +56,11 @@ func generateConfig(port string) *config.Config {
 	slotFive, _ := slots.GetSlot(viper.Sub("slot_005"), c.Connections, "005")
 	c.Slots[5] = slotFive
 
+	viper.Set("slot_006.kind", "broadcast")
+	slotSix, _ := slots.GetSlot(viper.Sub("slot_006"), c.Connections, "006")
+	c.Slots[6] = slotSix
+	c.StreamingSlots[6] = true
+
 	viper.Set("users.pepe", "passw0rd")
 	viper.Set("users.bobby", "otherPassw0rd")
 	viper.Set("users.sammy", "samPassw0rd")
@@ -658,5 +663,148 @@ func TestMulticastDeregisterPermissionDenied(t *testing.T) {
 	response := sendData(t, conn, "d004\n")
 	if response != "e004008\n" {
 		t.Fatalf("unexpected response: %s", response)
+	}
+}
+
+func TestMalformedMessagesDoNotCrashServer(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	cases := []struct {
+		name    string
+		request string
+	}{
+		{"negative slot", "r-01\n"},
+		{"signed slot", "r+01\n"},
+		{"non digit slot", "r0a0\n"},
+		{"trailing bytes", "r000extra\n"},
+		{"oversized message", strings.Repeat("w000Hello", 20) + "\n"},
+		{"invalid utf8", "r\xff\xfe\xfd\n"},
+		{"coalesced frames", "r000\nr001\n"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := net.Dial("tcp", s.connections.GetAddr())
+			if err != nil {
+				t.Fatalf("couldn't connect to the server: %v", err)
+			}
+			defer c.Close()
+
+			response := sendData(t, c, tc.request)
+			if !strings.HasPrefix(response, "e") {
+				t.Fatalf("unexpected server response: %s", response)
+			}
+		})
+	}
+
+	stillServing(t, s, "w000Hello\n")
+}
+
+func TestSplitFrameDoesNotCrashServer(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	if _, err := conn.Write([]byte("r-")); err != nil {
+		t.Fatalf("couldn't send request: %v", err)
+	}
+	time.Sleep(time.Duration(50) * time.Millisecond)
+
+	response := sendData(t, conn, "01\n")
+	if !strings.HasPrefix(response, "e") {
+		t.Fatalf("unexpected server response: %s", response)
+	}
+
+	stillServing(t, s, "w000Hello\n")
+}
+
+func TestNegativeSlotOnTelnetDoesNotCrashServer(t *testing.T) {
+	viper.Set("protocol", "telnet")
+
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+	defer viper.Set("protocol", "standard")
+
+	response := sendData(t, conn, "r-01\r\n")
+	if !strings.HasPrefix(response, "e") {
+		t.Fatalf("unexpected server response: %s", response)
+	}
+
+	stillServing(t, s, "w000Hello\r\n")
+}
+
+func TestNegativeSlotOnHTTPDoesNotCrashServer(t *testing.T) {
+	s, baseURL := runHTTPServer(t)
+	defer s.Stop()
+
+	resp, err := http.Get(baseURL + "/-01")
+	if err != nil {
+		t.Fatalf("couldn't send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		t.Fatalf("unexpected status code for a negative slot: %d", resp.StatusCode)
+	}
+
+	resp, err = http.Get(baseURL + "/000")
+	if err != nil {
+		t.Fatalf("server stopped answering requests: %v", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status code: %d (%s)", resp.StatusCode, body)
+	}
+}
+
+func TestHTTPRejectsNonDigitSlotPathOnStreamingSlot(t *testing.T) {
+	s, baseURL := runHTTPServer(t)
+	defer s.Stop()
+
+	for _, path := range []string{"/+06", "/-06", "/0a6", "/ 06"} {
+		t.Run(path, func(t *testing.T) {
+			resp, err := http.Get(baseURL + path)
+			if err != nil {
+				t.Fatalf("couldn't send request: %v", err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Fatalf("unexpected status code for %q: %d", path, resp.StatusCode)
+			}
+		})
+	}
+}
+
+func TestHTTPStreamingSlotStillOpensStream(t *testing.T) {
+	s, baseURL := runHTTPServer(t)
+	defer s.Stop()
+
+	resp, err := http.Get(baseURL + "/006")
+	if err != nil {
+		t.Fatalf("couldn't send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status code: %d", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
+		t.Fatalf("unexpected content type: %s", ct)
+	}
+}
+
+func TestReadWithCarriageReturnOnStandardIsRejected(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	response := sendData(t, conn, "r000\r\n")
+	if !strings.HasPrefix(response, "e") {
+		t.Fatalf("unexpected server response: %s", response)
 	}
 }
