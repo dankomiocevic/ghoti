@@ -2,6 +2,7 @@ package slots
 
 import (
 	"math"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -158,5 +159,83 @@ func TestAtomicSlotWriteNegativeValue(t *testing.T) {
 	_, err := slot.Write("-10", nil)
 	if err == nil {
 		t.Fatalf("Write with negative value should return error")
+	}
+}
+
+func TestAtomicSlotConcurrentReadsAreUnique(t *testing.T) {
+	slot := loadAtomicSlot(t)
+
+	const goroutines = 50
+	const readsPerGoroutine = 200
+	const total = goroutines * readsPerGoroutine
+
+	results := make([]string, total)
+	var wg sync.WaitGroup
+
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			for i := 0; i < readsPerGoroutine; i++ {
+				results[g*readsPerGoroutine+i] = slot.Read()
+			}
+		}(g)
+	}
+	wg.Wait()
+
+	seen := make(map[string]bool, total)
+	for _, value := range results {
+		if seen[value] {
+			t.Fatalf("Read returned duplicate value %s under concurrency", value)
+		}
+		seen[value] = true
+	}
+
+	if len(seen) != total {
+		t.Fatalf("Expected %d unique values, got %d", total, len(seen))
+	}
+
+	if slot.value != int64(total) {
+		t.Fatalf("Expected final value to be %d, got %d", total, slot.value)
+	}
+}
+
+func TestAtomicSlotConcurrentReadsWrapAtMaxInt64(t *testing.T) {
+	slot := loadAtomicSlot(t)
+	slot.value = math.MaxInt64 - 1
+
+	const goroutines = 10
+	var wg sync.WaitGroup
+	results := make([]string, goroutines)
+
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			results[g] = slot.Read()
+		}(g)
+	}
+	wg.Wait()
+
+	// One read must observe MaxInt64, the next must wrap to 0, and the
+	// remaining reads continue from there.
+	seen := make(map[string]bool, goroutines)
+	for _, value := range results {
+		if seen[value] {
+			t.Fatalf("Read returned duplicate value %s while wrapping", value)
+		}
+		seen[value] = true
+	}
+
+	if !seen[strconv.FormatInt(math.MaxInt64, 10)] {
+		t.Fatalf("Expected one read to return MaxInt64, got %v", results)
+	}
+
+	if !seen["0"] {
+		t.Fatalf("Expected one read to wrap to 0, got %v", results)
+	}
+
+	if slot.value != int64(goroutines)-2 {
+		t.Fatalf("Expected final value to be %d after wrapping, got %d", goroutines-2, slot.value)
 	}
 }
