@@ -8,6 +8,10 @@ BUILD_DIR ?= $(CURDIR)/dist
 GO_BIN ?= $(shell go env GOPATH)/bin
 GO_PACKAGES := $(shell go list ./... | grep -vE "vendor")
 
+# Defaults for the `test-race` target
+RACE_COUNT ?= 3
+RACE_PACKAGES ?= $(GO_PACKAGES)
+
 # Colors for the printf
 RESET = $(shell tput sgr0)
 COLOR_WHITE = $(shell tput setaf 7)
@@ -67,7 +71,7 @@ lint: $(GO_BIN)/golangci-lint ## Lint Go source files
 #-----------------------------------------------------------------------------------------------------------------------
 # Tests
 #-----------------------------------------------------------------------------------------------------------------------
-.PHONY: test generate-mocks
+.PHONY: test test-race generate-mocks
 
 test: generate-mocks ## Run all tests. To run a specific test, pass the FILTER var. Usage `make test FILTER="TestCheckLogs"`
 	# To skip integration tests, define SHORT. Usage `make test SHORT=1`
@@ -94,6 +98,17 @@ else
 endif
 	@cat coverageunit.tmp.out | grep -v "mock" > coverageunit.out
 	@rm coverageunit.tmp.out
+
+test-race: generate-mocks ## Run tests repeatedly under the race detector. Override RACE_COUNT, RACE_PACKAGES or FILTER. Usage `make test-race RACE_PACKAGES=./internal/slots/`
+	# Repeated runs give the detector more interleavings to observe than the
+	# single pass in `make test`. It only reports races on executed paths, so
+	# a clean run is evidence about coverage, not a proof of safety.
+	${call print, "Running tests under the race detector ($(RACE_COUNT) runs)"}
+	@go test -race \
+			-run "$(FILTER)" \
+			-count=$(RACE_COUNT) \
+			-timeout=10m \
+			$(RACE_PACKAGES)
 
 test-bench: generate-mocks ## Run benchmark tests. See https://pkg.go.dev/cmd/go#hdr-Testing_flags
 	${call print, "Running benchmark tests"}

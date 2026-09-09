@@ -17,8 +17,8 @@ type atomicSlot struct {
 }
 
 func (a *atomicSlot) Read() string {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
 	if math.MaxInt64 == a.value {
 		a.value = 0
