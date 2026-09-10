@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/errs"
 	"github.com/dankomiocevic/ghoti/internal/telemetry"
 )
@@ -158,19 +157,7 @@ func (c *TCPManager) Add(conn net.Conn, bufferSize int) Connection {
 	//TODO: Add this to config
 	timeoutDuration := 200 * time.Millisecond
 
-	buf := make([]byte, bufferSize)
-	connection := Connection{
-		ID:          id,
-		Quit:        make(chan interface{}),
-		Events:      make(chan Event, 128),
-		NetworkConn: conn,
-		LoggedUser:  auth.User{},
-		Username:    "",
-		IsLogged:    false,
-		Callback:    make(chan string),
-		Buffer:      buf,
-		Timeout:     timeoutDuration,
-	}
+	connection := NewConnection(id, conn, bufferSize, timeoutDuration)
 
 	c.connections[connection.ID] = connection
 	telemetry.IncrConnectedClients()
@@ -232,8 +219,20 @@ func (c *TCPManager) Multicast(data string, targets []net.Conn, timeout time.Dur
 }
 
 func (c *TCPManager) Broadcast(data string) (string, error) {
-	callback := make(chan string, 100)
-	defer close(callback)
+	// Take a snapshot of the connections under the lock: iterating the map
+	// directly races with the connections being added and removed as clients
+	// come and go.
+	c.lock.RLock()
+	connections := make([]Connection, 0, len(c.connections))
+	for _, conn := range c.connections {
+		connections = append(connections, conn)
+	}
+	c.lock.RUnlock()
+
+	// The callback channel has room for every response and is never closed:
+	// the event processors may answer late, after this deadline is over, and
+	// they must never block or send on a closed channel.
+	callback := make(chan string, len(connections))
 	dataBytes := []byte(data)
 
 	eventID := uuid.NewString()
@@ -248,47 +247,34 @@ func (c *TCPManager) Broadcast(data string) (string, error) {
 	received := 0
 	errors := 0
 
-	// Fix the concurrency issue here with range when removing connections on
-	// another goroutine
-	for _, conn := range c.connections {
-		select {
-		case conn.Events <- event:
-			sent++
-		default:
-			sent++
+	for _, conn := range connections {
+		sent++
+		if !conn.Enqueue(event) {
 			errors++
-		}
-
-		if sent-received-errors > 90 {
-			for sent-received-errors > 50 {
-				// Start consuming messages from the callback channel that might be ready
-				select {
-				case response := <-callback:
-					if response == eventID+" OK" {
-						received++
-					} else {
-						errors++
-					}
-				default:
-				}
-			}
 		}
 	}
 
-	// Get the time 200 ms in the future
-	timeout := time.Now().Add(200 * time.Millisecond)
+	// A single timer for the whole wait: time.After inside the loop would
+	// allocate one throwaway timer per response, and keep every one of them
+	// alive until the deadline passes.
+	timer := time.NewTimer(200 * time.Millisecond)
+	defer timer.Stop()
+	okResponse := eventID + " OK"
 
 	// Wait for all the missing responses
 outerLoop:
 	for received+errors < sent {
 		select {
 		case response := <-callback:
-			if response == eventID+" OK" {
+			if response == okResponse {
 				received++
 			} else {
 				errors++
 			}
-		case <-time.After(time.Until(timeout)):
+		case <-timer.C:
+			// Deliveries we never got confirmation for are failures, not
+			// silent successes.
+			errors = sent - received
 			break outerLoop
 		}
 	}

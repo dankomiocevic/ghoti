@@ -203,8 +203,17 @@ func (h *HTTPManager) Delete(id string) {
 
 // Broadcast sends data to all registered SSE subscriber connections.
 func (h *HTTPManager) Broadcast(data string) (string, error) {
-	callback := make(chan string, 100)
-	defer close(callback)
+	h.lock.RLock()
+	connections := make([]Connection, 0, len(h.connections))
+	for _, conn := range h.connections {
+		connections = append(connections, conn)
+	}
+	h.lock.RUnlock()
+
+	// The callback channel has room for every response and is never closed:
+	// the event processors may answer late, after this deadline is over, and
+	// they must never block or send on a closed channel.
+	callback := make(chan string, len(connections))
 	dataBytes := []byte(data)
 
 	eventID := uuid.NewString()
@@ -215,38 +224,37 @@ func (h *HTTPManager) Broadcast(data string) (string, error) {
 		timeout:  time.Now().Add(200 * time.Millisecond),
 	}
 
-	h.lock.RLock()
-	connections := make([]Connection, 0, len(h.connections))
-	for _, conn := range h.connections {
-		connections = append(connections, conn)
-	}
-	h.lock.RUnlock()
-
 	sent := 0
 	received := 0
 	errors := 0
 
 	for _, conn := range connections {
-		select {
-		case conn.Events <- event:
-			sent++
-		default:
-			sent++
+		sent++
+		if !conn.Enqueue(event) {
 			errors++
 		}
 	}
 
-	timeout := time.Now().Add(200 * time.Millisecond)
+	// A single timer for the whole wait: time.After inside the loop would
+	// allocate one throwaway timer per response, and keep every one of them
+	// alive until the deadline passes.
+	timer := time.NewTimer(200 * time.Millisecond)
+	defer timer.Stop()
+	okResponse := eventID + " OK"
+
 outerLoop:
 	for received+errors < sent {
 		select {
 		case response := <-callback:
-			if response == eventID+" OK" {
+			if response == okResponse {
 				received++
 			} else {
 				errors++
 			}
-		case <-time.After(time.Until(timeout)):
+		case <-timer.C:
+			// Deliveries we never got confirmation for are failures, not
+			// silent successes.
+			errors = sent - received
 			break outerLoop
 		}
 	}
@@ -269,16 +277,7 @@ func (h *HTTPManager) Multicast(data string, targets []net.Conn, timeout time.Du
 
 // createConnection builds a Connection wrapping the provided net.Conn.
 func (h *HTTPManager) createConnection(nc net.Conn) Connection {
-	return Connection{
-		ID:          uuid.New().String(),
-		Quit:        make(chan interface{}),
-		Events:      make(chan Event, 128),
-		NetworkConn: nc,
-		LoggedUser:  auth.User{},
-		Callback:    make(chan string),
-		Buffer:      make([]byte, 41),
-		Timeout:     200 * time.Millisecond,
-	}
+	return NewConnection(uuid.New().String(), nc, 41, 200*time.Millisecond)
 }
 
 // addSSEConnection registers an SSE connection in the broadcast map.

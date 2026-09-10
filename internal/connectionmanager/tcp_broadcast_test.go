@@ -18,7 +18,7 @@ func (c *TestConn) Read(b []byte) (n int, err error) {
 }
 
 func (c *TestConn) Write(b []byte) (n int, err error) {
-	return 0, nil
+	return len(b), nil
 }
 
 func (c *TestConn) Close() error {
