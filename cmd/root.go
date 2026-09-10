@@ -9,12 +9,17 @@ import (
 )
 
 // NewRootCommand enables all children commands to read flags from CLI flags, environment variables prefixed with GHOTI, or config.yaml (in that order).
+//
+// The key replacer maps both dashes and dots to underscores so that nested
+// configuration keys can be set from the environment: cluster.pass is read
+// from GHOTI_CLUSTER_PASS. This is what allows a credential to be injected at
+// runtime instead of being written into a configuration file.
 func NewRootCommand() *cobra.Command {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 
 	viper.SetEnvPrefix("GHOTI")
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 	viper.AutomaticEnv()
 
 	configPaths := []string{"/etc/ghoti", "$HOME/.ghoti", "."}

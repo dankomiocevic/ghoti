@@ -456,7 +456,15 @@ send   > pmy_password
 receive< vmy_service
 ```
 
-The server will respond with the `v` value returning the username of the logged in user or `e` if there is an error. It is recommended using this feature only through a secure connection, on a very secure network or through TTL because the passwords will not be encoded.
+The server will respond with the `v` value returning the username of the logged in user or `e` if there is an error.
+
+> **The password travels as cleartext.** Ghoti does not implement TLS on any
+> of its listeners, so the `p` command sends the password in the clear and
+> anybody observing the traffic can read it. Terminate TLS in a reverse proxy
+> in front of the server, or keep the traffic on loopback or an equivalent
+> trusted transport. See [SECURITY.md](SECURITY.md) for the full security
+> model and for how to inject credentials from the environment instead of
+> committing them to a configuration file.
 
 Now, all the interactions with the server will be throught the autenticated user.
 

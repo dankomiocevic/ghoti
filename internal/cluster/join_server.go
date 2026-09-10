@@ -101,11 +101,12 @@ func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 	user, pass, _ := r.BasicAuth()
 
 	if user != s.user || pass != s.pass {
+		// Never log the supplied or the configured credentials here: this
+		// line can be triggered by anybody able to reach the endpoint, so
+		// logging them would hand the shared cluster secret to every reader
+		// of the logs. The remote address is enough to chase the caller.
 		slog.Warn("Request to join with wrong username/password",
-			"user", user,
-			"pass", pass,
-			"s_user", s.user,
-			"s_pass", s.pass,
+			slog.String("remote_addr", r.RemoteAddr),
 		)
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -204,7 +205,9 @@ func (s *joinServer) handleRemove(w http.ResponseWriter, r *http.Request) {
 
 	user, pass, _ := r.BasicAuth()
 	if user != s.user || pass != s.pass {
-		slog.Warn("Request to remove with wrong username/password")
+		slog.Warn("Request to remove with wrong username/password",
+			slog.String("remote_addr", r.RemoteAddr),
+		)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

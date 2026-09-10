@@ -23,3 +23,22 @@ go.work
 
 # Buids
 dist/
+
+# Credentials and keys. A secret that reaches the history has to be treated
+# as compromised and rotated, removing it from the history is not enough.
+*.pem
+*.key
+*.p12
+*.pfx
+*_rsa
+*_ed25519
+
+# Local configuration, it usually carries user and cluster passwords.
+# config.yaml is tracked as an example, keep real credentials out of it and
+# put them in the environment or in a config file outside the repository.
+config.tmp
+config_full.yaml
+config_local.*
+config.local.*
+.env
+.env.*

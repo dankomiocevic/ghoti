@@ -35,7 +35,7 @@ func TestClusterFail(t *testing.T) {
 	viper.SetConfigType("yaml")
 
 	viper.SetEnvPrefix("GHOTI")
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 	viper.AutomaticEnv()
 
 	configPaths := []string{"/etc/ghoti", "$HOME/.ghoti", ".", "../.."}

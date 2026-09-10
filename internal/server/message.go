@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 )
 
@@ -56,6 +57,24 @@ func parseSlot(digits string) (int, error) {
 	return slot, nil
 }
 
+// credentialCommands are the commands that carry a credential as their
+// value. Their argument must never reach the logs.
+var credentialCommands = map[byte]bool{
+	'u': true,
+	'p': true,
+}
+
+// redactCredentials returns a representation of the message that is safe to
+// log. Commands carrying a credential keep the command byte and the length of
+// the value, so a malformed message can still be diagnosed, but the value
+// itself is replaced. Every other command is returned untouched.
+func redactCredentials(command byte, input string) string {
+	if !credentialCommands[command] {
+		return input
+	}
+	return fmt.Sprintf("%c<redacted:%d bytes>", command, len(input)-1)
+}
+
 func ParseMessage(size int, buf []byte) (Message, error) {
 	if size < 0 || size > len(buf) {
 		return Message{}, errors.New("invalid message size")
@@ -67,7 +86,7 @@ func ParseMessage(size int, buf []byte) (Message, error) {
 	}
 
 	command := input[0]
-	slog.Debug("Message received", slog.String("input", input))
+	slog.Debug("Message received", slog.String("input", redactCredentials(command, input)))
 
 	if command == 'q' {
 		if len(input) > 1 {
