@@ -133,6 +133,34 @@ func TestConnectionSendEventUnknownResponse(t *testing.T) {
 }
 
 // TestBatchingSingleEvent tests that a single event is sent immediately.
+// TestConnectionSendEventIgnoresStaleCallback verifies that a response left
+// behind by an event we already gave up on is not mistaken for the answer to
+// the current one.
+func TestConnectionSendEventIgnoresStaleCallback(t *testing.T) {
+	conn := NewConnection(uuid.NewString(), &MockConnection{}, 1024, 200*time.Millisecond)
+	go conn.EventProcessor()
+	defer conn.Close()
+
+	// A response nobody is waiting for anymore.
+	conn.Callback <- uuid.NewString() + " OK"
+
+	if err := conn.SendEvent("test_data"); err != nil {
+		t.Fatalf("Error should not be returned for successful event: %s", err)
+	}
+}
+
+// TestConnectionSendEventCallbackTimeout covers the deadline that applies when
+// nothing ever answers the event.
+func TestConnectionSendEventCallbackTimeout(t *testing.T) {
+	// No event processor is running, so the event is never answered.
+	conn := loadConnection(t)
+
+	err := conn.SendEvent("test_data")
+	if err == nil || err.Error() != "Timeout waiting for callback" {
+		t.Fatalf("Timeout error should be returned when nothing answers: %s", err)
+	}
+}
+
 func TestBatchingSingleEvent(t *testing.T) {
 	conn := loadConnection(t)
 	go conn.EventProcessor()

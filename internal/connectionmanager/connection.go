@@ -304,7 +304,7 @@ func (c *Connection) sendBatchedEvents(events []Event) {
 }
 
 // writeFull writes the whole buffer, retrying while the connection keeps
-// making progress. net.Conn.Write can report a partial write, on a deadline
+// making progress. Then, net.Conn.Write can report a partial write, on a deadline
 // for example, so the returned count cannot be ignored: a short write is a
 // truncated event, not a delivered one.
 func writeFull(conn net.Conn, data []byte) error {
