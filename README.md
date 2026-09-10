@@ -295,8 +295,9 @@ slot_003:
 
 ### Broadcast signal propagation
 
-Anything sent to this slot is propagated as a message to every connected client, including the one that wrote it. Any client connected to Ghoti at this point will receive the event at least once.
-This means that the message could be received more than once.
+Anything sent to this slot is propagated as a message to every connected client, including the one that wrote it. Delivery is at most once: the server makes a single attempt per client and does not retry the ones that fail, so a client that is slow, disconnecting or whose queue is full will miss the event. Like the ephemeral Pub/Sub in Redis or Core NATS, this slot is not a durable queue and gives no delivery guarantee.
+
+The response to the write reports the outcome of the attempt as `received/sent/errors`, so the writer can tell how many clients confirmed the event.
 
 The message is sent as an async event, the receiving client will receive the message at any time.
 The message format is the following:

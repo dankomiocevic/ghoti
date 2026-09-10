@@ -57,10 +57,9 @@ func multicastToConnections(connections []Connection, targets []net.Conn, data s
 		}
 
 		result.Sent++
-		select {
-		case conn.Events <- event:
+		if conn.Enqueue(event) {
 			events[eventID] = conn.NetworkConn
-		default:
+		} else {
 			result.Errors++
 			result.Failed = append(result.Failed, conn.NetworkConn)
 		}
@@ -73,6 +72,12 @@ func multicastToConnections(connections []Connection, targets []net.Conn, data s
 		result.Errors++
 		result.Failed = append(result.Failed, target)
 	}
+
+	// A single timer for the whole wait: time.After inside the loop would
+	// allocate one throwaway timer per response, and keep every one of them
+	// alive until the deadline passes.
+	timer := time.NewTimer(time.Until(deadline))
+	defer timer.Stop()
 
 	for len(events) > 0 {
 		select {
@@ -94,7 +99,7 @@ func multicastToConnections(connections []Connection, targets []net.Conn, data s
 				result.Errors++
 				result.Failed = append(result.Failed, conn)
 			}
-		case <-time.After(time.Until(deadline)):
+		case <-timer.C:
 			for _, conn := range events {
 				result.Errors++
 				result.Failed = append(result.Failed, conn)
