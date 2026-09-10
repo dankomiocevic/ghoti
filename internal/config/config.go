@@ -15,7 +15,7 @@ import (
 
 var SupportedLogLevels = map[string]slog.Level{
 	"debug": slog.LevelDebug,
-	"info":  slog.LevelDebug,
+	"info":  slog.LevelInfo,
 	"warn":  slog.LevelWarn,
 	"error": slog.LevelError,
 }

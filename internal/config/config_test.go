@@ -33,7 +33,7 @@ func resetViper(t *testing.T, data string) {
 	viper.SetConfigType("yaml")
 
 	viper.SetEnvPrefix("GHOTI")
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 	viper.AutomaticEnv()
 
 	viper.AddConfigPath("/etc/ghoti")
