@@ -68,11 +68,14 @@ func TestParseMessageStillLogsNonCredentialCommands(t *testing.T) {
 // A password sent before the connection is authenticated is still a
 // credential, the redaction must not depend on the message being valid.
 func TestParseMessageDoesNotLogPasswordOnMalformedInput(t *testing.T) {
-	const password = "sh0rt"
+	// Two bytes is below minMessageSize, so the parser rejects the message.
+	const password = "xy"
 
 	output := captureLogs(t, func() {
 		input := "p" + password
-		ParseMessage(len(input), []byte(input))
+		if _, err := ParseMessage(len(input), []byte(input)); err == nil {
+			t.Fatal("expected an error for a message shorter than minMessageSize")
+		}
 	})
 
 	if strings.Contains(output, password) {
