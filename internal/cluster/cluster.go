@@ -11,7 +11,7 @@ import (
 
 type Cluster interface {
 	Start() error
-	Join(string, string) error
+	Join(string, string) (bool, error)
 	Remove(string) error
 	IsLeader() bool
 	GetLeader() string
@@ -90,9 +90,23 @@ func (c *BullyCluster) GetLeader() string {
 	return c.leader
 }
 
-func (c *BullyCluster) Join(nodeID, addr string) error {
+// Join adds a peer to the cluster membership.
+//
+// It reports whether the membership actually changed, which is what stops
+// join notifications from circulating forever: peers forward a join to each
+// other, so a node that has already recorded the peer must stay quiet instead
+// of reflecting the notification back to the sender.
+func (c *BullyCluster) Join(nodeID, addr string) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	if current, ok := c.peers[nodeID]; ok && current == addr {
+		slog.Debug("Peer already known, ignoring join",
+			slog.String("node_id", nodeID),
+			slog.String("addr", addr),
+		)
+		return false, nil
+	}
 
 	slog.Info("Adding peer to cluster",
 		slog.String("node_id", nodeID),
@@ -100,7 +114,7 @@ func (c *BullyCluster) Join(nodeID, addr string) error {
 	)
 
 	c.peers[nodeID] = addr
-	return nil
+	return true, nil
 }
 
 func (c *BullyCluster) Remove(nodeID string) error {
