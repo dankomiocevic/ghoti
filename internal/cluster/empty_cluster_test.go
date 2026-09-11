@@ -12,9 +12,12 @@ func TestEmptyCluster(t *testing.T) {
 		t.Fatalf("Method Start should always return nil")
 	}
 
-	err = c.Join("", "")
+	changed, err := c.Join("", "")
 	if err != nil {
 		t.Fatalf("Method Join should always return nil")
+	}
+	if changed {
+		t.Fatalf("Method Join should never report a membership change")
 	}
 
 	err = c.Remove("")

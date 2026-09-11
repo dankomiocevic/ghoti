@@ -11,8 +11,8 @@ func (c *EmptyCluster) Start() error {
 	return nil
 }
 
-func (c *EmptyCluster) Join(a, b string) error {
-	return nil
+func (c *EmptyCluster) Join(a, b string) (bool, error) {
+	return false, nil
 }
 
 func (c *EmptyCluster) Remove(a string) error {

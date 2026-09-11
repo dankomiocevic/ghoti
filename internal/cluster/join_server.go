@@ -9,7 +9,14 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
+	"time"
 )
+
+// peerNotifyTimeout bounds every request this node makes to a peer join
+// endpoint. Without it a peer that accepts the connection and never answers
+// pins the calling goroutine forever.
+const peerNotifyTimeout = 5 * time.Second
 
 type joinServer struct {
 	addr    string
@@ -23,6 +30,13 @@ type joinServer struct {
 	ln            net.Listener
 	server        *http.Server
 	wg            sync.WaitGroup
+	joinRequests  atomic.Uint64
+}
+
+// JoinRequestCount returns the number of authenticated join requests this
+// node has served since it started.
+func (s *joinServer) JoinRequestCount() uint64 {
+	return s.joinRequests.Load()
 }
 
 func (s *joinServer) Start() error {
@@ -41,7 +55,9 @@ func (s *joinServer) Start() error {
 
 		for id, addr := range peers {
 			if id != s.nodeID {
-				s.cluster.Join(id, addr)
+				if _, err := s.cluster.Join(id, addr); err != nil {
+					return err
+				}
 			}
 		}
 		s.cluster.SetLeader(leader)
@@ -112,6 +128,8 @@ func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.joinRequests.Add(1)
+
 	m := map[string]string{}
 	if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
 		slog.Debug("JSON request cannot be decoded")
@@ -139,7 +157,7 @@ func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := s.cluster.Join(nodeID, remoteAddr)
+	changed, err := s.cluster.Join(nodeID, remoteAddr)
 	if err != nil {
 		slog.Warn("Error joining cluster",
 			slog.Any("error", err),
@@ -160,13 +178,20 @@ func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 
+	if !changed {
+		slog.Debug("Join for an already known peer, not notifying other peers",
+			slog.String("node_id", nodeID),
+		)
+		return
+	}
+
 	// Notify existing peers about the new node
 	go s.notifyPeersOfNewNode(nodeID, remoteAddr)
 }
 
 func (s *joinServer) notifyPeersOfNewNode(newNodeID, newNodeAddr string) {
 	peers := s.cluster.GetPeers()
-	client := &http.Client{}
+	client := &http.Client{Timeout: peerNotifyTimeout}
 
 	for id, addr := range peers {
 		if id == newNodeID || id == s.nodeID {
@@ -339,7 +364,7 @@ func requestToJoin(joinAddr, managerAddr, nodeID, user, pass string) (map[string
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(user, pass)
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: peerNotifyTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, "", err
