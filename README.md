@@ -238,6 +238,7 @@ This limiter uses the classic token bucket approach to control the rate of event
 This can be used for example by a distributed fleet of API servers, allowing them to centralize the rate limit for the calls.
 
 The token bucket approach adds a certain number of tokens per period (for example a second), to a bucket. Applications can take tokens from the bucket. After the tokens are depleted, it won't return any more tokens until the next period is reached.
+Tokens keep accumulating while the bucket is idle: if several periods go by without any request, `refresh_rate` tokens are credited for each one of them, up to `bucket_size`. The bucket starts with `refresh_rate` tokens (one period's worth), not a full bucket.
 
 For example, let's say we have an API that provides 100 requests per second, and we also want to allow the application to allow brief spikes in traffic up to 2x the maximum amount.
 In this case we can configure our slot with the following:
