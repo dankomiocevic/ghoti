@@ -128,6 +128,7 @@ type HTTPManager struct {
 	lock          sync.RWMutex
 	connections   map[string]Connection
 	httpServer    *http.Server
+	listener      net.Listener
 	wg            sync.WaitGroup
 	quit          chan interface{}
 	callback      CallbackFn
@@ -157,15 +158,24 @@ func (h *HTTPManager) SetStreamChecker(fn func(int) bool) {
 }
 
 func (h *HTTPManager) GetAddr() string {
-	if h.httpServer != nil {
-		return h.httpServer.Addr
+	if h.listener != nil {
+		return h.listener.Addr().String()
 	}
 	return ""
 }
 
+// StartListening binds the address right away, like the TCP manager does,
+// so an address that cannot be bound is reported here instead of failing
+// later inside the serving goroutine.
 func (h *HTTPManager) StartListening(addr string) error {
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", h.handleSlot)
+	h.listener = l
 	h.httpServer = &http.Server{
 		Addr:    addr,
 		Handler: mux,
@@ -174,8 +184,12 @@ func (h *HTTPManager) StartListening(addr string) error {
 }
 
 func (h *HTTPManager) ServeConnections(callback CallbackFn) error {
+	if h.listener == nil {
+		return ErrNotListening
+	}
+
 	h.callback = callback
-	err := h.httpServer.ListenAndServe()
+	err := h.httpServer.Serve(h.listener)
 	if err != nil && err != http.ErrServerClosed {
 		return err
 	}

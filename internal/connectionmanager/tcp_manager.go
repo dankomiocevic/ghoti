@@ -1,6 +1,7 @@
 package connectionmanager
 
 import (
+	"errors"
 	"log/slog"
 	"net"
 	"strconv"
@@ -13,6 +14,10 @@ import (
 	"github.com/dankomiocevic/ghoti/internal/errs"
 	"github.com/dankomiocevic/ghoti/internal/telemetry"
 )
+
+// ErrNotListening is returned when connections are served before the
+// listener was successfully opened with StartListening.
+var ErrNotListening = errors.New("connection manager is not listening")
 
 type TCPManager struct {
 	lock        sync.RWMutex
@@ -45,6 +50,10 @@ func (c *TCPManager) StartListening(tcpAddr string) error {
 }
 
 func (c *TCPManager) ServeConnections(callback CallbackFn) error {
+	if c.listener == nil {
+		return ErrNotListening
+	}
+
 	for {
 		conn, err := c.listener.Accept()
 		if err != nil {
@@ -184,8 +193,11 @@ func (c *TCPManager) Delete(id string) {
 func (c *TCPManager) Close() {
 	close(c.quit)
 
-	slog.Debug("Closing listener")
-	c.listener.Close()
+	// The listener is nil when StartListening failed or was never called.
+	if c.listener != nil {
+		slog.Debug("Closing listener")
+		c.listener.Close()
+	}
 
 	c.lock.Lock()
 	conns := make([]Connection, 0, len(c.connections))

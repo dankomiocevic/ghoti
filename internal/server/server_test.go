@@ -3,10 +3,8 @@ package server
 import (
 	"bufio"
 	"io"
-	"math/rand/v2"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -70,15 +68,18 @@ func generateConfig(port string) *config.Config {
 }
 
 func runServer(t *testing.T) (*Server, net.Conn) {
-	port := "9" + strconv.Itoa(rand.IntN(899)+100)
-	// start the TCP Server
-	s := NewServer(generateConfig(port), cluster.NewEmptyCluster())
+	// Port 0 lets the OS pick a free port, so tests never collide with each
+	// other or with whatever else is listening on the machine.
+	s, err := NewServer(generateConfig("0"), cluster.NewEmptyCluster())
+	if err != nil {
+		t.Fatalf("couldn't start the server: %v", err)
+	}
 
 	// wait for the TCP Server to start
 	time.Sleep(time.Duration(100) * time.Millisecond)
 
 	// connect to the TCP Server
-	conn, err := net.Dial("tcp", ":"+port)
+	conn, err := net.Dial("tcp", s.connections.GetAddr())
 	if err != nil {
 		t.Fatalf("couldn't connect to the server: %v", err)
 	}
@@ -94,13 +95,15 @@ func runHTTPServer(t *testing.T) (*Server, string) {
 	viper.Set("protocol", "http")
 	t.Cleanup(func() { viper.Set("protocol", "standard") })
 
-	port := "9" + strconv.Itoa(rand.IntN(899)+100)
-	s := NewServer(generateConfig(port), cluster.NewEmptyCluster())
+	s, err := NewServer(generateConfig("0"), cluster.NewEmptyCluster())
+	if err != nil {
+		t.Fatalf("couldn't start the server: %v", err)
+	}
 
 	// wait for the HTTP server to start
 	time.Sleep(time.Duration(100) * time.Millisecond)
 
-	return s, "http://localhost:" + port
+	return s, "http://" + s.connections.GetAddr()
 }
 
 func sendData(t *testing.T, conn net.Conn, data string) string {
@@ -806,5 +809,38 @@ func TestReadWithCarriageReturnOnStandardIsRejected(t *testing.T) {
 	response := sendData(t, conn, "r000\r\n")
 	if !strings.HasPrefix(response, "e") {
 		t.Fatalf("unexpected server response: %s", response)
+	}
+}
+
+// A server whose address is already taken must report the failure instead
+// of spawning a serving goroutine over a nil listener, which used to crash
+// the whole process with a nil pointer dereference.
+func TestNewServerFailsWhenAddressInUse(t *testing.T) {
+	for _, protocol := range []string{"standard", "telnet", "http"} {
+		t.Run(protocol, func(t *testing.T) {
+			viper.Set("protocol", protocol)
+			t.Cleanup(func() { viper.Set("protocol", "standard") })
+
+			// Occupy a port so the server is guaranteed to fail binding it.
+			l, err := net.Listen("tcp", "localhost:0")
+			if err != nil {
+				t.Fatalf("couldn't open the blocking listener: %v", err)
+			}
+			defer l.Close()
+			_, port, _ := net.SplitHostPort(l.Addr().String())
+
+			s, err := NewServer(generateConfig(port), cluster.NewEmptyCluster())
+			if err == nil {
+				s.Stop()
+				t.Fatalf("expected an error when the address is already in use")
+			}
+			if s != nil {
+				t.Fatalf("expected a nil server on failure, got %v", s)
+			}
+
+			// Give a wrongly spawned ServeConnections goroutine the chance to
+			// panic before the test ends.
+			time.Sleep(50 * time.Millisecond)
+		})
 	}
 }
