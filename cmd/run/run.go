@@ -92,7 +92,13 @@ func runWithExit(e ExitControl) {
 		go telemetry.Run(config.Metrics, metricsStop)
 	}
 
-	s := server.NewServer(config, clus)
+	s, err := server.NewServer(config, clus)
+	if err != nil {
+		slog.Error("Error starting server",
+			slog.Any("error", err))
+		e.Exit(4)
+		return
+	}
 	defer s.Stop()
 
 	done := make(chan os.Signal, 1)

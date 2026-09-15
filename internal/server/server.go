@@ -22,7 +22,11 @@ type Server struct {
 	cluster     cluster.Cluster
 }
 
-func NewServer(config *config.Config, cluster cluster.Cluster) *Server {
+// NewServer binds the configured address and starts serving connections in
+// the background. It returns an error, and no server, when the address
+// cannot be bound: serving must never start over a listener that was never
+// created.
+func NewServer(config *config.Config, cluster cluster.Cluster) (*Server, error) {
 	s := &Server{
 		cluster: cluster,
 	}
@@ -31,7 +35,9 @@ func NewServer(config *config.Config, cluster cluster.Cluster) *Server {
 	slog.Debug("Opening tcp for listening", slog.String("tcp", config.TCPAddr))
 
 	s.connections = config.Connections
-	s.connections.StartListening(config.TCPAddr)
+	if err := s.connections.StartListening(config.TCPAddr); err != nil {
+		return nil, fmt.Errorf("listening on %s: %w", config.TCPAddr, err)
+	}
 
 	s.slotsArray = config.Slots
 	s.usersMap = config.Users
@@ -46,7 +52,7 @@ func NewServer(config *config.Config, cluster cluster.Cluster) *Server {
 	}
 
 	go s.connections.ServeConnections(s.HandleMessage)
-	return s
+	return s, nil
 }
 
 func (s *Server) Stop() {

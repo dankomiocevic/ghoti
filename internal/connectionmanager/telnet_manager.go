@@ -28,6 +28,10 @@ func (m *TelnetManager) StartListening(tcpAddr string) error {
 
 func (m *TelnetManager) ServeConnections(callback CallbackFn) error {
 	c := m.tcpManager
+	if c.listener == nil {
+		return ErrNotListening
+	}
+
 	for {
 		conn, err := c.listener.Accept()
 		if err != nil {
