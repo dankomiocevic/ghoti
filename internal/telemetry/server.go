@@ -22,8 +22,9 @@ type Config struct {
 	Addr string
 }
 
-// shutdownTimeout bounds how long Stop waits for in-flight scrapes.
-const shutdownTimeout = 5 * time.Second
+// shutdownTimeout bounds how long Stop waits for in-flight scrapes. It is a
+// variable so tests can shorten it.
+var shutdownTimeout = 5 * time.Second
 
 // Server serves GET /metrics on a dedicated HTTP listener.
 type Server struct {

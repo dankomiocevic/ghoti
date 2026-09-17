@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -88,4 +89,69 @@ func TestServerStopReleasesListener(t *testing.T) {
 func TestServerStopWithoutStartDoesNotPanic(t *testing.T) {
 	srv := NewServer(Config{Enabled: true, Addr: "127.0.0.1:0"})
 	srv.Stop()
+}
+
+func TestServerAddrIsEmptyBeforeStart(t *testing.T) {
+	srv := NewServer(Config{Enabled: true, Addr: "127.0.0.1:0"})
+	if addr := srv.Addr(); addr != "" {
+		t.Errorf("expected empty addr before Start, got %q", addr)
+	}
+}
+
+func TestServerStopReturnsAfterListenerFailure(t *testing.T) {
+	resetGlobal()
+	srv := NewServer(Config{Enabled: true, Addr: "127.0.0.1:0"})
+	if err := srv.Start(); err != nil {
+		t.Fatalf("failed to start metrics server: %s", err)
+	}
+
+	// Kill the listener underneath the server, as the OS would on an
+	// interface going away, and wait for the serving goroutine to notice.
+	srv.ln.Close()
+	srv.wg.Wait()
+
+	done := make(chan struct{})
+	go func() {
+		srv.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(shutdownTimeout + time.Second):
+		t.Fatalf("Stop hung after the listener failed")
+	}
+}
+
+func TestServerStopDoesNotWaitForeverOnStuckClient(t *testing.T) {
+	resetGlobal()
+
+	prev := shutdownTimeout
+	shutdownTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { shutdownTimeout = prev })
+
+	srv := NewServer(Config{Enabled: true, Addr: "127.0.0.1:0"})
+	if err := srv.Start(); err != nil {
+		t.Fatalf("failed to start metrics server: %s", err)
+	}
+
+	// A client that connects but never sends a request keeps a connection
+	// open that graceful shutdown cannot drain.
+	conn, err := net.Dial("tcp", srv.Addr())
+	if err != nil {
+		t.Fatalf("failed to connect: %s", err)
+	}
+	defer conn.Close()
+
+	done := make(chan struct{})
+	go func() {
+		srv.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(shutdownTimeout + time.Second):
+		t.Fatalf("Stop hung on a client that never sent a request")
+	}
 }
