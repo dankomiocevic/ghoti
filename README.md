@@ -510,34 +510,46 @@ For example, the slot 003 in the configuration can be accessed by anyone, even i
 
 ## Metrics
 
-Ghoti can optionally collect lightweight runtime metrics (connected clients, requests per second, average request latency) and write them to rotating files in the [Prometheus exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/). Collection uses lock-free atomic counters, so it adds negligible overhead to request handling, and is disabled by default.
+Ghoti can optionally expose runtime metrics for [Prometheus](https://prometheus.io/) to scrape. When enabled, a dedicated HTTP listener serves `GET /metrics` in the Prometheus text exposition format. Instrumentation uses lock-free counters, so it adds negligible overhead to request handling, and is disabled by default.
 
 To enable it, add a `metrics:` section to the configuration:
 
 ```yaml
 metrics:
   enabled: true
-  output_dir: /var/log/ghoti/metrics  # directory where metric files are written
-  rotation: daily                     # "daily" (default) or "hourly"
-  retain: 7                           # number of rotation files to keep (default: 7)
-  interval: 10                        # seconds between metric snapshots (default: 10)
+  addr: "127.0.0.1:9100"   # host:port where GET /metrics is served
 ```
 
 |Config      |Description                                                          |
 |------------|----------------------------------------------------------------------|
-|enabled     |Enables metrics collection and writing. Default: false.               |
-|output_dir  |Directory where metric files are written. Required when enabled.     |
-|rotation    |How often a new file is started: `daily` or `hourly`. Default: `daily`.|
-|retain      |Number of rotation files to keep; older files are deleted. Default: 7.|
-|interval    |Seconds between metric snapshots. Default: 10.                        |
+|enabled     |Enables metrics collection and the `/metrics` endpoint. Default: false.|
+|addr        |Address (`host:port`) the metrics HTTP server listens on. Required when enabled.|
 
-Each snapshot exposes the following metrics:
+The endpoint is unauthenticated, so bind it to a private interface or firewall it as you would any Prometheus target.
 
-|Metric                                     |Description                                                  |
-|--------------------------------------------|--------------------------------------------------------------|
-|`ghoti_connected_clients`                    |Number of currently connected clients (gauge).                |
-|`ghoti_requests_per_second`                  |Requests processed per second over the last interval (gauge).|
-|`ghoti_request_duration_milliseconds`        |Average request duration in milliseconds over the last interval (gauge).|
+Point Prometheus at it with a standard scrape job:
+
+```yaml
+scrape_configs:
+  - job_name: ghoti
+    static_configs:
+      - targets: ["127.0.0.1:9100"]
+```
+
+The following Ghoti-specific metrics are exposed, in addition to the standard Go runtime (`go_*`) and process (`process_*`) collectors:
+
+|Metric                                  |Type      |Description                                                  |
+|-----------------------------------------|----------|--------------------------------------------------------------|
+|`ghoti_connected_clients`                 |gauge     |Number of currently connected clients.                        |
+|`ghoti_requests_total`                    |counter   |Total number of requests processed. Use `rate()` for requests per second.|
+|`ghoti_request_duration_seconds`          |histogram |Request processing duration in seconds, with buckets from 50µs to 1s. Use `histogram_quantile()` for tail latency.|
+
+For example, requests per second and p99 latency over the last five minutes:
+
+```
+rate(ghoti_requests_total[5m])
+histogram_quantile(0.99, rate(ghoti_request_duration_seconds_bucket[5m]))
+```
 
 ## Cluster configuration (Experimental)
 

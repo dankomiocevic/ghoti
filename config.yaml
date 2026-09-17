@@ -7,10 +7,7 @@ log:
 # Metrics are disabled by default. Uncomment and configure to enable.
 #metrics:
 #  enabled: true
-#  output_dir: /var/log/ghoti/metrics  # directory where metric files are written
-#  rotation: daily                      # "daily" (default) or "hourly"
-#  retain: 7                            # number of rotation files to keep (default: 7)
-#  interval: 10                         # seconds between metric snapshots (default: 10)
+#  addr: "127.0.0.1:9100"       # host:port where GET /metrics is served for Prometheus
 
 # Cluster mode is disabled by default. Uncomment and configure to enable.
 #cluster:
