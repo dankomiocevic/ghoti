@@ -482,3 +482,72 @@ cluster:
 		t.Fatalf("cluster leader endpoint must be disabled when not configured")
 	}
 }
+
+func TestMetricsDisabledByDefault(t *testing.T) {
+	resetViper(t, `
+log:
+  level: info
+`)
+
+	config := DefaultConfig()
+	if err := config.LoadMetrics(); err != nil {
+		t.Fatalf("metrics configuration failed to load: %s", err)
+	}
+
+	if config.Metrics.Enabled {
+		t.Fatalf("metrics must be disabled when no metrics section is present")
+	}
+}
+
+func TestMetricsConfig(t *testing.T) {
+	resetViper(t, `
+metrics:
+  enabled: true
+  addr: "127.0.0.1:9100"
+`)
+
+	config := DefaultConfig()
+	if err := config.LoadMetrics(); err != nil {
+		t.Fatalf("metrics configuration failed to load: %s", err)
+	}
+
+	if !config.Metrics.Enabled {
+		t.Fatalf("metrics must be enabled")
+	}
+
+	if config.Metrics.Addr != "127.0.0.1:9100" {
+		t.Fatalf("metrics addr does not match: %s", config.Metrics.Addr)
+	}
+}
+
+func TestMetricsMissingAddr(t *testing.T) {
+	resetViper(t, `
+metrics:
+  enabled: true
+`)
+
+	config := DefaultConfig()
+	if err := config.LoadMetrics(); err == nil {
+		t.Fatalf("metrics.addr must be required when metrics are enabled")
+	}
+}
+
+func TestMetricsRejectsRemovedFileOutputKeys(t *testing.T) {
+	for _, key := range []string{"output_dir", "rotation", "retain", "interval"} {
+		resetViper(t, `
+metrics:
+  enabled: true
+  addr: "127.0.0.1:9100"
+  `+key+`: some_value
+`)
+
+		config := DefaultConfig()
+		err := config.LoadMetrics()
+		if err == nil {
+			t.Fatalf("removed key metrics.%s must be rejected", key)
+		}
+		if !strings.Contains(err.Error(), key) || !strings.Contains(err.Error(), "addr") {
+			t.Fatalf("error for removed key metrics.%s must name the key and point at addr, got: %s", key, err)
+		}
+	}
+}

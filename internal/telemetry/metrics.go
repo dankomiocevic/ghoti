@@ -1,80 +1,99 @@
-// Package telemetry provides a lightweight, lock-free metrics collection system
-// for Ghoti. All counter and gauge operations use atomic primitives so they
-// impose negligible overhead on request-handling goroutines.
+// Package telemetry exposes Ghoti runtime metrics to Prometheus.
 //
-// Metrics are written to rotating files in the Prometheus exposition format
-// (https://prometheus.io/docs/instrumenting/exposition_formats/) by a
-// dedicated background goroutine; the hot-path code only performs atomic
-// add/swap operations.
+// Metrics are registered on a private registry together with the standard Go
+// runtime and process collectors, and served on a dedicated HTTP listener at
+// GET /metrics in the Prometheus text exposition format. All hot-path
+// operations are a single atomic add on a client_golang counter, gauge or
+// histogram, so instrumentation adds negligible overhead to request handling.
 //
 // Usage:
 //
 //	// In main / run command, after loading config:
 //	if cfg.Metrics.Enabled {
-//	    metrics.Enable()
-//	    stop := make(chan struct{})
-//	    go metrics.Run(cfg.Metrics, stop)
-//	    defer close(stop)
+//	    telemetry.Enable()
+//	    srv := telemetry.NewServer(cfg.Metrics)
+//	    if err := srv.Start(); err != nil { ... }
+//	    defer srv.Stop()
 //	}
 //
 //	// In connection manager:
-//	metrics.IncrConnectedClients()
-//	defer metrics.DecrConnectedClients()
+//	telemetry.IncrConnectedClients()
+//	defer telemetry.DecrConnectedClients()
 //
 //	// In request handler:
 //	start := time.Now()
-//	defer func() { metrics.RecordRequest(time.Since(start)) }()
+//	defer func() { telemetry.RecordRequest(time.Since(start)) }()
 package telemetry
 
 import (
+	"net/http"
 	"sync/atomic"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// collector holds all metrics using lock-free atomic operations.
-// The zero value is safe: all operations are no-ops until Enable() is called.
+// requestDurationBuckets covers the latency range of an in-memory server:
+// from tens of microseconds up to a second, so tail latency is visible
+// instead of being flattened into a single average.
+var requestDurationBuckets = []float64{
+	0.00005, 0.0001, 0.00025, 0.0005,
+	0.001, 0.0025, 0.005, 0.01,
+	0.025, 0.05, 0.1, 0.25, 0.5, 1,
+}
+
+// collector owns the registry and every Ghoti metric. The zero value is not
+// usable; create one with newCollector.
 type collector struct {
 	// enabled is an atomic boolean (0 = disabled, 1 = enabled).
 	// Checked on every metric call so disabled metrics cost only one
 	// atomic load per call site.
 	enabled int32
 
-	// connectedClients is a gauge: incremented on connect, decremented on disconnect.
-	connectedClients atomic.Int64
+	registry *prometheus.Registry
 
-	// The following three are interval accumulators reset on each snapshot.
+	connectedClients prometheus.Gauge
+	requestsTotal    prometheus.Counter
+	requestDuration  prometheus.Histogram
+}
 
-	// requestCount counts requests since the last snapshot.
-	requestCount atomic.Uint64
+// newCollector builds a collector with all Ghoti metrics plus the standard
+// Go runtime and process collectors registered on a fresh registry.
+func newCollector() *collector {
+	c := &collector{
+		registry: prometheus.NewRegistry(),
+		connectedClients: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "ghoti_connected_clients",
+			Help: "Number of currently connected clients.",
+		}),
+		requestsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "ghoti_requests_total",
+			Help: "Total number of requests processed.",
+		}),
+		requestDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "ghoti_request_duration_seconds",
+			Help:    "Request processing duration in seconds.",
+			Buckets: requestDurationBuckets,
+		}),
+	}
 
-	// latencyNsSum is the sum of request durations in nanoseconds since the last snapshot.
-	latencyNsSum atomic.Int64
+	c.registry.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		c.connectedClients,
+		c.requestsTotal,
+		c.requestDuration,
+	)
 
-	// latencyCount is the number of latency samples since the last snapshot.
-	latencyCount atomic.Uint64
+	return c
 }
 
 // global is the package-level singleton collector.
-var global collector
+var global = newCollector()
 
-// Snapshot holds a point-in-time reading of all metrics.
-type Snapshot struct {
-	// Timestamp is when the snapshot was taken.
-	Timestamp time.Time
-
-	// ConnectedClients is the number of clients connected at snapshot time.
-	ConnectedClients int64
-
-	// RequestsPerSecond is the observed request rate over the last interval.
-	RequestsPerSecond float64
-
-	// AvgLatencyMs is the mean request duration in milliseconds over the last interval.
-	// Zero means no requests were recorded in the interval.
-	AvgLatencyMs float64
-}
-
-// Enable activates metric collection. Must be called before starting the
-// background writer (metrics.Run). Safe to call multiple times.
+// Enable activates metric collection. Safe to call multiple times.
 func Enable() {
 	atomic.StoreInt32(&global.enabled, 1)
 }
@@ -90,7 +109,7 @@ func IncrConnectedClients() {
 	if !isEnabled() {
 		return
 	}
-	global.connectedClients.Add(1)
+	global.connectedClients.Inc()
 }
 
 // DecrConnectedClients decrements the connected-clients gauge by one.
@@ -99,7 +118,7 @@ func DecrConnectedClients() {
 	if !isEnabled() {
 		return
 	}
-	global.connectedClients.Add(-1)
+	global.connectedClients.Dec()
 }
 
 // RecordRequest records a completed request and its wall-clock duration.
@@ -108,34 +127,12 @@ func RecordRequest(d time.Duration) {
 	if !isEnabled() {
 		return
 	}
-	global.requestCount.Add(1)
-	global.latencyNsSum.Add(int64(d))
-	global.latencyCount.Add(1)
+	global.requestsTotal.Inc()
+	global.requestDuration.Observe(d.Seconds())
 }
 
-// TakeSnapshot collects a point-in-time reading and atomically resets the
-// interval accumulators (request count, latency). The connected-clients gauge
-// is not reset. Elapsed is the number of seconds since the previous snapshot
-// and is used to compute the requests-per-second rate.
-func TakeSnapshot(elapsed float64) Snapshot {
-	reqCount := global.requestCount.Swap(0)
-	latNs := global.latencyNsSum.Swap(0)
-	latCount := global.latencyCount.Swap(0)
-
-	var rps float64
-	if elapsed > 0 {
-		rps = float64(reqCount) / elapsed
-	}
-
-	var avgMs float64
-	if latCount > 0 {
-		avgMs = float64(latNs) / float64(latCount) / 1e6
-	}
-
-	return Snapshot{
-		Timestamp:         time.Now(),
-		ConnectedClients:  global.connectedClients.Load(),
-		RequestsPerSecond: rps,
-		AvgLatencyMs:      avgMs,
-	}
+// Handler returns the HTTP handler that serves the Prometheus text
+// exposition for every registered metric.
+func Handler() http.Handler {
+	return promhttp.HandlerFor(global.registry, promhttp.HandlerOpts{})
 }

@@ -86,3 +86,33 @@ func TestServerBindFail(t *testing.T) {
 
 	e.AssertExpectations(t)
 }
+
+func TestMetricsBindFail(t *testing.T) {
+	viper.Reset()
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+
+	viper.SetEnvPrefix("GHOTI")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+	viper.AutomaticEnv()
+
+	configPaths := []string{"/etc/ghoti", "$HOME/.ghoti", ".", "../.."}
+	for _, path := range configPaths {
+		viper.AddConfigPath(path)
+	}
+
+	// Occupy a port so the metrics server cannot bind it.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("couldn't open the blocking listener: %v", err)
+	}
+	defer l.Close()
+	viper.Set("metrics.enabled", true)
+	viper.Set("metrics.addr", l.Addr().String())
+
+	e := new(DummyExit)
+	e.On("Exit", 5).Return()
+	runWithExit(e)
+
+	e.AssertExpectations(t)
+}

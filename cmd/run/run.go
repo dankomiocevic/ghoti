@@ -87,9 +87,14 @@ func runWithExit(e ExitControl) {
 
 	if config.Metrics.Enabled {
 		telemetry.Enable()
-		metricsStop := make(chan struct{})
-		defer close(metricsStop)
-		go telemetry.Run(config.Metrics, metricsStop)
+		metricsServer := telemetry.NewServer(config.Metrics)
+		if err := metricsServer.Start(); err != nil {
+			slog.Error("Error starting metrics server",
+				slog.Any("error", err))
+			e.Exit(5)
+			return
+		}
+		defer metricsServer.Stop()
 	}
 
 	s, err := server.NewServer(config, clus)

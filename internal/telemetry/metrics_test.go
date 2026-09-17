@@ -1,35 +1,80 @@
 package telemetry
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
+
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 )
 
-// resetGlobal resets the package-level collector between tests.
+// resetGlobal replaces the package-level collector with a fresh one so
+// tests do not observe each other's counters.
 func resetGlobal() {
-	atomic.StoreInt32(&global.enabled, 0)
-	global.connectedClients.Store(0)
-	global.requestCount.Store(0)
-	global.latencyNsSum.Store(0)
-	global.latencyCount.Store(0)
+	global = newCollector()
+}
+
+// scrape performs a GET against the metrics handler and parses the response
+// as Prometheus text exposition, keyed by metric family name.
+func scrape(t *testing.T) map[string]*dto.MetricFamily {
+	t.Helper()
+
+	rec := httptest.NewRecorder()
+	Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /metrics, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	parser := expfmt.NewTextParser(model.LegacyValidation)
+	families, err := parser.TextToMetricFamilies(rec.Body)
+	if err != nil {
+		t.Fatalf("scrape output is not valid Prometheus text exposition: %s", err)
+	}
+	return families
+}
+
+// singleValue returns the value of the only sample in a family (gauge or counter).
+func singleValue(t *testing.T, families map[string]*dto.MetricFamily, name string) float64 {
+	t.Helper()
+
+	fam, ok := families[name]
+	if !ok {
+		t.Fatalf("metric %q not present in scrape", name)
+	}
+	if len(fam.GetMetric()) != 1 {
+		t.Fatalf("expected exactly one sample for %q, got %d", name, len(fam.GetMetric()))
+	}
+	m := fam.GetMetric()[0]
+	switch fam.GetType() {
+	case dto.MetricType_GAUGE:
+		return m.GetGauge().GetValue()
+	case dto.MetricType_COUNTER:
+		return m.GetCounter().GetValue()
+	default:
+		t.Fatalf("metric %q has unexpected type %s", name, fam.GetType())
+		return 0
+	}
 }
 
 func TestDisabledMetricsAreNoOps(t *testing.T) {
 	resetGlobal()
-	// All calls should be no-ops when disabled.
+
 	IncrConnectedClients()
 	IncrConnectedClients()
 	DecrConnectedClients()
 	RecordRequest(5 * time.Millisecond)
 
-	s := TakeSnapshot(1.0)
-	if s.ConnectedClients != 0 {
-		t.Errorf("expected 0 connected clients, got %d", s.ConnectedClients)
+	families := scrape(t)
+	if v := singleValue(t, families, "ghoti_connected_clients"); v != 0 {
+		t.Errorf("expected 0 connected clients, got %v", v)
 	}
-	if s.RequestsPerSecond != 0 {
-		t.Errorf("expected 0 rps, got %.3f", s.RequestsPerSecond)
+	if v := singleValue(t, families, "ghoti_requests_total"); v != 0 {
+		t.Errorf("expected 0 requests, got %v", v)
 	}
 }
 
@@ -42,81 +87,104 @@ func TestConnectedClientsGauge(t *testing.T) {
 	IncrConnectedClients()
 	DecrConnectedClients()
 
-	s := TakeSnapshot(1.0)
-	if s.ConnectedClients != 2 {
-		t.Errorf("expected 2 connected clients, got %d", s.ConnectedClients)
+	families := scrape(t)
+	if fam := families["ghoti_connected_clients"]; fam.GetType() != dto.MetricType_GAUGE {
+		t.Errorf("ghoti_connected_clients must be a gauge, got %s", fam.GetType())
+	}
+	if v := singleValue(t, families, "ghoti_connected_clients"); v != 2 {
+		t.Errorf("expected 2 connected clients, got %v", v)
 	}
 }
 
-func TestRequestsPerSecond(t *testing.T) {
+func TestRequestsTotalIsCumulativeAcrossScrapes(t *testing.T) {
 	resetGlobal()
 	Enable()
 
-	// 100 requests over a 2-second window → 50 rps
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 3; i++ {
 		RecordRequest(time.Millisecond)
 	}
-
-	s := TakeSnapshot(2.0)
-	if s.RequestsPerSecond != 50.0 {
-		t.Errorf("expected 50.0 rps, got %.3f", s.RequestsPerSecond)
+	families := scrape(t)
+	if fam := families["ghoti_requests_total"]; fam.GetType() != dto.MetricType_COUNTER {
+		t.Errorf("ghoti_requests_total must be a counter, got %s", fam.GetType())
 	}
-}
-
-func TestAverageLatency(t *testing.T) {
-	resetGlobal()
-	Enable()
-
-	// Two requests: 4 ms and 6 ms → average 5 ms
-	RecordRequest(4 * time.Millisecond)
-	RecordRequest(6 * time.Millisecond)
-
-	s := TakeSnapshot(1.0)
-	if s.AvgLatencyMs < 4.9 || s.AvgLatencyMs > 5.1 {
-		t.Errorf("expected ~5.0 ms average latency, got %.3f", s.AvgLatencyMs)
+	if v := singleValue(t, families, "ghoti_requests_total"); v != 3 {
+		t.Fatalf("expected 3 requests after first scrape, got %v", v)
 	}
-}
 
-func TestSnapshotResetsIntervalCounters(t *testing.T) {
-	resetGlobal()
-	Enable()
-
-	RecordRequest(10 * time.Millisecond)
-	RecordRequest(10 * time.Millisecond)
-
-	_ = TakeSnapshot(1.0) // first snapshot drains the counters
-
-	s := TakeSnapshot(1.0) // second snapshot: nothing recorded
-	if s.RequestsPerSecond != 0 {
-		t.Errorf("expected 0 rps after reset, got %.3f", s.RequestsPerSecond)
-	}
-	if s.AvgLatencyMs != 0 {
-		t.Errorf("expected 0 ms latency after reset, got %.3f", s.AvgLatencyMs)
-	}
-}
-
-func TestSnapshotDoesNotResetGauge(t *testing.T) {
-	resetGlobal()
-	Enable()
-
-	IncrConnectedClients()
-	IncrConnectedClients()
-
-	_ = TakeSnapshot(1.0)
-
-	s := TakeSnapshot(1.0)
-	if s.ConnectedClients != 2 {
-		t.Errorf("gauge must survive snapshot reset; expected 2, got %d", s.ConnectedClients)
-	}
-}
-
-func TestZeroElapsedDoesNotPanic(t *testing.T) {
-	resetGlobal()
-	Enable()
+	// A second scrape must not reset the counter: Prometheus derives rates
+	// from cumulative values.
 	RecordRequest(time.Millisecond)
-	s := TakeSnapshot(0)
-	if s.RequestsPerSecond != 0 {
-		t.Errorf("expected 0 rps for zero elapsed, got %.3f", s.RequestsPerSecond)
+	RecordRequest(time.Millisecond)
+	families = scrape(t)
+	if v := singleValue(t, families, "ghoti_requests_total"); v != 5 {
+		t.Errorf("expected 5 requests after second scrape, got %v", v)
+	}
+}
+
+func TestRequestDurationHistogramInSeconds(t *testing.T) {
+	resetGlobal()
+	Enable()
+
+	RecordRequest(100 * time.Microsecond)
+	RecordRequest(5 * time.Millisecond)
+	RecordRequest(2 * time.Second)
+
+	families := scrape(t)
+	fam, ok := families["ghoti_request_duration_seconds"]
+	if !ok {
+		t.Fatalf("ghoti_request_duration_seconds not present in scrape")
+	}
+	if fam.GetType() != dto.MetricType_HISTOGRAM {
+		t.Fatalf("ghoti_request_duration_seconds must be a histogram, got %s", fam.GetType())
+	}
+	if len(fam.GetMetric()) != 1 {
+		t.Fatalf("expected one histogram sample, got %d", len(fam.GetMetric()))
+	}
+
+	h := fam.GetMetric()[0].GetHistogram()
+	if h.GetSampleCount() != 3 {
+		t.Errorf("expected sample count 3, got %d", h.GetSampleCount())
+	}
+	wantSum := 0.0001 + 0.005 + 2
+	if diff := h.GetSampleSum() - wantSum; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("expected sample sum %v seconds, got %v", wantSum, h.GetSampleSum())
+	}
+
+	// The buckets must resolve sub-millisecond latencies so tails are
+	// visible for an in-memory server: the 100µs sample must land in a
+	// bucket that excludes the 5ms sample.
+	cumulative := map[float64]uint64{}
+	for _, b := range h.GetBucket() {
+		cumulative[b.GetUpperBound()] = b.GetCumulativeCount()
+	}
+	if c, ok := cumulative[0.001]; !ok {
+		t.Errorf("expected a 1ms (le=0.001) bucket, got bounds %v", bucketBounds(h))
+	} else if c != 1 {
+		t.Errorf("expected 1 sample <= 1ms, got %d", c)
+	}
+	if c, ok := cumulative[1]; !ok {
+		t.Errorf("expected a 1s (le=1) bucket, got bounds %v", bucketBounds(h))
+	} else if c != 2 {
+		t.Errorf("expected 2 samples <= 1s, got %d", c)
+	}
+}
+
+func bucketBounds(h *dto.Histogram) []float64 {
+	bounds := make([]float64, 0, len(h.GetBucket()))
+	for _, b := range h.GetBucket() {
+		bounds = append(bounds, b.GetUpperBound())
+	}
+	return bounds
+}
+
+func TestStandardCollectorsAreExposed(t *testing.T) {
+	resetGlobal()
+
+	families := scrape(t)
+	for _, name := range []string{"go_goroutines", "process_cpu_seconds_total"} {
+		if _, ok := families[name]; !ok {
+			t.Errorf("expected standard collector metric %q in scrape", name)
+		}
 	}
 }
 
@@ -125,42 +193,27 @@ func TestConcurrentRecordRequest(t *testing.T) {
 	Enable()
 
 	const goroutines = 50
-	const requestsPerGoroutine = 200
+	const perGoroutine = 200
 
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
 	for i := 0; i < goroutines; i++ {
 		go func() {
 			defer wg.Done()
-			for j := 0; j < requestsPerGoroutine; j++ {
-				RecordRequest(time.Millisecond)
+			for j := 0; j < perGoroutine; j++ {
+				IncrConnectedClients()
+				RecordRequest(time.Microsecond)
+				DecrConnectedClients()
 			}
 		}()
 	}
 	wg.Wait()
 
-	s := TakeSnapshot(1.0)
-	expected := float64(goroutines * requestsPerGoroutine)
-	if s.RequestsPerSecond != expected {
-		t.Errorf("expected %.0f rps, got %.3f", expected, s.RequestsPerSecond)
+	families := scrape(t)
+	if v := singleValue(t, families, "ghoti_requests_total"); v != goroutines*perGoroutine {
+		t.Errorf("expected %d requests, got %v", goroutines*perGoroutine, v)
 	}
-}
-
-func TestConcurrentConnectedClients(t *testing.T) {
-	resetGlobal()
-	Enable()
-
-	const goroutines = 100
-	var wg sync.WaitGroup
-	wg.Add(goroutines * 2)
-	for i := 0; i < goroutines; i++ {
-		go func() { defer wg.Done(); IncrConnectedClients() }()
-		go func() { defer wg.Done(); DecrConnectedClients() }()
-	}
-	wg.Wait()
-
-	s := TakeSnapshot(1.0)
-	if s.ConnectedClients != 0 {
-		t.Errorf("expected 0 after equal incr/decr, got %d", s.ConnectedClients)
+	if v := singleValue(t, families, "ghoti_connected_clients"); v != 0 {
+		t.Errorf("expected 0 connected clients after all disconnect, got %v", v)
 	}
 }
