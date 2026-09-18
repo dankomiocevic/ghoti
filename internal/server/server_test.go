@@ -189,20 +189,52 @@ func TestMessageTooShort(t *testing.T) {
 	defer s.Stop()
 	defer conn.Close()
 
-	response := sendData(t, conn, "r0")
+	response := sendData(t, conn, "r0\n")
 	if !strings.HasPrefix(response, "e") {
 		t.Fatalf("unexpected server response: %s", response)
 	}
 }
 
-func TestMessageNotTerminated(t *testing.T) {
+// TCP does not preserve write boundaries, so a message that reaches the
+// server in two pieces must be reassembled before it is parsed.
+func TestMessageSplitAcrossWrites(t *testing.T) {
 	s, conn := runServer(t)
 	defer s.Stop()
 	defer conn.Close()
 
-	response := sendData(t, conn, "r0")
-	if !strings.HasPrefix(response, "e") {
+	if _, err := conn.Write([]byte("w000Hel")); err != nil {
+		t.Fatalf("couldn't send request: %v", err)
+	}
+	time.Sleep(time.Duration(50) * time.Millisecond)
+
+	response := sendData(t, conn, "lo\n")
+	if response != "v000Hello\n" {
 		t.Fatalf("unexpected server response: %s", response)
+	}
+}
+
+// Clients are expected to wait for each response before sending the next
+// command, but a misbehaving one can land several commands in one segment.
+// They must never be merged into a single request: a write would otherwise
+// silently absorb the following commands into its value.
+func TestCoalescedMessagesAreNotMergedIntoOne(t *testing.T) {
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	if _, err := conn.Write([]byte("w000Hello\nw001World\nr000\n")); err != nil {
+		t.Fatalf("couldn't send request: %v", err)
+	}
+
+	reader := bufio.NewReader(conn)
+	for _, want := range []string{"v000Hello\n", "v001World\n", "v000Hello\n"} {
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("couldn't read server response: %v", err)
+		}
+		if response != want {
+			t.Fatalf("unexpected server response: got %q, want %q", response, want)
+		}
 	}
 }
 
@@ -301,7 +333,7 @@ func TestReadInANonConfiguredSlot(t *testing.T) {
 	defer s.Stop()
 	defer conn.Close()
 
-	response := sendData(t, conn, "r123")
+	response := sendData(t, conn, "r123\n")
 	if !strings.HasPrefix(response, "e") {
 		t.Fatalf("unexpected server response: %s", response)
 	}
@@ -312,7 +344,7 @@ func TestWriteInANonConfiguredSlot(t *testing.T) {
 	defer s.Stop()
 	defer conn.Close()
 
-	response := sendData(t, conn, "w123TEST")
+	response := sendData(t, conn, "w123TEST\n")
 	if !strings.HasPrefix(response, "e") {
 		t.Fatalf("unexpected server response: %s", response)
 	}
@@ -684,7 +716,6 @@ func TestMalformedMessagesDoNotCrashServer(t *testing.T) {
 		{"trailing bytes", "r000extra\n"},
 		{"oversized message", strings.Repeat("w000Hello", 20) + "\n"},
 		{"invalid utf8", "r\xff\xfe\xfd\n"},
-		{"coalesced frames", "r000\nr001\n"},
 	}
 
 	for _, tc := range cases {

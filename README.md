@@ -49,12 +49,14 @@ These rules are exact and apply to every command described below.
 |Encoding|The value is an opaque byte string. Ghoti never validates, normalises or transcodes it, and returns exactly the bytes it received.|
 |Request terminator|A single `\n` on the `standard` transport, `\r\n` on `telnet`. The `http` transport has no terminator, one command is one request. See [Protocol variants](#protocol-variants).|
 |Response terminator|Always a single `\n`, on every transport, including `telnet`.|
-|Requests per write|**Exactly one.** See below.|
+|Requests in flight|**One.** Send a command, wait for its response, then send the next one. See below.|
 
-**One command per TCP write.** Ghoti reads each request with a single read into a fixed buffer and requires the request to end at the end of that read. This has two consequences that clients must respect:
+**One command at a time.** A client must send a command and wait for its response before sending the next one. Ghoti handles a connection's commands sequentially, so this keeps a strict one request, one response relation and is the only supported way to use a connection. Sending further commands before the response arrives is not supported, and Ghoti may reject it in the future.
 
-- **Commands cannot be pipelined.** If two commands arrive in the same TCP segment, the whole read is treated as a single request. For `r`, `s` and `d` the bytes of the second command are trailing bytes, so the request is rejected with `exxx001` and neither command runs. For `w` they are absorbed into the value, so `w000a\nw001b` stores `a\nw001b` in slot `000`. A client must send one command and wait for its response before sending the next one.
-- **A command must not be split across writes.** If a command arrives in two segments, each fragment is answered with a separate `exxx001` parse error. The command is never reassembled.
+**Framing requests.** TCP is a byte stream and does not preserve write boundaries, so Ghoti does not assume that one read holds exactly one request. A request is the bytes up to and including its terminator, wherever the segment boundaries fall:
+
+- **A command may arrive in pieces.** Bytes received before the terminator are kept until the rest of the request arrives, so a command that reaches the server in several segments is reassembled and answered once. A fragment on its own is not answered; Ghoti waits for its terminator.
+- **Over-long lines are rejected.** A request longer than the limit above is answered with `exxx001` and the rest of that line is discarded up to its terminator, so the next request on the connection is read cleanly.
 
 **Framing responses.** Ghoti batches pending responses and async events, so a single read on the client may return several messages concatenated. Clients must split the incoming stream on `\n` and never assume that one read yields one message. For example, a write to a broadcast slot can arrive as a single segment holding both the async event and the confirmation, one per line:
 
