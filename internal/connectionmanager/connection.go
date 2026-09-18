@@ -1,7 +1,6 @@
 package connectionmanager
 
 import (
-	"bufio"
 	"bytes"
 	"io"
 	"log/slog"
@@ -15,6 +14,11 @@ import (
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/errs"
 )
+
+// ErrMessageTooLong is returned by ReceiveMessage when a line does not fit
+// in the connection buffer. The offending line is discarded and the next
+// call continues with the following one.
+var ErrMessageTooLong = errs.TranscientError{Err: "Message too long"}
 
 type Event struct {
 	id       string
@@ -47,7 +51,8 @@ type Connection struct {
 	Buffer      []byte
 	Timeout     time.Duration
 
-	state *connState
+	state  *connState
+	reader *lineReader
 }
 
 // NewConnection builds a connection ready to be served by an EventProcessor.
@@ -71,6 +76,7 @@ func NewConnection(id string, conn net.Conn, bufferSize int, timeout time.Durati
 		Buffer:   make([]byte, bufferSize),
 		Timeout:  timeout,
 		state:    &connState{done: make(chan struct{})},
+		reader:   &lineReader{},
 	}
 }
 
@@ -110,32 +116,104 @@ func (c *Connection) Enqueue(event Event) bool {
 	}
 }
 
+// ReceiveMessage reads the next newline-terminated message into c.Buffer and
+// returns its length, newline included.
+//
+// TCP does not preserve message boundaries: one message can arrive in several
+// segments and several messages can arrive in one. Bytes that are not part of
+// a complete line yet are kept in the connection's line reader, so a message
+// split across reads (or across read deadlines) is reassembled and a segment
+// carrying more than one message is handed out one message at a time.
+//
+// A line longer than c.Buffer is discarded, newline included, and reported as
+// ErrMessageTooLong.
 func (c *Connection) ReceiveMessage() (int, error) {
-	reader := bufio.NewReader(c.NetworkConn)
-	// Set the connection timeout in the future
-	c.NetworkConn.SetReadDeadline(time.Now().Add(c.Timeout))
-	size, err := reader.Read(c.Buffer)
-
-	if err != nil {
-		// If the error was a timeout, continue receiving data in
-		// next loop
-		if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
-			return 0, errs.TranscientError{Err: "Timeout receiving data"}
-		}
-
-		if err == io.EOF {
-			return 0, errs.PermanentError{Err: "Connection closed"}
-		}
-
-		slog.Error("Error receiving data from connection", slog.Any("error", err))
-		slog.Debug("Disconnecting",
-			slog.String("id", c.ID),
-			slog.String("remote_addr", c.NetworkConn.RemoteAddr().String()),
-		)
-		return 0, errs.PermanentError{Err: "Connection closed"}
+	if c.reader == nil {
+		c.reader = &lineReader{}
 	}
 
-	return size, nil
+	for {
+		if line, ok := c.reader.next(); ok {
+			if len(line) > len(c.Buffer) {
+				return 0, ErrMessageTooLong
+			}
+			return copy(c.Buffer, line), nil
+		}
+
+		// No complete line yet. When what we have already cannot fit in the
+		// buffer, drop it and keep dropping until the newline shows up.
+		if c.reader.skipping || len(c.reader.pending) >= len(c.Buffer) {
+			c.reader.skipping = true
+			c.reader.pending = c.reader.pending[:0]
+		}
+
+		if err := c.reader.fill(c.NetworkConn, c.Timeout); err != nil {
+			return 0, c.receiveError(err)
+		}
+	}
+}
+
+// receiveError classifies a network read error into the transient and
+// permanent errors the managers act on.
+func (c *Connection) receiveError(err error) error {
+	// If the error was a timeout, continue receiving data in
+	// next loop
+	if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+		return errs.TranscientError{Err: "Timeout receiving data"}
+	}
+
+	if err == io.EOF {
+		return errs.PermanentError{Err: "Connection closed"}
+	}
+
+	slog.Error("Error receiving data from connection", slog.Any("error", err))
+	slog.Debug("Disconnecting",
+		slog.String("id", c.ID),
+		slog.String("remote_addr", c.NetworkConn.RemoteAddr().String()),
+	)
+	return errs.PermanentError{Err: "Connection closed"}
+}
+
+// lineReader keeps the bytes received from the network that have not been
+// delivered as a message yet. It is shared by pointer so that every copy of a
+// Connection reads from the same stream position.
+type lineReader struct {
+	pending  []byte
+	skipping bool // dropping the rest of a line that was too long
+}
+
+// next consumes and returns the first complete line in pending, newline
+// included. The line is only valid until the next call to fill.
+func (r *lineReader) next() ([]byte, bool) {
+	for {
+		i := bytes.IndexByte(r.pending, '\n')
+		if i < 0 {
+			return nil, false
+		}
+
+		line := r.pending[:i+1]
+		r.pending = r.pending[i+1:]
+
+		if !r.skipping {
+			return line, true
+		}
+		// This newline ends the line we were dropping, not a real message.
+		r.skipping = false
+	}
+}
+
+// fill reads whatever the network has available, waiting at most timeout,
+// and appends it to pending.
+func (r *lineReader) fill(conn net.Conn, timeout time.Duration) error {
+	var chunk [512]byte
+
+	// Set the connection timeout in the future
+	conn.SetReadDeadline(time.Now().Add(timeout))
+	n, err := conn.Read(chunk[:])
+	if n > 0 {
+		r.pending = append(r.pending, chunk[:n]...)
+	}
+	return err
 }
 
 func (c *Connection) SendEvent(data string) error {
