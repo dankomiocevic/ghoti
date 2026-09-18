@@ -142,6 +142,30 @@ func TestReceiveMessageReportsClosedConnection(t *testing.T) {
 	}
 }
 
+// failingConn is a connection whose reads fail with an arbitrary, non
+// timeout, non EOF error, such as a reset from the peer.
+type failingConn struct {
+	net.Conn
+	err error
+}
+
+func (f failingConn) Read([]byte) (int, error) {
+	return 0, f.err
+}
+
+func TestReceiveMessageTreatsUnexpectedReadErrorAsPermanent(t *testing.T) {
+	server, client := net.Pipe()
+	defer server.Close()
+	defer client.Close()
+
+	conn := NewConnection("test", failingConn{Conn: server, err: errors.New("connection reset by peer")}, 41, time.Second)
+
+	_, err := conn.ReceiveMessage()
+	if !errors.As(err, new(errs.PermanentError)) {
+		t.Fatalf("expected a permanent error, got %v", err)
+	}
+}
+
 // lineManager is what the end-to-end tests need from a manager under test.
 type lineManager interface {
 	StartListening(string) error
