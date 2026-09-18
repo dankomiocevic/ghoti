@@ -123,15 +123,8 @@ func (c *TCPManager) handleUserConnection(callback CallbackFn, conn Connection) 
 			}
 		}
 
-		if conn.Buffer[size-1] != 10 {
-			res := errs.Error("PARSE_ERROR")
-			slog.Debug("Message not terminated with newline",
-				slog.String("remote_addr", conn.ID),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
-			conn.SendEvent(res.Response("xxx"))
-			continue
-		}
+		// ReceiveMessage always hands out a whole line, so the message ends
+		// with the newline. Drop it before parsing.
 		size--
 
 		err = callback(size, conn.Buffer, &conn)

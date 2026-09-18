@@ -131,10 +131,17 @@ func (c *Connection) ReceiveMessage() (int, error) {
 	if c.reader == nil {
 		c.reader = &lineReader{}
 	}
+	r := c.reader
 
 	for {
-		if line, ok := c.reader.next(); ok {
-			if len(line) > len(c.Buffer) {
+		if i := bytes.IndexByte(r.pending, '\n'); i >= 0 {
+			line := r.pending[:i+1]
+			r.pending = r.pending[i+1:]
+
+			// Either this newline ends a line we were already dropping, or
+			// the whole line arrived at once and it is too long anyway.
+			if r.skipping || len(line) > len(c.Buffer) {
+				r.skipping = false
 				return 0, ErrMessageTooLong
 			}
 			return copy(c.Buffer, line), nil
@@ -142,12 +149,12 @@ func (c *Connection) ReceiveMessage() (int, error) {
 
 		// No complete line yet. When what we have already cannot fit in the
 		// buffer, drop it and keep dropping until the newline shows up.
-		if c.reader.skipping || len(c.reader.pending) >= len(c.Buffer) {
-			c.reader.skipping = true
-			c.reader.pending = c.reader.pending[:0]
+		if len(r.pending) >= len(c.Buffer) {
+			r.skipping = true
+			r.pending = r.pending[:0]
 		}
 
-		if err := c.reader.fill(c.NetworkConn, c.Timeout); err != nil {
+		if err := r.fill(c.NetworkConn, c.Timeout); err != nil {
 			return 0, c.receiveError(err)
 		}
 	}
@@ -180,26 +187,6 @@ func (c *Connection) receiveError(err error) error {
 type lineReader struct {
 	pending  []byte
 	skipping bool // dropping the rest of a line that was too long
-}
-
-// next consumes and returns the first complete line in pending, newline
-// included. The line is only valid until the next call to fill.
-func (r *lineReader) next() ([]byte, bool) {
-	for {
-		i := bytes.IndexByte(r.pending, '\n')
-		if i < 0 {
-			return nil, false
-		}
-
-		line := r.pending[:i+1]
-		r.pending = r.pending[i+1:]
-
-		if !r.skipping {
-			return line, true
-		}
-		// This newline ends the line we were dropping, not a real message.
-		r.skipping = false
-	}
 }
 
 // fill reads whatever the network has available, waiting at most timeout,

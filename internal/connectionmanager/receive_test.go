@@ -96,6 +96,41 @@ func TestReceiveMessageRejectsOversizedLineAndRecovers(t *testing.T) {
 	}
 }
 
+func TestReceiveMessageRejectsOversizedLineArrivingInPieces(t *testing.T) {
+	conn, client := pipeConnection(t, 8, time.Second)
+
+	go func() {
+		client.Write([]byte("w001this line "))
+		time.Sleep(10 * time.Millisecond)
+		client.Write([]byte("is far too long"))
+		time.Sleep(10 * time.Millisecond)
+		client.Write([]byte("\nr002\n"))
+	}()
+
+	_, err := conn.ReceiveMessage()
+	if !errors.Is(err, ErrMessageTooLong) {
+		t.Fatalf("expected ErrMessageTooLong, got %v", err)
+	}
+	if got := receive(t, &conn); got != "r002\n" {
+		t.Fatalf("message after the oversized one: got %q, want %q", got, "r002\n")
+	}
+}
+
+// Connections built as literals, without NewConnection, must still be able
+// to receive.
+func TestReceiveMessageOnLiteralConnection(t *testing.T) {
+	server, client := net.Pipe()
+	defer server.Close()
+	defer client.Close()
+	conn := Connection{NetworkConn: server, Buffer: make([]byte, 41), Timeout: time.Second}
+
+	write(client, "r001\n")
+
+	if got := receive(t, &conn); got != "r001\n" {
+		t.Fatalf("got %q, want %q", got, "r001\n")
+	}
+}
+
 func TestReceiveMessageReportsClosedConnection(t *testing.T) {
 	conn, client := pipeConnection(t, 41, time.Second)
 
@@ -107,14 +142,22 @@ func TestReceiveMessageReportsClosedConnection(t *testing.T) {
 	}
 }
 
-// The end-to-end check: commands that arrive in the same segment must reach
-// the callback one at a time, never as a single merged message.
-func TestTCPManagerDeliversCoalescedCommandsSeparately(t *testing.T) {
-	m := NewTCPManager()
+// lineManager is what the end-to-end tests need from a manager under test.
+type lineManager interface {
+	StartListening(string) error
+	ServeConnections(CallbackFn) error
+	GetAddr() string
+	Close()
+}
+
+// serveManager starts m on a free port with a callback that forwards every
+// message it gets to the returned channel, and dials a client into it.
+func serveManager(t *testing.T, m lineManager) (net.Conn, <-chan string) {
+	t.Helper()
 	if err := m.StartListening("127.0.0.1:0"); err != nil {
 		t.Fatal(err)
 	}
-	defer m.Close()
+	t.Cleanup(m.Close)
 
 	received := make(chan string, 16)
 	go m.ServeConnections(func(size int, buf []byte, c *Connection) error {
@@ -126,13 +169,12 @@ func TestTCPManagerDeliversCoalescedCommandsSeparately(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
+	t.Cleanup(func() { client.Close() })
+	return client, received
+}
 
-	if _, err := client.Write([]byte("w001abc\nr002\nr003\n")); err != nil {
-		t.Fatal(err)
-	}
-
-	want := []string{"w001abc", "r002", "r003"}
+func expectReceived(t *testing.T, received <-chan string, want ...string) {
+	t.Helper()
 	for _, w := range want {
 		select {
 		case got := <-received:
@@ -145,30 +187,8 @@ func TestTCPManagerDeliversCoalescedCommandsSeparately(t *testing.T) {
 	}
 }
 
-func TestTCPManagerAnswersOversizedMessageWithParseError(t *testing.T) {
-	m := NewTCPManager()
-	if err := m.StartListening("127.0.0.1:0"); err != nil {
-		t.Fatal(err)
-	}
-	defer m.Close()
-
-	received := make(chan string, 16)
-	go m.ServeConnections(func(size int, buf []byte, c *Connection) error {
-		received <- string(buf[:size])
-		return nil
-	})
-
-	client, err := net.Dial("tcp", m.GetAddr())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer client.Close()
-
-	tooLong := "w001" + strings.Repeat("x", 60) + "\n"
-	if _, err := client.Write([]byte(tooLong + "r002\n")); err != nil {
-		t.Fatal(err)
-	}
-
+func expectParseError(t *testing.T, client net.Conn) {
+	t.Helper()
 	client.SetReadDeadline(time.Now().Add(time.Second))
 	response, err := bufio.NewReader(client).ReadString('\n')
 	if err != nil {
@@ -177,13 +197,61 @@ func TestTCPManagerAnswersOversizedMessageWithParseError(t *testing.T) {
 	if want := errs.Error("PARSE_ERROR").Response("xxx"); response != want {
 		t.Fatalf("got response %q, want %q", response, want)
 	}
+}
 
-	select {
-	case got := <-received:
-		if got != "r002" {
-			t.Fatalf("got %q, want %q", got, "r002")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("the command after the oversized one never arrived")
+// The end-to-end check: commands that arrive in the same segment must reach
+// the callback one at a time, never as a single merged message.
+func TestTCPManagerDeliversCoalescedCommandsSeparately(t *testing.T) {
+	client, received := serveManager(t, NewTCPManager())
+
+	if _, err := client.Write([]byte("w001abc\nr002\nr003\n")); err != nil {
+		t.Fatal(err)
 	}
+
+	expectReceived(t, received, "w001abc", "r002", "r003")
+}
+
+func TestTCPManagerAnswersOversizedMessageWithParseError(t *testing.T) {
+	client, received := serveManager(t, NewTCPManager())
+
+	tooLong := "w001" + strings.Repeat("x", 60) + "\n"
+	if _, err := client.Write([]byte(tooLong + "r002\n")); err != nil {
+		t.Fatal(err)
+	}
+
+	expectParseError(t, client)
+	expectReceived(t, received, "r002")
+}
+
+func TestTelnetManagerDeliversCoalescedCommandsSeparately(t *testing.T) {
+	client, received := serveManager(t, NewTelnetManager())
+
+	if _, err := client.Write([]byte("w001abc\r\nr002\r\nr003\r\n")); err != nil {
+		t.Fatal(err)
+	}
+
+	expectReceived(t, received, "w001abc", "r002", "r003")
+}
+
+func TestTelnetManagerAnswersOversizedMessageWithParseError(t *testing.T) {
+	client, received := serveManager(t, NewTelnetManager())
+
+	tooLong := "w001" + strings.Repeat("x", 60) + "\r\n"
+	if _, err := client.Write([]byte(tooLong + "r002\r\n")); err != nil {
+		t.Fatal(err)
+	}
+
+	expectParseError(t, client)
+	expectReceived(t, received, "r002")
+}
+
+func TestTelnetManagerRejectsLineWithoutCarriageReturn(t *testing.T) {
+	client, received := serveManager(t, NewTelnetManager())
+
+	if _, err := client.Write([]byte("r001\nr002\r\n")); err != nil {
+		t.Fatal(err)
+	}
+
+	expectParseError(t, client)
+	expectReceived(t, received, "r002")
 }
