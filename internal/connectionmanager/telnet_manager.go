@@ -23,8 +23,8 @@ func (m *TelnetManager) GetAddr() string {
 	return m.tcpManager.listener.Addr().String()
 }
 
-func (m *TelnetManager) SetMaxConnections(max int) {
-	m.tcpManager.SetMaxConnections(max)
+func (m *TelnetManager) SetMaxConnections(limit int) {
+	m.tcpManager.SetMaxConnections(limit)
 }
 
 func (m *TelnetManager) StartListening(tcpAddr string) error {

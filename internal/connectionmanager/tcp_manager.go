@@ -40,8 +40,8 @@ func (c *TCPManager) GetAddr() string {
 	return c.listener.Addr().String()
 }
 
-func (c *TCPManager) SetMaxConnections(max int) {
-	c.maxConnections = max
+func (c *TCPManager) SetMaxConnections(limit int) {
+	c.maxConnections = limit
 }
 
 func (c *TCPManager) StartListening(tcpAddr string) error {

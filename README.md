@@ -231,7 +231,7 @@ The HTTP server is bounded so that a slow or idle client cannot hold resources f
 
 SSE streams are the deliberate exception: a stream stays open for as long as the client keeps reading it, with no read or write timeout. In exchange the stream follows two rules:
 
-- **Heartbeats.** Every 15 seconds of silence the server sends an SSE comment line (`: keepalive`), which SSE clients ignore. It keeps proxies from closing an idle stream and lets the server notice a client that went away without closing the connection.
+- **Heartbeats.** When nothing has been written to a stream for 15 seconds the server sends an SSE comment line (`: keepalive`), which SSE clients ignore. The check runs every 15 seconds, so a quiet stream carries a comment at least every 30 seconds and a busy one carries none. It keeps proxies from closing an idle stream and lets the server notice a client that went away without closing the connection.
 - **Backpressure.** A subscriber must keep reading. Each event is written with a 200 ms deadline, the same the `standard` transport uses, so once a subscriber's socket buffers are full because it stopped reading, the next event or heartbeat fails and the subscriber is disconnected. The `a` event it missed is counted as an error in the `received/sent/errors` response to the writer, exactly like a stalled TCP subscriber.
 
 Example config:

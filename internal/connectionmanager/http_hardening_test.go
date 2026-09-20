@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -198,5 +199,62 @@ func TestHTTPManagerSSESendsHeartbeatComments(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("no heartbeat comment received on an idle stream")
+	}
+}
+
+func TestHTTPManagerSSEHeartbeatOnlyAfterSilence(t *testing.T) {
+	// An event already proves the stream is alive, so a stream that keeps
+	// carrying events must not be padded with heartbeats as well. Only a
+	// stream that has been silent for the whole interval gets one.
+	h := buildTestManager(echoCallback)
+	h.SetStreamChecker(func(slot int) bool { return slot == 3 })
+	h.timeouts.heartbeat = 200 * time.Millisecond
+	startTestHTTPServer(t, h)
+	defer h.Close()
+
+	resp := openSSE(t, h)
+	defer resp.Body.Close()
+
+	var mu sync.Mutex
+	var comments, events int
+	go func() {
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			line := scanner.Text()
+			mu.Lock()
+			switch {
+			case strings.HasPrefix(line, ":"):
+				comments++
+			case strings.HasPrefix(line, "data: "):
+				events++
+			}
+			mu.Unlock()
+		}
+	}()
+
+	// Keep the stream busy for several heartbeat intervals, with gaps far
+	// shorter than the interval.
+	for i := 0; i < 20; i++ {
+		h.Broadcast("a003tick\n") //nolint:errcheck
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	mu.Lock()
+	gotComments, gotEvents := comments, events
+	mu.Unlock()
+	if gotEvents == 0 {
+		t.Fatal("no events were delivered on the stream")
+	}
+	if gotComments != 0 {
+		t.Fatalf("got %d heartbeat comments on a stream that was never silent", gotComments)
+	}
+
+	// Once the stream goes quiet, heartbeats resume.
+	time.Sleep(600 * time.Millisecond)
+	mu.Lock()
+	gotComments = comments
+	mu.Unlock()
+	if gotComments == 0 {
+		t.Fatal("no heartbeat after the stream went silent")
 	}
 }

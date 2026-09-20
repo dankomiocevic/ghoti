@@ -11,14 +11,14 @@ import (
 // extra clients wait in the kernel accept queue without costing this process
 // a file descriptor or a goroutine. That is the same behaviour as
 // golang.org/x/net/netutil.LimitListener, inlined so a few lines of code do
-// not pull in the module. A max of zero or less returns l unchanged.
-func limitListener(l net.Listener, max int) net.Listener {
-	if max <= 0 {
+// not pull in the module. A limit of zero or less returns l unchanged.
+func limitListener(l net.Listener, limit int) net.Listener {
+	if limit <= 0 {
 		return l
 	}
 	return &limitedListener{
 		Listener: l,
-		slots:    make(chan struct{}, max),
+		slots:    make(chan struct{}, limit),
 		done:     make(chan struct{}),
 	}
 }

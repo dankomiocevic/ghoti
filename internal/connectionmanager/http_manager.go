@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -86,15 +87,21 @@ type sseConn struct {
 	closeCh    chan struct{}
 	closeOnce  sync.Once
 	remoteAddr net.Addr
+	// lastWrite is when the last event or heartbeat reached the client, as
+	// UnixNano, read by the heartbeat loop to tell a silent stream from a
+	// busy one.
+	lastWrite atomic.Int64
 }
 
 func newSSEConn(w http.ResponseWriter, remoteAddr string) *sseConn {
-	return &sseConn{
+	c := &sseConn{
 		writer:     w,
 		control:    http.NewResponseController(w),
 		closeCh:    make(chan struct{}),
 		remoteAddr: httpRemoteAddr(remoteAddr),
 	}
+	c.lastWrite.Store(time.Now().UnixNano())
+	return c
 }
 
 func (c *sseConn) Write(b []byte) (int, error) {
@@ -124,7 +131,11 @@ func (c *sseConn) Write(b []byte) (int, error) {
 // went away without closing the socket is found out by the failed write
 // instead of lingering until the next broadcast. It is bounded by the same
 // deadline as an event write.
-func (c *sseConn) heartbeat(deadline time.Duration) error {
+//
+// A stream that carried an event within the last interval is left alone: the
+// event already proved the peer alive and kept the proxies busy, so the
+// heartbeat would only be padding.
+func (c *sseConn) heartbeat(interval, deadline time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -132,6 +143,9 @@ func (c *sseConn) heartbeat(deadline time.Duration) error {
 	case <-c.closeCh:
 		return io.EOF
 	default:
+	}
+	if time.Since(time.Unix(0, c.lastWrite.Load())) < interval {
+		return nil
 	}
 	if err := c.control.SetWriteDeadline(time.Now().Add(deadline)); err != nil {
 		return err
@@ -148,6 +162,7 @@ func (c *sseConn) flush() error {
 		c.Close()
 		return err
 	}
+	c.lastWrite.Store(time.Now().UnixNano())
 	return nil
 }
 
@@ -171,7 +186,7 @@ type httpTimeouts struct {
 	read       time.Duration // time allowed for the whole request, body included
 	write      time.Duration // time allowed to write a whole response
 	idle       time.Duration // how long a keep-alive connection may sit idle
-	heartbeat  time.Duration // how often an idle SSE stream sends a comment
+	heartbeat  time.Duration // silence on an SSE stream before a comment is sent
 }
 
 // defaultHTTPTimeouts are the limits used by every production manager.
@@ -237,8 +252,8 @@ func (h *HTTPManager) SetStreamChecker(fn func(int) bool) {
 	h.streamChecker = fn
 }
 
-func (h *HTTPManager) SetMaxConnections(max int) {
-	h.maxConnections = max
+func (h *HTTPManager) SetMaxConnections(limit int) {
+	h.maxConnections = limit
 }
 
 func (h *HTTPManager) GetAddr() string {
@@ -622,7 +637,7 @@ wait:
 		case <-h.quit:
 			break wait
 		case <-ticker.C:
-			if err := sconn.heartbeat(sseWriteDeadline); err != nil {
+			if err := sconn.heartbeat(h.timeouts.heartbeat, sseWriteDeadline); err != nil {
 				break wait
 			}
 		}
