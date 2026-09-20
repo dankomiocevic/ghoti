@@ -41,7 +41,7 @@ func (w *streamWriter) FlushError() error {
 	if n := w.flushCalls.Add(1); w.failFlushAt > 0 && n >= w.failFlushAt {
 		return errWriterBroken
 	}
-	w.ResponseRecorder.Flush()
+	w.Flush()
 	return nil
 }
 

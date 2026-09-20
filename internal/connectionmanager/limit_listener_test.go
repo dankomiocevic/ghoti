@@ -207,3 +207,32 @@ func TestManagersHonourMaxConnections(t *testing.T) {
 		})
 	}
 }
+
+func TestLimitListenerCloseUnblocksAcceptWaitingOnSocket(t *testing.T) {
+	// With a slot free, Accept is parked on the socket rather than on the
+	// semaphore. Closing the listener must make it return an error, and the
+	// slot it took must be handed back.
+	inner, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := limitListener(inner, 1)
+
+	parked := acceptOne(l)
+	time.Sleep(50 * time.Millisecond)
+	l.Close()
+
+	select {
+	case c := <-parked:
+		if c != nil {
+			c.Close()
+			t.Fatal("expected an error from Accept after Close, got a connection")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Accept stayed blocked on the socket after the listener was closed")
+	}
+
+	if got := len(l.(*limitedListener).slots); got != 0 {
+		t.Fatalf("slot was not released after the failed Accept: %d held", got)
+	}
+}
