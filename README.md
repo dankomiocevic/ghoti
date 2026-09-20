@@ -55,14 +55,12 @@ curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.2.0/checksu
 sha256sum --ignore-missing -c checksums.txt
 ```
 
-The signature proves that `checksums.txt` itself was produced by the Release workflow of this repository. It is a keyless [Sigstore](https://www.sigstore.dev/) signature, so the check is against the workflow identity rather than a key you have to trust. It needs [cosign](https://github.com/sigstore/cosign):
+The signature proves that `checksums.txt` itself was produced by the Release workflow of this repository. It is a keyless [Sigstore](https://www.sigstore.dev/) signature, so the check is against the workflow identity rather than a key you have to trust. The signature, the certificate and the transparency log entry come together in one bundle file. It needs [cosign](https://github.com/sigstore/cosign) v3:
 
 ```sh
-curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.2.0/checksums.txt.sig
-curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.2.0/checksums.txt.pem
+curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.2.0/checksums.txt.sigstore.json
 cosign verify-blob \
-  --certificate checksums.txt.pem \
-  --signature checksums.txt.sig \
+  --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp '^https://github.com/dankomiocevic/ghoti/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
