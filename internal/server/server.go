@@ -35,6 +35,7 @@ func NewServer(config *config.Config, cluster cluster.Cluster) (*Server, error) 
 	slog.Debug("Opening tcp for listening", slog.String("tcp", config.TCPAddr))
 
 	s.connections = config.Connections
+	s.connections.SetMaxConnections(config.MaxConnections)
 	if err := s.connections.StartListening(config.TCPAddr); err != nil {
 		return nil, fmt.Errorf("listening on %s: %w", config.TCPAddr, err)
 	}

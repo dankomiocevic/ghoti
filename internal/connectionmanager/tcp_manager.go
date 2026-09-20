@@ -20,11 +20,12 @@ import (
 var ErrNotListening = errors.New("connection manager is not listening")
 
 type TCPManager struct {
-	lock        sync.RWMutex
-	connections map[string]Connection
-	listener    net.Listener
-	wg          sync.WaitGroup
-	quit        chan interface{}
+	lock           sync.RWMutex
+	connections    map[string]Connection
+	listener       net.Listener
+	wg             sync.WaitGroup
+	quit           chan interface{}
+	maxConnections int
 }
 
 func NewTCPManager() *TCPManager {
@@ -39,13 +40,17 @@ func (c *TCPManager) GetAddr() string {
 	return c.listener.Addr().String()
 }
 
+func (c *TCPManager) SetMaxConnections(max int) {
+	c.maxConnections = max
+}
+
 func (c *TCPManager) StartListening(tcpAddr string) error {
 	l, err := net.Listen("tcp", tcpAddr)
 	if err != nil {
 		return err
 	}
 
-	c.listener = l
+	c.listener = limitListener(l, c.maxConnections)
 	return nil
 }
 

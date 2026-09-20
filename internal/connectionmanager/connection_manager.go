@@ -8,6 +8,10 @@ import (
 type CallbackFn func(int, []byte, *Connection) error
 
 type ConnectionManager interface {
+	// SetMaxConnections caps how many client connections may be open at
+	// once; zero or less means no cap. It must be called before
+	// StartListening, which is where the cap is applied.
+	SetMaxConnections(int)
 	StartListening(string) error
 	ServeConnections(CallbackFn) error
 	Broadcast(string) (string, error)

@@ -72,24 +72,35 @@ func (c *chanConn) SetWriteDeadline(time.Time) error { return nil }
 
 // sseConn implements net.Conn that writes SSE-formatted events to an http.ResponseWriter.
 // Each line of data written to this conn is emitted as an SSE event.
+//
+// Writes honour the deadline set with SetWriteDeadline, and a write that
+// fails closes the conn: a subscriber that stopped reading is dropped rather
+// than left blocking its EventProcessor for as long as the socket lives.
 type sseConn struct {
+	// mu serialises the processor's event writes with the heartbeat, which
+	// runs on the handler goroutine; the ResponseWriter is not safe for
+	// concurrent use.
+	mu         sync.Mutex
 	writer     http.ResponseWriter
-	flusher    http.Flusher
+	control    *http.ResponseController
 	closeCh    chan struct{}
 	closeOnce  sync.Once
 	remoteAddr net.Addr
 }
 
-func newSSEConn(w http.ResponseWriter, flusher http.Flusher, remoteAddr string) *sseConn {
+func newSSEConn(w http.ResponseWriter, remoteAddr string) *sseConn {
 	return &sseConn{
 		writer:     w,
-		flusher:    flusher,
+		control:    http.NewResponseController(w),
 		closeCh:    make(chan struct{}),
 		remoteAddr: httpRemoteAddr(remoteAddr),
 	}
 }
 
 func (c *sseConn) Write(b []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	select {
 	case <-c.closeCh:
 		return 0, io.EOF
@@ -103,17 +114,83 @@ func (c *sseConn) Write(b []byte) (int, error) {
 		}
 		fmt.Fprintf(c.writer, "data: %s\n\n", line)
 	}
-	c.flusher.Flush()
+	if err := c.flush(); err != nil {
+		return 0, err
+	}
 	return len(b), nil
 }
 
-func (c *sseConn) Read([]byte) (int, error)         { return 0, io.EOF }
-func (c *sseConn) Close() error                     { c.closeOnce.Do(func() { close(c.closeCh) }); return nil }
-func (c *sseConn) RemoteAddr() net.Addr             { return c.remoteAddr }
-func (c *sseConn) LocalAddr() net.Addr              { return nil }
-func (c *sseConn) SetDeadline(time.Time) error      { return nil }
-func (c *sseConn) SetReadDeadline(time.Time) error  { return nil }
-func (c *sseConn) SetWriteDeadline(time.Time) error { return nil }
+// heartbeat sends an SSE comment, which clients ignore, so that a peer that
+// went away without closing the socket is found out by the failed write
+// instead of lingering until the next broadcast. It is bounded by the same
+// deadline as an event write.
+func (c *sseConn) heartbeat(deadline time.Duration) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	select {
+	case <-c.closeCh:
+		return io.EOF
+	default:
+	}
+	if err := c.control.SetWriteDeadline(time.Now().Add(deadline)); err != nil {
+		return err
+	}
+	fmt.Fprint(c.writer, ": keepalive\n\n")
+	return c.flush()
+}
+
+// flush pushes the buffered response out and closes the conn when that
+// fails. The ResponseWriter buffers, so this is where a passed write deadline
+// or a dead peer shows up. Callers hold mu.
+func (c *sseConn) flush() error {
+	if err := c.control.Flush(); err != nil {
+		c.Close()
+		return err
+	}
+	return nil
+}
+
+func (c *sseConn) Read([]byte) (int, error)        { return 0, io.EOF }
+func (c *sseConn) Close() error                    { c.closeOnce.Do(func() { close(c.closeCh) }); return nil }
+func (c *sseConn) RemoteAddr() net.Addr            { return c.remoteAddr }
+func (c *sseConn) LocalAddr() net.Addr             { return nil }
+func (c *sseConn) SetDeadline(time.Time) error     { return nil }
+func (c *sseConn) SetReadDeadline(time.Time) error { return nil }
+
+// SetWriteDeadline bounds the next writes on the underlying HTTP connection,
+// the way it does on a plain TCP conn.
+func (c *sseConn) SetWriteDeadline(t time.Time) error { return c.control.SetWriteDeadline(t) }
+
+// httpTimeouts holds the limits applied to the public HTTP server. Every
+// request is a single short command, so the values are tight; the SSE stream
+// is the one long-lived handler and it lifts the read and write deadlines
+// itself in openBroadcastStream.
+type httpTimeouts struct {
+	readHeader time.Duration // time allowed to send the request headers
+	read       time.Duration // time allowed for the whole request, body included
+	write      time.Duration // time allowed to write a whole response
+	idle       time.Duration // how long a keep-alive connection may sit idle
+	heartbeat  time.Duration // how often an idle SSE stream sends a comment
+}
+
+// defaultHTTPTimeouts are the limits used by every production manager.
+var defaultHTTPTimeouts = httpTimeouts{
+	readHeader: 5 * time.Second,
+	read:       10 * time.Second,
+	write:      10 * time.Second,
+	idle:       60 * time.Second,
+	heartbeat:  15 * time.Second,
+}
+
+// sseWriteDeadline bounds a heartbeat write. It matches the deadline the
+// EventProcessor puts on event writes, so a stalled subscriber is treated the
+// same whichever write finds it first.
+const sseWriteDeadline = 200 * time.Millisecond
+
+// maxHTTPHeaderBytes caps the request headers. A slot request carries at most
+// a Basic Auth header, so anything near the 1 MiB net/http default is abuse.
+const maxHTTPHeaderBytes = 8 << 10
 
 // HTTPManager implements ConnectionManager using HTTP for commands and SSE for broadcasts.
 //
@@ -125,15 +202,17 @@ func (c *sseConn) SetWriteDeadline(time.Time) error { return nil }
 // Authentication uses HTTP Basic Auth, matched against the users map provided via SetUsers.
 // Anonymous access is allowed when no credentials are sent (slots without user restrictions).
 type HTTPManager struct {
-	lock          sync.RWMutex
-	connections   map[string]Connection
-	httpServer    *http.Server
-	listener      net.Listener
-	wg            sync.WaitGroup
-	quit          chan interface{}
-	callback      CallbackFn
-	users         map[string]auth.User
-	streamChecker func(int) bool
+	lock           sync.RWMutex
+	connections    map[string]Connection
+	httpServer     *http.Server
+	listener       net.Listener
+	wg             sync.WaitGroup
+	quit           chan interface{}
+	callback       CallbackFn
+	users          map[string]auth.User
+	streamChecker  func(int) bool
+	timeouts       httpTimeouts
+	maxConnections int
 }
 
 func NewHTTPManager() *HTTPManager {
@@ -141,6 +220,7 @@ func NewHTTPManager() *HTTPManager {
 		quit:        make(chan interface{}),
 		connections: make(map[string]Connection),
 		users:       make(map[string]auth.User),
+		timeouts:    defaultHTTPTimeouts,
 	}
 }
 
@@ -155,6 +235,10 @@ func (h *HTTPManager) SetUsers(users map[string]auth.User) {
 // SSE connection instead of returning an immediate value.
 func (h *HTTPManager) SetStreamChecker(fn func(int) bool) {
 	h.streamChecker = fn
+}
+
+func (h *HTTPManager) SetMaxConnections(max int) {
+	h.maxConnections = max
 }
 
 func (h *HTTPManager) GetAddr() string {
@@ -175,10 +259,15 @@ func (h *HTTPManager) StartListening(addr string) error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", h.handleSlot)
-	h.listener = l
+	h.listener = limitListener(l, h.maxConnections)
 	h.httpServer = &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: h.timeouts.readHeader,
+		ReadTimeout:       h.timeouts.read,
+		WriteTimeout:      h.timeouts.write,
+		IdleTimeout:       h.timeouts.idle,
+		MaxHeaderBytes:    maxHTTPHeaderBytes,
 	}
 	return nil
 }
@@ -465,8 +554,16 @@ func (h *HTTPManager) writeHTTPResponse(w http.ResponseWriter, response string) 
 // The caller receives all future broadcast events as SSE data lines until it disconnects.
 // No immediate value is returned; the connection stays open waiting for writes to the slot.
 func (h *HTTPManager) openBroadcastStream(w http.ResponseWriter, r *http.Request, user auth.User) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
+	// The stream is the one response that legitimately stays open. Lift the
+	// server-wide deadlines for this request only: past ReadTimeout net/http
+	// cancels the request context, and past WriteTimeout every write fails,
+	// so without this an idle subscriber would be dropped after ten seconds.
+	rc := http.NewResponseController(w)
+	if err := rc.SetReadDeadline(time.Time{}); err != nil {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+	if err := rc.SetWriteDeadline(time.Time{}); err != nil {
 		http.Error(w, "streaming not supported", http.StatusInternalServerError)
 		return
 	}
@@ -476,7 +573,7 @@ func (h *HTTPManager) openBroadcastStream(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	sconn := newSSEConn(w, flusher, r.RemoteAddr)
+	sconn := newSSEConn(w, r.RemoteAddr)
 	conn := h.createConnection(sconn)
 	conn.LoggedUser = user
 	if user.Name != "" {
@@ -490,7 +587,11 @@ func (h *HTTPManager) openBroadcastStream(w http.ResponseWriter, r *http.Request
 	// so that the initial Flush and the goroutine's Flush calls never race on
 	// the same ResponseWriter.
 	w.WriteHeader(http.StatusOK)
-	flusher.Flush()
+	if err := rc.Flush(); err != nil {
+		h.Delete(conn.ID)
+		conn.Close()
+		return
+	}
 
 	slog.Debug("SSE subscriber connected",
 		slog.String("id", conn.ID),
@@ -504,7 +605,28 @@ func (h *HTTPManager) openBroadcastStream(w http.ResponseWriter, r *http.Request
 		conn.EventProcessor()
 	}()
 
-	<-r.Context().Done()
+	// http.Server.Shutdown does not cancel request contexts: it waits for
+	// every handler to return. The stream has to notice the manager closing
+	// on its own, or Close would wait on this handler forever.
+	// A failed write closes sconn from the processor goroutine, and that
+	// has to end the handler too.
+	ticker := time.NewTicker(h.timeouts.heartbeat)
+	defer ticker.Stop()
+wait:
+	for {
+		select {
+		case <-r.Context().Done():
+			break wait
+		case <-sconn.closeCh:
+			break wait
+		case <-h.quit:
+			break wait
+		case <-ticker.C:
+			if err := sconn.heartbeat(sseWriteDeadline); err != nil {
+				break wait
+			}
+		}
+	}
 
 	slog.Debug("SSE subscriber disconnected",
 		slog.String("id", conn.ID),

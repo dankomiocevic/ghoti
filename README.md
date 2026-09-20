@@ -227,6 +227,13 @@ Line endings are strict and differ per transport:
 
 Over HTTP the response is translated into a status code: `200` with the value as the body, `403` for a permission error, `404` for a slot that is not configured, `503` when the node is not the cluster leader, and `400` for any other error. The `s`, `d`, `u`, `p` and `q` commands have no HTTP equivalent, so multicast groups cannot be joined over this transport.
 
+The HTTP server is bounded so that a slow or idle client cannot hold resources for long: a client has 5 seconds to send its request headers and 10 seconds for the whole request, responses are written within 10 seconds, an idle keep-alive connection is closed after 60 seconds, and request headers are capped at 8 KiB. Every command is a single short request, so well-behaved clients never notice these limits.
+
+SSE streams are the deliberate exception: a stream stays open for as long as the client keeps reading it, with no read or write timeout. In exchange the stream follows two rules:
+
+- **Heartbeats.** Every 15 seconds of silence the server sends an SSE comment line (`: keepalive`), which SSE clients ignore. It keeps proxies from closing an idle stream and lets the server notice a client that went away without closing the connection.
+- **Backpressure.** A subscriber must keep reading. Each event is written with a 200 ms deadline, the same the `standard` transport uses, so once a subscriber's socket buffers are full because it stopped reading, the next event or heartbeat fails and the subscriber is disconnected. The `a` event it missed is counted as an error in the `received/sent/errors` response to the writer, exactly like a stalled TCP subscriber.
+
 Example config:
 
 ```yaml
@@ -484,6 +491,16 @@ There is no configuration for this slot beyond selecting the kind:
 slot_002:
   kind: atomic
 ```
+
+### Connection limits
+
+By default Ghoti accepts as many client connections as the operating system allows. `max_connections` caps how many may be open at once, on every transport:
+
+```yaml
+max_connections: 1000
+```
+
+When the cap is reached, new connections are not refused: they complete the TCP handshake and wait in the kernel's accept queue until a connection closes, so a client sees a connect that succeeds and a first response that is delayed. Over `http` this also counts SSE subscribers, since each stream holds a connection for as long as it is open. A value of `0`, the default, means no cap, and a negative value is a configuration error.
 
 ## Auth
 

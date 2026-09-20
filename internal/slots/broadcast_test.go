@@ -23,6 +23,9 @@ func (m *MockConnectionManager) Multicast(message string, targets []net.Conn, ti
 	return m.MulticastFunc(message, targets, timeout)
 }
 
+func (m *MockConnectionManager) SetMaxConnections(int) {
+}
+
 func (m *MockConnectionManager) StartListening(string) error {
 	return nil
 }
