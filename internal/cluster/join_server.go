@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -17,6 +19,37 @@ import (
 // endpoint. Without it a peer that accepts the connection and never answers
 // pins the calling goroutine forever.
 const peerNotifyTimeout = 5 * time.Second
+
+// httpTimeouts holds the limits applied to the join server. Every endpoint is
+// a short request and answer between peers, so the values are tight.
+type httpTimeouts struct {
+	readHeader time.Duration // time allowed to send the request headers
+	read       time.Duration // time allowed for the whole request, body included
+	write      time.Duration // time allowed to write a whole response
+	idle       time.Duration // how long a keep-alive connection may sit idle
+	shutdown   time.Duration // how long Close waits for in-flight requests
+}
+
+// defaultJoinTimeouts are used by every join server that is not given its
+// own, which is every production one.
+var defaultJoinTimeouts = httpTimeouts{
+	readHeader: 5 * time.Second,
+	read:       10 * time.Second,
+	write:      10 * time.Second,
+	idle:       60 * time.Second,
+	shutdown:   5 * time.Second,
+}
+
+// maxJoinHeaderBytes caps the request headers: a peer sends a Basic Auth
+// header and little else.
+const maxJoinHeaderBytes = 8 << 10
+
+// maxJoinBodyBytes caps a request body. The largest legitimate body is a join
+// with a node ID and an address, a few dozen bytes.
+const maxJoinBodyBytes = 4 << 10
+
+// maxJoinResponseBytes caps the peer list a node accepts when it joins.
+const maxJoinResponseBytes = 1 << 20
 
 type joinServer struct {
 	addr    string
@@ -31,6 +64,8 @@ type joinServer struct {
 	server        *http.Server
 	wg            sync.WaitGroup
 	joinRequests  atomic.Uint64
+	// timeouts left at its zero value means defaultJoinTimeouts.
+	timeouts httpTimeouts
 }
 
 // JoinRequestCount returns the number of authenticated join requests this
@@ -63,8 +98,16 @@ func (s *joinServer) Start() error {
 		s.cluster.SetLeader(leader)
 	}
 
+	if s.timeouts == (httpTimeouts{}) {
+		s.timeouts = defaultJoinTimeouts
+	}
 	server := &http.Server{
-		Handler: s,
+		Handler:           s,
+		ReadHeaderTimeout: s.timeouts.readHeader,
+		ReadTimeout:       s.timeouts.read,
+		WriteTimeout:      s.timeouts.write,
+		IdleTimeout:       s.timeouts.idle,
+		MaxHeaderBytes:    maxJoinHeaderBytes,
 	}
 	s.server = server
 
@@ -89,7 +132,17 @@ func (s *joinServer) Start() error {
 
 func (s *joinServer) Close() {
 	slog.Info("Closing Cluster Join server")
-	s.server.Shutdown(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), s.timeouts.shutdown)
+	defer cancel()
+	// Shutdown leaves the connections it ran out of time for open, and their
+	// handlers running against cluster state that is about to be torn down.
+	// Close them outright rather than return with them still in flight.
+	if err := s.server.Shutdown(ctx); err != nil {
+		slog.Warn("Graceful shutdown of the join server did not finish, closing connections",
+			slog.Any("error", err),
+		)
+		s.server.Close() //nolint:errcheck
+	}
 	s.wg.Wait()
 }
 
@@ -112,6 +165,33 @@ func (s *joinServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// errTrailingContent is returned when a body carries more than one JSON value.
+var errTrailingContent = errors.New("request body has content after the JSON value")
+
+// decodeBody decodes the JSON request body into v, reading at most
+// maxJoinBodyBytes of it.
+//
+// A declared Content-Length over the cap is refused without reading. The
+// decoder stops at the end of the first value, so on its own the byte cap
+// would not notice what follows; the body has to be read through to its
+// end, where either EOF or the cap is reached.
+func decodeBody(w http.ResponseWriter, r *http.Request, v any) error {
+	if r.ContentLength > maxJoinBodyBytes {
+		return &http.MaxBytesError{Limit: maxJoinBodyBytes}
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJoinBodyBytes))
+	if err := dec.Decode(v); err != nil {
+		return err
+	}
+	if err := dec.Decode(new(json.RawMessage)); err != io.EOF {
+		if err == nil {
+			return errTrailingContent
+		}
+		return err
+	}
+	return nil
+}
+
 func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 	slog.Info("Received request to join cluster")
 	user, pass, _ := r.BasicAuth()
@@ -131,7 +211,7 @@ func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 	s.joinRequests.Add(1)
 
 	m := map[string]string{}
-	if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
+	if err := decodeBody(w, r, &m); err != nil {
 		slog.Debug("JSON request cannot be decoded")
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -238,7 +318,7 @@ func (s *joinServer) handleRemove(w http.ResponseWriter, r *http.Request) {
 	}
 
 	m := map[string]string{}
-	if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
+	if err := decodeBody(w, r, &m); err != nil {
 		slog.Debug("JSON request cannot be decoded")
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -293,7 +373,7 @@ func (s *joinServer) handleCoordinator(w http.ResponseWriter, r *http.Request) {
 	}
 
 	m := map[string]string{}
-	if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
+	if err := decodeBody(w, r, &m); err != nil {
 		slog.Debug("JSON request cannot be decoded")
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -376,12 +456,24 @@ func requestToJoin(joinAddr, managerAddr, nodeID, user, pass string) (map[string
 		return nil, "", fmt.Errorf("failed to join cluster, response status: %s", resp.Status)
 	}
 
+	// A peer list is small; a peer sending back megabytes is broken, not big.
+	// Read one byte past the cap so a body that is exactly too big is told
+	// apart from one that fits, then decode the whole thing: Unmarshal
+	// rejects a second document where a streaming decoder would stop short.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxJoinResponseBytes+1))
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to read join response: %w", err)
+	}
+	if len(body) > maxJoinResponseBytes {
+		return nil, "", fmt.Errorf("join response larger than %d bytes", maxJoinResponseBytes)
+	}
+
 	// Parse response for peers and leader
 	var result struct {
 		Peers  map[string]string `json:"peers"`
 		Leader string            `json:"leader"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, "", fmt.Errorf("failed to decode join response: %w", err)
 	}
 

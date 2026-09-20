@@ -551,3 +551,45 @@ metrics:
 		}
 	}
 }
+
+func TestMaxConnectionsUnlimitedByDefault(t *testing.T) {
+	resetViper(t, `
+addr: "localhost:9090"
+`)
+
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("configuration failed to load: %s", err)
+	}
+
+	if config.MaxConnections != 0 {
+		t.Fatalf("max_connections must default to 0 (no cap), got %d", config.MaxConnections)
+	}
+}
+
+func TestMaxConnectionsConfig(t *testing.T) {
+	resetViper(t, `
+addr: "localhost:9090"
+max_connections: 250
+`)
+
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("configuration failed to load: %s", err)
+	}
+
+	if config.MaxConnections != 250 {
+		t.Fatalf("max_connections does not match: %d", config.MaxConnections)
+	}
+}
+
+func TestMaxConnectionsRejectsNegative(t *testing.T) {
+	resetViper(t, `
+addr: "localhost:9090"
+max_connections: -1
+`)
+
+	if _, err := LoadConfig(); err == nil {
+		t.Fatalf("a negative max_connections must be rejected")
+	}
+}

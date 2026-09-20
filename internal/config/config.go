@@ -38,6 +38,7 @@ type LoggingConfig struct {
 
 type Config struct {
 	TCPAddr        string
+	MaxConnections int
 	Slots          [1000]slots.Slot
 	StreamingSlots map[int]bool
 	Users          map[string]auth.User
@@ -77,6 +78,13 @@ func LoadConfig() (*Config, error) {
 
 		if !SupportedProtocols[config.Protocol] {
 			return nil, fmt.Errorf("protocol not supported: %s", config.Protocol)
+		}
+	}
+
+	if viper.IsSet("max_connections") {
+		config.MaxConnections = viper.GetInt("max_connections")
+		if config.MaxConnections < 0 {
+			return nil, fmt.Errorf("max_connections must be zero or a positive number, got %d", config.MaxConnections)
 		}
 	}
 

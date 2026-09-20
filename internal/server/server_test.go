@@ -875,3 +875,43 @@ func TestNewServerFailsWhenAddressInUse(t *testing.T) {
 		})
 	}
 }
+
+func TestServerAppliesMaxConnections(t *testing.T) {
+	// The cap configured with max_connections has to reach the listener: a
+	// second client is held back while the first one keeps the only slot.
+	cfg := generateConfig("0")
+	cfg.MaxConnections = 1
+	s, err := NewServer(cfg, cluster.NewEmptyCluster())
+	if err != nil {
+		t.Fatalf("couldn't start the server: %v", err)
+	}
+	defer s.Stop()
+	time.Sleep(100 * time.Millisecond)
+
+	first, err := net.Dial("tcp", s.connections.GetAddr())
+	if err != nil {
+		t.Fatalf("couldn't connect to the server: %v", err)
+	}
+	defer first.Close()
+	time.Sleep(50 * time.Millisecond)
+
+	second, err := net.Dial("tcp", s.connections.GetAddr())
+	if err != nil {
+		t.Fatalf("couldn't connect to the server: %v", err)
+	}
+	defer second.Close()
+	if _, err := second.Write([]byte("r000\n")); err != nil {
+		t.Fatal(err)
+	}
+
+	second.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+	if _, err := second.Read(make([]byte, 1)); err == nil {
+		t.Fatal("second connection was served while the first held the only slot")
+	}
+
+	first.Close()
+	second.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := second.Read(make([]byte, 1)); err != nil {
+		t.Fatalf("second connection was not served after the first closed: %v", err)
+	}
+}

@@ -321,7 +321,7 @@ func TestChanConnRemoteAddr(t *testing.T) {
 
 func TestSSEConnFormatsEvents(t *testing.T) {
 	rr := httptest.NewRecorder()
-	sc := newSSEConn(rr, rr, "192.0.2.1:5555")
+	sc := newSSEConn(rr, "192.0.2.1:5555")
 
 	sc.Write([]byte("a000hello\n")) //nolint:errcheck
 
@@ -333,7 +333,7 @@ func TestSSEConnFormatsEvents(t *testing.T) {
 
 func TestSSEConnFormatsMultipleEvents(t *testing.T) {
 	rr := httptest.NewRecorder()
-	sc := newSSEConn(rr, rr, "192.0.2.1:5555")
+	sc := newSSEConn(rr, "192.0.2.1:5555")
 
 	// Two events batched together (as sendBatchedEvents would produce)
 	sc.Write([]byte("a000hello\n\na001world\n")) //nolint:errcheck
@@ -351,7 +351,7 @@ func TestSSEConnFormatsMultipleEvents(t *testing.T) {
 // exercised by a real server since it never calls HandleMessage.
 func TestSSEConnRemoteAddr(t *testing.T) {
 	rr := httptest.NewRecorder()
-	sc := newSSEConn(rr, rr, "203.0.113.5:4242")
+	sc := newSSEConn(rr, "203.0.113.5:4242")
 
 	addr := sc.RemoteAddr()
 	if addr == nil {
