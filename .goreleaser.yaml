@@ -73,20 +73,20 @@ sboms:
       - spdx-json=${document}
 
 # Keyless signature of the checksums file with Sigstore. The certificate is
-# issued to the workflow identity, so there is no private key to keep.
-# Verification is described in the README.
+# issued to the workflow identity, so there is no private key to keep. cosign
+# v3 writes the signature, the certificate and the transparency log entry to a
+# single bundle file, the separate --output-signature/--output-certificate
+# flags are ignored. Verification is described in the README.
 signs:
   - id: checksums
     cmd: cosign
     artifacts: checksum
-    certificate: "${artifact}.pem"
-    signature: "${artifact}.sig"
+    signature: "${artifact}.sigstore.json"
     output: true
     args:
       - sign-blob
       - --yes
-      - --output-signature=${signature}
-      - --output-certificate=${certificate}
+      - --bundle=${signature}
       - "${artifact}"
 
 # The release body is taken from CHANGELOG.md by the workflow, the generated
