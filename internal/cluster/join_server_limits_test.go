@@ -246,3 +246,18 @@ func TestJoinServerCloseForcesStuckConnectionsClosed(t *testing.T) {
 		t.Fatal("the stuck request is still open after Close returned")
 	}
 }
+
+func TestRequestToJoinReportsTruncatedResponse(t *testing.T) {
+	// A peer that promises more than it sends leaves the body short; that is
+	// a read error, and it must come back as one rather than as bad JSON.
+	peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		io.WriteString(w, `{"peers":{}`) //nolint:errcheck
+	}))
+	defer peer.Close()
+
+	_, _, err := requestToJoin(strings.TrimPrefix(peer.URL, "http://"), "me:1", "me", "u", "p")
+	if err == nil || !strings.Contains(err.Error(), "read join response") {
+		t.Fatalf("expected a read error, got %v", err)
+	}
+}
