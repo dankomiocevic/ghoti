@@ -28,6 +28,54 @@ Let's say that you are using a Ghoti node as a cache to store information, that 
 
 This is why by enforcing the no-persistence and reminding you about that "systems can fail" we want to make Ghoti simple and hopefully make the overall design better.
 
+## Installation
+
+Every release on the [releases page](https://github.com/dankomiocevic/ghoti/releases) has one archive per platform, `ghoti_<version>_<os>_<arch>.tar.gz` for Linux and macOS and `ghoti_<version>_windows_<arch>.zip` for Windows. The archive has the `ghoti` binary at its root together with the README, the license and the changelog.
+
+```sh
+curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.2.0/ghoti_0.2.0_linux_amd64.tar.gz
+tar -xzf ghoti_0.2.0_linux_amd64.tar.gz
+./ghoti version
+```
+
+Building from source needs the Go version listed in `go.mod`:
+
+```sh
+go install github.com/dankomiocevic/ghoti/cmd/ghoti@latest
+```
+
+### Verifying a download
+
+Each release also ships with a `checksums.txt`, an SPDX SBOM next to every archive (`<archive>.sbom.json`), a Sigstore signature of the checksums file and a build provenance attestation for every archive. They let you check that what you downloaded is what the Release workflow built from the tag.
+
+The checksum catches a corrupted or tampered download:
+
+```sh
+curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.2.0/checksums.txt
+sha256sum --ignore-missing -c checksums.txt
+```
+
+The signature proves that `checksums.txt` itself was produced by the Release workflow of this repository. It is a keyless [Sigstore](https://www.sigstore.dev/) signature, so the check is against the workflow identity rather than a key you have to trust. It needs [cosign](https://github.com/sigstore/cosign):
+
+```sh
+curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.2.0/checksums.txt.sig
+curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.2.0/checksums.txt.pem
+cosign verify-blob \
+  --certificate checksums.txt.pem \
+  --signature checksums.txt.sig \
+  --certificate-identity-regexp '^https://github.com/dankomiocevic/ghoti/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
+```
+
+The provenance attestation ties an archive to the exact commit and workflow run that built it. It is checked with the [GitHub CLI](https://cli.github.com/) and does not need any other file:
+
+```sh
+gh attestation verify ghoti_0.2.0_linux_amd64.tar.gz --repo dankomiocevic/ghoti
+```
+
+The SBOM lists the Go modules linked into the binary, for scanners like [grype](https://github.com/anchore/grype) or for your own inventory.
+
 ## Protocol
 
 Ghoti uses slots to communicate, if you ever worked with microcontrollers you would get the similarities with registers.

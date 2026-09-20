@@ -2,6 +2,8 @@ name: Pull Request
 on:
   merge_group:
   pull_request:
+  # The Release workflow runs these same checks on the tagged commit.
+  workflow_call:
 
 permissions:
   contents: read

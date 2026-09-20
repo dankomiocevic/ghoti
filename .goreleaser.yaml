@@ -1,0 +1,113 @@
+# GoReleaser configuration. See https://goreleaser.com/customization/
+#
+# A release is built and published by the Release workflow when a v* tag is
+# pushed. To try the configuration locally without publishing anything run
+# `make release-snapshot`, the artefacts end up in dist/.
+
+version: 2
+
+project_name: ghoti
+
+before:
+  hooks:
+    - go mod verify
+
+builds:
+  - main: ./cmd/ghoti
+    binary: ghoti
+    env:
+      - CGO_ENABLED=0
+    # -trimpath removes the build machine paths from the binary, together with
+    # the fixed timestamp below it makes the build reproducible from the tag.
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/dankomiocevic/ghoti/internal/appinfo.Version={{ .Version }}
+      - -X github.com/dankomiocevic/ghoti/internal/appinfo.Commit={{ .Commit }}
+      - -X github.com/dankomiocevic/ghoti/internal/appinfo.Date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - "386"
+    ignore:
+      - goos: darwin
+        goarch: "386"
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    # ghoti_0.2.0_linux_amd64.tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# One SPDX document per archive, generated from the built binary so it lists
+# the modules that are really linked in, not just what go.mod declares.
+sboms:
+  - id: archive
+    artifacts: archive
+    documents:
+      - "{{ .ArtifactName }}.sbom.json"
+    cmd: syft
+    args:
+      - "${artifact}"
+      - --output
+      - spdx-json=${document}
+
+# Keyless signature of the checksums file with Sigstore. The certificate is
+# issued to the workflow identity, so there is no private key to keep.
+# Verification is described in the README.
+signs:
+  - id: checksums
+    cmd: cosign
+    artifacts: checksum
+    certificate: "${artifact}.pem"
+    signature: "${artifact}.sig"
+    output: true
+    args:
+      - sign-blob
+      - --yes
+      - --output-signature=${signature}
+      - --output-certificate=${certificate}
+      - "${artifact}"
+
+# The release body is taken from CHANGELOG.md by the workflow, the generated
+# commit list is not needed.
+changelog:
+  disable: true
+
+release:
+  github:
+    owner: dankomiocevic
+    name: ghoti
+  # A draft gives a chance to check the notes and the assets before the
+  # release becomes public. Tags with a suffix, like v0.2.0-rc.1, are marked
+  # as pre-release.
+  draft: true
+  prerelease: auto
+  footer: |
+    ---
+    Every archive has a sha256 in `checksums.txt`, an SPDX SBOM next to it and
+    a build provenance attestation. `checksums.txt` is signed with Sigstore.
+    See the README for how to verify them.
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
