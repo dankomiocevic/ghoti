@@ -103,7 +103,7 @@ func (m *TelnetManager) handleUserConnection(callback CallbackFn, conn Connectio
 			case errs.TranscientError:
 				if errors.Is(err, ErrMessageTooLong) {
 					res := errs.Error("PARSE_ERROR")
-					conn.SendEvent(res.Response("xxx"))
+					conn.SendResponse(res.Response("xxx"))
 				}
 				continue
 			case errs.PermanentError:
@@ -126,7 +126,7 @@ func (m *TelnetManager) handleUserConnection(callback CallbackFn, conn Connectio
 					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 				)
 			}
-			conn.SendEvent(res.Response("xxx"))
+			conn.SendResponse(res.Response("xxx"))
 			continue
 		}
 		conn.Buffer[size-2] = 10

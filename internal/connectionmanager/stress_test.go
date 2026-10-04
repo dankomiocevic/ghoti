@@ -78,7 +78,7 @@ func TestConcurrentConnectDisconnectBroadcast(t *testing.T) {
 
 	addr := manager.GetAddr()
 	go manager.ServeConnections(func(_ int, _ []byte, conn *Connection) error { //nolint:errcheck
-		conn.SendEvent("v000ok\n") //nolint:errcheck
+		conn.SendResponse("v000ok\n") //nolint:errcheck
 		return nil
 	})
 

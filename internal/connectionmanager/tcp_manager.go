@@ -124,7 +124,7 @@ func (c *TCPManager) handleUserConnection(callback CallbackFn, conn Connection) 
 			case errs.TranscientError:
 				if errors.Is(err, ErrMessageTooLong) {
 					res := errs.Error("PARSE_ERROR")
-					conn.SendEvent(res.Response("xxx"))
+					conn.SendResponse(res.Response("xxx"))
 				}
 				continue
 			case errs.PermanentError:

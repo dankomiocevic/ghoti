@@ -72,7 +72,6 @@ func TestBroadcast(t *testing.T) {
 			NetworkConn: server,
 			IsLogged:    false,
 			Username:    "",
-			Callback:    make(chan string, 10),
 			Buffer:      make([]byte, 1024),
 			Timeout:     200,
 		}
@@ -142,7 +141,6 @@ func benchmarkBroadcast(x int, b *testing.B) {
 				NetworkConn: server,
 				IsLogged:    false,
 				Username:    "",
-				Callback:    make(chan string, 10),
 				Buffer:      make([]byte, 1024),
 				Timeout:     200,
 			}

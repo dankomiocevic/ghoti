@@ -36,7 +36,7 @@ func echoCallback(size int, data []byte, conn *Connection) error {
 	if msg[0] == 'w' && len(msg) > 4 {
 		value = msg[4:]
 	}
-	return conn.SendEvent(fmt.Sprintf("v%s%s\n", slot, value))
+	return conn.SendResponse(fmt.Sprintf("v%s%s\n", slot, value))
 }
 
 // errorCallback simulates a server that always returns a READ_PERMISSION error.
@@ -47,7 +47,7 @@ func errorCallback(size int, data []byte, conn *Connection) error {
 		slot = msg[1:4]
 	}
 	res := errs.Error("READ_PERMISSION")
-	return conn.SendEvent(res.Response(slot))
+	return conn.SendResponse(res.Response(slot))
 }
 
 func TestHTTPManagerRead(t *testing.T) {

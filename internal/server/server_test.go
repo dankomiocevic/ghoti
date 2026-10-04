@@ -68,7 +68,7 @@ func generateConfig(port string) *config.Config {
 	return c
 }
 
-func runServer(t *testing.T) (*Server, net.Conn) {
+func runServer(t testing.TB) (*Server, net.Conn) {
 	// Port 0 lets the OS pick a free port, so tests never collide with each
 	// other or with whatever else is listening on the machine.
 	s, err := NewServer(generateConfig("0"), cluster.NewEmptyCluster())
