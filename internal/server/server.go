@@ -76,7 +76,7 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connectionmanager.Co
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
 		}
-		return conn.SendEvent(res.Response("xxx"))
+		return conn.SendResponse(res.Response("xxx"))
 	}
 
 	if msg.Command == 'q' {
@@ -96,7 +96,7 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connectionmanager.Co
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
 		}
-		return conn.SendEvent(res.ResponseWithArgument("xxx", s.cluster.GetLeader()))
+		return conn.SendResponse(res.ResponseWithArgument("xxx", s.cluster.GetLeader()))
 	}
 
 	if msg.Command == 'u' {
@@ -116,7 +116,7 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connectionmanager.Co
 			slog.String("id", conn.ID),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
-		return conn.SendEvent(res.Response("xxx"))
+		return conn.SendResponse(res.Response("xxx"))
 	}
 
 	currentSlot := s.slotsArray[msg.Slot]
@@ -129,7 +129,7 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connectionmanager.Co
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
 		}
-		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+		return conn.SendResponse(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 	}
 
 	if msg.Command == 'w' {
@@ -162,7 +162,7 @@ func processRead(conn *connectionmanager.Connection, currentSlot slots.Slot, msg
 		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 	)
 	res := errs.Error("READ_PERMISSION")
-	err := conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+	err := conn.SendResponse(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 	return err
 }
 
@@ -174,7 +174,7 @@ func processRegister(conn *connectionmanager.Connection, currentSlot slots.Slot,
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 		res := errs.Error("READ_PERMISSION")
-		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+		return conn.SendResponse(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 	}
 
 	groupSlot, ok := currentSlot.(slots.GroupSlot)
@@ -187,7 +187,7 @@ func processRegister(conn *connectionmanager.Connection, currentSlot slots.Slot,
 			)
 		}
 		res := errs.Error("UNSUPPORTED_COMMAND")
-		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+		return conn.SendResponse(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 	}
 
 	value, err := groupSlot.Register(conn.NetworkConn)
@@ -197,7 +197,7 @@ func processRegister(conn *connectionmanager.Connection, currentSlot slots.Slot,
 			slog.Int("slot", msg.Slot),
 			slog.Any("error", err),
 		)
-		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+		return conn.SendResponse(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 	}
 
 	return sendSlotData(msg, conn, value)
@@ -211,7 +211,7 @@ func processDeregister(conn *connectionmanager.Connection, currentSlot slots.Slo
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 		res := errs.Error("READ_PERMISSION")
-		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+		return conn.SendResponse(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 	}
 
 	groupSlot, ok := currentSlot.(slots.GroupSlot)
@@ -224,7 +224,7 @@ func processDeregister(conn *connectionmanager.Connection, currentSlot slots.Slo
 			)
 		}
 		res := errs.Error("UNSUPPORTED_COMMAND")
-		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+		return conn.SendResponse(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 	}
 
 	value, err := groupSlot.Deregister(conn.NetworkConn)
@@ -234,7 +234,7 @@ func processDeregister(conn *connectionmanager.Connection, currentSlot slots.Slo
 			slog.Int("slot", msg.Slot),
 			slog.Any("error", err),
 		)
-		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+		return conn.SendResponse(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 	}
 
 	return sendSlotData(msg, conn, value)
@@ -248,7 +248,7 @@ func processWrite(conn *connectionmanager.Connection, currentSlot slots.Slot, ms
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
 		res := errs.Error("WRITE_PERMISSION")
-		err := conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+		err := conn.SendResponse(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 		if err != nil {
 			return err
 		}
@@ -263,7 +263,7 @@ func processWrite(conn *connectionmanager.Connection, currentSlot slots.Slot, ms
 			slog.Int("slot", msg.Slot),
 			slog.Any("error", err),
 		)
-		err = conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
+		err = conn.SendResponse(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 		return err
 	}
 	if logging.DebugEnabled() {
@@ -284,7 +284,7 @@ func sendSlotData(msg Message, conn *connectionmanager.Connection, value string)
 	fmt.Fprintf(&sb, "%03d", msg.Slot)
 	sb.WriteString(value)
 	sb.WriteString("\n")
-	err := conn.SendEvent(sb.String())
+	err := conn.SendResponse(sb.String())
 	if err != nil {
 		return err
 	}
@@ -303,7 +303,7 @@ func processUsername(conn *connectionmanager.Connection, msg Message) error {
 	err := auth.ValidateUsername(msg.Value)
 	if err != nil {
 		res := errs.Error("WRONG_USER")
-		conn.SendEvent(res.Response("xxx"))
+		conn.SendResponse(res.Response("xxx"))
 		if logging.DebugEnabled() {
 			slog.Debug("Invalid user received",
 				slog.String("user", msg.Value),
@@ -322,7 +322,7 @@ func processUsername(conn *connectionmanager.Connection, msg Message) error {
 	sb.WriteString("v")
 	sb.WriteString(conn.Username)
 	sb.WriteString("\n")
-	err = conn.SendEvent(sb.String())
+	err = conn.SendResponse(sb.String())
 	if err != nil {
 		return err
 	}
@@ -340,7 +340,7 @@ func processPassword(s *Server, conn *connectionmanager.Connection, msg Message)
 	user, err := auth.GetUser(conn.Username, msg.Value)
 	if err != nil {
 		res := errs.Error("WRONG_PASS")
-		conn.SendEvent(res.Response("xxx"))
+		conn.SendResponse(res.Response("xxx"))
 		if logging.DebugEnabled() {
 			slog.Debug("Invalid password received",
 				slog.String("id", conn.ID),
@@ -355,7 +355,7 @@ func processPassword(s *Server, conn *connectionmanager.Connection, msg Message)
 	}
 	if s.usersMap[user.Name].Password != user.Password {
 		res := errs.Error("WRONG_LOGIN")
-		conn.SendEvent(res.Response("xxx"))
+		conn.SendResponse(res.Response("xxx"))
 		slog.Warn("Invalid login received",
 			slog.String("id", conn.ID),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
@@ -372,7 +372,7 @@ func processPassword(s *Server, conn *connectionmanager.Connection, msg Message)
 	sb.WriteString("v")
 	sb.WriteString(conn.Username)
 	sb.WriteString("\n")
-	err = conn.SendEvent(sb.String())
+	err = conn.SendResponse(sb.String())
 	if err != nil {
 		return err
 	}

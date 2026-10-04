@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/errs"
 	"github.com/dankomiocevic/ghoti/internal/logging"
@@ -36,8 +34,9 @@ type Event struct {
 // A nil state means "never closed": connections built directly as literals,
 // like the ones in the tests, keep working without a shutdown signal.
 type connState struct {
-	once sync.Once
-	done chan struct{}
+	once    sync.Once
+	done    chan struct{}
+	writeMu sync.Mutex
 }
 
 type Connection struct {
@@ -48,7 +47,6 @@ type Connection struct {
 	LoggedUser  auth.User
 	IsLogged    bool
 	Username    string
-	Callback    chan string
 	Buffer      []byte
 	Timeout     time.Duration
 
@@ -58,10 +56,10 @@ type Connection struct {
 
 // NewConnection builds a connection ready to be served by an EventProcessor.
 //
-// The Events channel is never closed: the processor goroutine owns the write
-// side of the network connection and drains whatever is queued when the
-// connection is closed. Producers enqueue with Enqueue, so a broadcast that is
-// holding an old copy of a connection can never send on a closed channel.
+// The Events channel is never closed: the processor goroutine drains whatever
+// is queued when the connection is closed. Producers enqueue with Enqueue, so
+// a broadcast that is holding an old copy of a connection can never send on a
+// closed channel.
 func NewConnection(id string, conn net.Conn, bufferSize int, timeout time.Duration) Connection {
 	return Connection{
 		ID:          id,
@@ -71,13 +69,10 @@ func NewConnection(id string, conn net.Conn, bufferSize int, timeout time.Durati
 		LoggedUser:  auth.User{},
 		Username:    "",
 		IsLogged:    false,
-		// Buffered so a callback that arrives just before SendEvent parks on
-		// the channel is not lost, and late ones never block the processor.
-		Callback: make(chan string, 8),
-		Buffer:   make([]byte, bufferSize),
-		Timeout:  timeout,
-		state:    &connState{done: make(chan struct{})},
-		reader:   &lineReader{},
+		Buffer:      make([]byte, bufferSize),
+		Timeout:     timeout,
+		state:       &connState{done: make(chan struct{})},
+		reader:      &lineReader{},
 	}
 }
 
@@ -206,60 +201,40 @@ func (r *lineReader) fill(conn net.Conn, timeout time.Duration) error {
 	return err
 }
 
-func (c *Connection) SendEvent(data string) error {
-	eventID := uuid.NewString()
-	event := Event{
-		id:       eventID,
-		data:     []byte(data),
-		callback: c.Callback,
-		timeout:  time.Now().Add(200 * time.Millisecond),
+// SendResponse writes the answer to a request straight to the network.
+func (c *Connection) SendResponse(data string) error {
+	if c.IsClosed() {
+		return errs.PermanentError{Err: "Could not send response, connection closed"}
 	}
 
 	if logging.DebugEnabled() {
-		slog.Debug("Sending event",
+		slog.Debug("Sending response",
 			slog.String("id", c.ID),
-			slog.Any("event", event))
+			slog.String("data", data))
 	}
 
-	if !c.Enqueue(event) {
-		return errs.PermanentError{Err: "Could not send event, channel full"}
+	if err := c.write([]byte(data)); err != nil {
+		return errs.TranscientError{Err: "Error sending response"}
 	}
 
-	// Wait for the callback to be called. Responses belonging to an event we
-	// already gave up on are dropped instead of being reported as the answer
-	// to this one.
-	deadline := time.After(200 * time.Millisecond)
-	for {
-		select {
-		case response := <-c.Callback:
-			if logging.DebugEnabled() {
-				slog.Debug("Callback received", slog.String("response", response))
-			}
-
-			id, status, _ := strings.Cut(response, " ")
-			if id != eventID {
-				continue
-			}
-
-			switch status {
-			case "OK":
-				return nil
-			case "TIMEOUT":
-				return errs.TranscientError{Err: "Timeout waiting for response"}
-			case "ERROR":
-				return errs.TranscientError{Err: "Error sending event"}
-			default:
-				return errs.TranscientError{Err: "Unknown response for event " + eventID + ": " + response}
-			}
-		case <-deadline:
-			return errs.TranscientError{Err: "Timeout waiting for callback"}
-		}
-	}
+	return nil
 }
 
-// EventProcessor owns the write side of the connection: it is the only
-// goroutine that writes to the network connection and the only one that
-// consumes the Events queue. It returns once the connection is closed, after
+// write sends the data to the network holding the write lock, so it never
+// interleaves with another message. Connections that were not built with
+// NewConnection have no shared state and write without the lock.
+func (c *Connection) write(data []byte) error {
+	if c.state != nil {
+		c.state.writeMu.Lock()
+		defer c.state.writeMu.Unlock()
+	}
+
+	c.NetworkConn.SetWriteDeadline(time.Now().Add(200 * time.Millisecond))
+	return writeFull(c.NetworkConn, data)
+}
+
+// EventProcessor writes the broadcast and multicast events queued for the
+// connection, and it is the only goroutine that consumes the Events queue. It returns once the connection is closed, after
 // failing every event that is still queued so producers do not have to wait
 // for their deadline.
 func (c *Connection) EventProcessor() {
@@ -329,8 +304,9 @@ func (c *Connection) sendBatchedEvents(events []Event) {
 		return
 	}
 
-	// Merge the events that are still in time into a single message. The ones
-	// that already expired are answered here and are not written out.
+	// Merge the events that are still in time into a single write. The ones
+	// that already expired are answered here and are not written out. Every
+	// event already ends with its newline, so they are joined as they are.
 	//
 	// The batch is filtered in place: the events that are kept are written back
 	// over the ones that were dropped, so the write index never runs ahead of
@@ -343,9 +319,6 @@ func (c *Connection) sendBatchedEvents(events []Event) {
 			continue
 		}
 
-		if len(valid) > 0 {
-			buf.WriteString("\n")
-		}
 		buf.Write(event.data)
 		valid = append(valid, event)
 	}
@@ -356,8 +329,7 @@ func (c *Connection) sendBatchedEvents(events []Event) {
 	}
 
 	// Send the batched data to the network
-	c.NetworkConn.SetWriteDeadline(time.Now().Add(200 * time.Millisecond))
-	err := writeFull(c.NetworkConn, buf.Bytes())
+	err := c.write(buf.Bytes())
 
 	if logging.DebugEnabled() {
 		slog.Debug("Sending batched events",

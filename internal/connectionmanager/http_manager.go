@@ -30,7 +30,7 @@ func (a httpRemoteAddr) Network() string { return "tcp" }
 func (a httpRemoteAddr) String() string  { return string(a) }
 
 // chanConn implements net.Conn backed by a channel, used for HTTP request/response handling.
-// Writes from the EventProcessor are captured in writeCh so the HTTP handler can read them.
+// Responses written to it are captured in writeCh so the HTTP handler can read them.
 type chanConn struct {
 	writeCh    chan []byte
 	closeCh    chan struct{}
@@ -484,7 +484,6 @@ func (h *HTTPManager) handleSlot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defer conn.Close()
-	go conn.EventProcessor()
 
 	var msgStr string
 	switch r.Method {

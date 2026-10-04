@@ -110,7 +110,7 @@ func TestHTTPManagerServeConnections(t *testing.T) {
 	served := make(chan error, 1)
 	go func() {
 		served <- manager.ServeConnections(func(_ int, _ []byte, conn *Connection) error {
-			return conn.SendEvent("v000hello\n")
+			return conn.SendResponse("v000hello\n")
 		})
 	}()
 

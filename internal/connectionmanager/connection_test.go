@@ -3,12 +3,15 @@ package connectionmanager
 import (
 	"fmt"
 	"net"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/dankomiocevic/ghoti/internal/errs"
 )
 
 // MockConnection simulates a network connection for testing.
@@ -69,107 +72,200 @@ func loadConnection(_ *testing.T) *Connection {
 		NetworkConn: conn,
 		IsLogged:    false,
 		Username:    "",
-		Callback:    make(chan string, 10),
 		Buffer:      make([]byte, 1024),
 		Timeout:     200 * time.Millisecond,
 	}
 }
 
-func TestConnectionSendEventSuccess(t *testing.T) {
+func TestConnectionSendResponseSuccess(t *testing.T) {
 	conn := loadConnection(t)
 
-	go func() {
-		event := <-conn.Events
-		conn.Callback <- event.id + " OK"
-	}()
+	if err := conn.SendResponse("v000value\n"); err != nil {
+		t.Fatalf("Error should not be returned for a successful write: %s", err)
+	}
 
-	err := conn.SendEvent("test_data")
-	if err != nil {
-		t.Fatalf("Error should not be returned for successful event: %s", err)
+	mockConn := conn.NetworkConn.(*MockConnection)
+	if got := string(mockConn.GetWriteData()); got != "v000value\n" {
+		t.Fatalf("Expected the response to be written as is, got '%s'", got)
 	}
 }
 
-func TestConnectionSendEventTimeout(t *testing.T) {
-	conn := loadConnection(t)
+// TestConnectionSendResponseDoesNotUseTheQueue verifies that responses are
+// written straight to the network: no EventProcessor is running here, so a
+// response that went through the Events queue would never be written.
+func TestConnectionSendResponseDoesNotUseTheQueue(t *testing.T) {
+	conn := NewConnection(uuid.NewString(), &MockConnection{}, 1024, 200*time.Millisecond)
+	defer conn.Close()
 
-	go func() {
-		event := <-conn.Events
-		conn.Callback <- event.id + " TIMEOUT"
-	}()
+	if err := conn.SendResponse("v000value\n"); err != nil {
+		t.Fatalf("Error should not be returned for a successful write: %s", err)
+	}
 
-	err := conn.SendEvent("test_data")
-	if err == nil || err.Error() != "Timeout waiting for response" {
-		t.Fatalf("Timeout error should be returned for event: %s", err)
+	if len(conn.Events) != 0 {
+		t.Fatalf("The response should not be queued, found %d events", len(conn.Events))
+	}
+
+	mockConn := conn.NetworkConn.(*MockConnection)
+	if got := string(mockConn.GetWriteData()); got != "v000value\n" {
+		t.Fatalf("Expected the response to be written, got '%s'", got)
 	}
 }
 
-func TestConnectionSendEventError(t *testing.T) {
+func TestConnectionSendResponseWriteError(t *testing.T) {
 	conn := loadConnection(t)
+	conn.NetworkConn.(*MockConnection).writeErr = fmt.Errorf("network error")
 
-	go func() {
-		event := <-conn.Events
-		conn.Callback <- event.id + " ERROR"
-	}()
-
-	err := conn.SendEvent("test_data")
-	if err == nil || err.Error() != "Error sending event" {
-		t.Fatalf("Error should be returned for event: %s", err)
+	err := conn.SendResponse("v000value\n")
+	if _, ok := err.(errs.TranscientError); !ok {
+		t.Fatalf("A failed write should be a transient error, got: %v", err)
 	}
 }
 
-func TestConnectionSendEventUnknownResponse(t *testing.T) {
-	conn := loadConnection(t)
+func TestConnectionSendResponseClosed(t *testing.T) {
+	conn := NewConnection(uuid.NewString(), &MockConnection{}, 1024, 200*time.Millisecond)
+	conn.Close()
 
-	var event Event
+	err := conn.SendResponse("v000value\n")
+	if _, ok := err.(errs.PermanentError); !ok {
+		t.Fatalf("Writing on a closed connection should be a permanent error, got: %v", err)
+	}
+
+	if got := conn.NetworkConn.(*MockConnection).GetWriteData(); len(got) != 0 {
+		t.Fatalf("Nothing should be written on a closed connection, got '%s'", got)
+	}
+}
+
+// enqueueEvent queues an event on the connection and returns the channel its
+// outcome will be reported on.
+func enqueueEvent(t *testing.T, conn *Connection, data string) chan string {
+	t.Helper()
+
+	callback := make(chan string, 1)
+	event := Event{
+		id:       uuid.NewString(),
+		data:     []byte(data),
+		callback: callback,
+		timeout:  time.Now().Add(200 * time.Millisecond),
+	}
+	if !conn.Enqueue(event) {
+		t.Fatal("Event could not be queued")
+	}
+	return callback
+}
+
+// waitEvent waits for the outcome of a queued event and fails unless it was
+// written.
+func waitEvent(t *testing.T, callback chan string) {
+	t.Helper()
+
+	select {
+	case response := <-callback:
+		if !strings.HasSuffix(response, " OK") {
+			t.Fatalf("Expected the event to be written, got '%s'", response)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("Timeout waiting for the event to be written")
+	}
+}
+
+// chunkConn accepts at most a few bytes per Write, the way a socket does on a
+// short write, so writeFull needs several calls to send one message. That is
+// the window where two unsynchronised writers would mix their bytes.
+type chunkConn struct {
+	MockConnection
+}
+
+func (c *chunkConn) Write(b []byte) (int, error) {
+	if len(b) > 3 {
+		b = b[:3]
+	}
+	n, err := c.MockConnection.Write(b)
+	runtime.Gosched()
+	return n, err
+}
+
+// TestResponsesAndEventsDoNotMix writes responses from one goroutine while
+// the EventProcessor writes broadcast events to the same connection. Every
+// line that reaches the network must be one whole message.
+func TestResponsesAndEventsDoNotMix(t *testing.T) {
+	nc := &chunkConn{}
+	conn := NewConnection(uuid.NewString(), nc, 1024, 200*time.Millisecond)
+	go conn.EventProcessor()
+	defer conn.Close()
+
+	const (
+		response = "v000response-response-response\n"
+		event    = "a006broadcast-broadcast-broadcast\n"
+		count    = 200
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
-		event = <-conn.Events
-		conn.Callback <- event.id + " UNKNOWN"
+		defer wg.Done()
+		for range count {
+			if err := conn.SendResponse(response); err != nil {
+				t.Errorf("Error sending response: %s", err)
+				return
+			}
+		}
 	}()
+	go func() {
+		defer wg.Done()
+		for range count {
+			waitEvent(t, enqueueEvent(t, &conn, event))
+		}
+	}()
+	wg.Wait()
 
-	err := conn.SendEvent("test_data")
-	if err == nil || err.Error() != "Unknown response for event "+event.id+": "+event.id+" UNKNOWN" {
-		t.Fatalf("Unknown response error should be returned for event: %s", err)
+	lines := strings.Split(strings.TrimSuffix(string(nc.GetWriteData()), "\n"), "\n")
+	if len(lines) != 2*count {
+		t.Fatalf("Expected %d lines, got %d", 2*count, len(lines))
+	}
+	for i, line := range lines {
+		if line+"\n" != response && line+"\n" != event {
+			t.Fatalf("Line %d is not a whole message: '%s'", i, line)
+		}
+	}
+}
+
+// TestBatchedEventsHaveNoEmptyLines verifies that events written in the same
+// batch are not separated by an extra newline: every event already ends with
+// its own.
+func TestBatchedEventsHaveNoEmptyLines(t *testing.T) {
+	conn := loadConnection(t)
+	callback := make(chan string, 2)
+	for _, data := range []string{"a006one\n", "a006two\n"} {
+		conn.Events <- Event{
+			id:       uuid.NewString(),
+			data:     []byte(data),
+			callback: callback,
+			timeout:  time.Now().Add(200 * time.Millisecond),
+		}
+	}
+
+	go conn.EventProcessor()
+	for range 2 {
+		select {
+		case <-callback:
+		case <-time.After(200 * time.Millisecond):
+			t.Fatal("Timeout waiting for the events to be written")
+		}
+	}
+
+	got := string(conn.NetworkConn.(*MockConnection).GetWriteData())
+	if got != "a006one\na006two\n" {
+		t.Fatalf("Expected two lines and no empty ones, got %q", got)
 	}
 }
 
 // TestBatchingSingleEvent tests that a single event is sent immediately.
-// TestConnectionSendEventIgnoresStaleCallback verifies that a response left
-// behind by an event we already gave up on is not mistaken for the answer to
-// the current one.
-func TestConnectionSendEventIgnoresStaleCallback(t *testing.T) {
-	conn := NewConnection(uuid.NewString(), &MockConnection{}, 1024, 200*time.Millisecond)
-	go conn.EventProcessor()
-	defer conn.Close()
-
-	// A response nobody is waiting for anymore.
-	conn.Callback <- uuid.NewString() + " OK"
-
-	if err := conn.SendEvent("test_data"); err != nil {
-		t.Fatalf("Error should not be returned for successful event: %s", err)
-	}
-}
-
-// TestConnectionSendEventCallbackTimeout covers the deadline that applies when
-// nothing ever answers the event.
-func TestConnectionSendEventCallbackTimeout(t *testing.T) {
-	// No event processor is running, so the event is never answered.
-	conn := loadConnection(t)
-
-	err := conn.SendEvent("test_data")
-	if err == nil || err.Error() != "Timeout waiting for callback" {
-		t.Fatalf("Timeout error should be returned when nothing answers: %s", err)
-	}
-}
-
 func TestBatchingSingleEvent(t *testing.T) {
 	conn := loadConnection(t)
 	go conn.EventProcessor()
 
 	// Send a single event.
-	err := conn.SendEvent("test_data")
-	if err != nil {
-		t.Fatalf("Error sending single event: %s", err)
-	}
+	waitEvent(t, enqueueEvent(t, conn, "test_data"))
 
 	// Check that the event was sent to the network.
 	mockConn := conn.NetworkConn.(*MockConnection)
@@ -187,6 +283,7 @@ func TestBatchingSingleEvent(t *testing.T) {
 // TestBatchingMultipleEvents tests that multiple events are batched together.
 func TestBatchingMultipleEvents(t *testing.T) {
 	conn := loadConnection(t)
+	callback := make(chan string, 32)
 
 	// Start the event processor
 	go conn.EventProcessor()
@@ -196,8 +293,8 @@ func TestBatchingMultipleEvents(t *testing.T) {
 		eventID := uuid.NewString()
 		event := Event{
 			id:       eventID,
-			data:     []byte("test_data_" + string(rune('A'+i))),
-			callback: conn.Callback,
+			data:     []byte("test_data_" + string(rune('A'+i)) + "\n"),
+			callback: callback,
 			timeout:  time.Now().Add(200 * time.Millisecond),
 		}
 		conn.Events <- event
@@ -232,6 +329,7 @@ func TestBatchingMultipleEvents(t *testing.T) {
 // TestBatchingFullBatch tests that exactly 20 events trigger immediate sending.
 func TestBatchingFullBatch(t *testing.T) {
 	conn := loadConnection(t)
+	callback := make(chan string, 32)
 
 	// Start the event processor
 	go conn.EventProcessor()
@@ -241,8 +339,8 @@ func TestBatchingFullBatch(t *testing.T) {
 		eventID := uuid.NewString()
 		event := Event{
 			id:       eventID,
-			data:     []byte("test_data_" + string(rune('A'+i))),
-			callback: conn.Callback,
+			data:     []byte("test_data_" + string(rune('A'+i)) + "\n"),
+			callback: callback,
 			timeout:  time.Now().Add(200 * time.Millisecond),
 		}
 		conn.Events <- event
@@ -258,9 +356,9 @@ func TestBatchingFullBatch(t *testing.T) {
 	}
 
 	// Verify the batched data was written correctly
-	// Should have 20 lines separated by newlines
+	// Should have 20 lines, each one ended by its newline
 	expectedLines := 20
-	actualLines := strings.Count(string(mockConn.GetWriteData()), "\n") + 1
+	actualLines := strings.Count(string(mockConn.GetWriteData()), "\n")
 	if actualLines != expectedLines {
 		t.Fatalf("Expected %d lines in batch, got %d", expectedLines, actualLines)
 	}
@@ -269,6 +367,7 @@ func TestBatchingFullBatch(t *testing.T) {
 // TestBatchingTimeoutHandling tests that timed-out events are handled correctly.
 func TestBatchingTimeoutHandling(t *testing.T) {
 	conn := loadConnection(t)
+	callback := make(chan string, 32)
 
 	// Start the event processor
 	go conn.EventProcessor()
@@ -278,7 +377,7 @@ func TestBatchingTimeoutHandling(t *testing.T) {
 	event := Event{
 		id:       eventID,
 		data:     []byte("test_data"),
-		callback: conn.Callback,
+		callback: callback,
 		timeout:  time.Now().Add(-1 * time.Millisecond), // Already timed out
 	}
 
@@ -290,7 +389,7 @@ func TestBatchingTimeoutHandling(t *testing.T) {
 
 	// Check that we received a timeout response
 	select {
-	case response := <-conn.Callback:
+	case response := <-callback:
 		if response != eventID+" TIMEOUT" {
 			t.Fatalf("Expected timeout response, got '%s'", response)
 		}
@@ -302,6 +401,7 @@ func TestBatchingTimeoutHandling(t *testing.T) {
 // TestBatchingMixedTimeoutEvents tests handling of mixed valid and timed-out events.
 func TestBatchingMixedTimeoutEvents(t *testing.T) {
 	conn := loadConnection(t)
+	callback := make(chan string, 32)
 
 	// Start the event processor
 	go conn.EventProcessor()
@@ -313,14 +413,14 @@ func TestBatchingMixedTimeoutEvents(t *testing.T) {
 	validEvent := Event{
 		id:       validEventID,
 		data:     []byte("valid_data"),
-		callback: conn.Callback,
+		callback: callback,
 		timeout:  time.Now().Add(200 * time.Millisecond),
 	}
 
 	timeoutEvent := Event{
 		id:       timeoutEventID,
 		data:     []byte("timeout_data"),
-		callback: conn.Callback,
+		callback: callback,
 		timeout:  time.Now().Add(-1 * time.Millisecond), // Already timed out
 	}
 
@@ -335,7 +435,7 @@ func TestBatchingMixedTimeoutEvents(t *testing.T) {
 	responses := make([]string, 0)
 	for i := range 2 {
 		select {
-		case response := <-conn.Callback:
+		case response := <-callback:
 			responses = append(responses, response)
 		case <-time.After(100 * time.Millisecond):
 			t.Fatalf("Timeout waiting for response %d", i)
@@ -365,6 +465,7 @@ func TestBatchingMixedTimeoutEvents(t *testing.T) {
 // TestBatchingAllTimeoutEvents tests that all timed-out events are handled correctly.
 func TestBatchingAllTimeoutEvents(t *testing.T) {
 	conn := loadConnection(t)
+	callback := make(chan string, 32)
 
 	// Start the event processor
 	go conn.EventProcessor()
@@ -374,7 +475,7 @@ func TestBatchingAllTimeoutEvents(t *testing.T) {
 		event := Event{
 			id:       eventID,
 			data:     []byte("timeout_data"),
-			callback: conn.Callback,
+			callback: callback,
 			timeout:  time.Now().Add(-1 * time.Millisecond), // Already timed out
 		}
 		conn.Events <- event
@@ -387,7 +488,7 @@ func TestBatchingAllTimeoutEvents(t *testing.T) {
 	responses := make([]string, 0)
 	for i := range 3 {
 		select {
-		case response := <-conn.Callback:
+		case response := <-callback:
 			if !strings.HasSuffix(response, " TIMEOUT") {
 				t.Fatalf("Expected timeout response, got '%s'", response)
 			}
@@ -410,10 +511,7 @@ func TestBatchingChannelEmptyTrigger(t *testing.T) {
 	go conn.EventProcessor()
 
 	// Send a single event
-	err := conn.SendEvent("test_data")
-	if err != nil {
-		t.Fatalf("Error sending event: %s", err)
-	}
+	waitEvent(t, enqueueEvent(t, conn, "test_data"))
 
 	// Wait a bit for processing
 	time.Sleep(10 * time.Millisecond)
@@ -434,6 +532,7 @@ func TestBatchingChannelEmptyTrigger(t *testing.T) {
 // TestBatchingCallbackValidation tests that callbacks are sent correctly after batching.
 func TestBatchingCallbackValidation(t *testing.T) {
 	conn := loadConnection(t)
+	callback := make(chan string, 32)
 
 	// Start the event processor
 	go conn.EventProcessor()
@@ -445,8 +544,8 @@ func TestBatchingCallbackValidation(t *testing.T) {
 		eventIDs[i] = eventID
 		event := Event{
 			id:       eventID,
-			data:     []byte("test_data_" + string(rune('A'+i))),
-			callback: conn.Callback,
+			data:     []byte("test_data_" + string(rune('A'+i)) + "\n"),
+			callback: callback,
 			timeout:  time.Now().Add(200 * time.Millisecond),
 		}
 		conn.Events <- event
@@ -459,7 +558,7 @@ func TestBatchingCallbackValidation(t *testing.T) {
 	responses := make([]string, 0)
 	for i := 0; i < 5; i++ {
 		select {
-		case response := <-conn.Callback:
+		case response := <-callback:
 			responses = append(responses, response)
 		case <-time.After(100 * time.Millisecond):
 			t.Fatalf("Timeout waiting for callback %d", i)
@@ -486,6 +585,7 @@ func TestBatchingCallbackValidation(t *testing.T) {
 // TestBatchingCallbackOrder tests that callbacks are sent in the correct order.
 func TestBatchingCallbackOrder(t *testing.T) {
 	conn := loadConnection(t)
+	callback := make(chan string, 32)
 
 	// Start the event processor
 	go conn.EventProcessor()
@@ -496,7 +596,7 @@ func TestBatchingCallbackOrder(t *testing.T) {
 		event := Event{
 			id:       eventID,
 			data:     []byte(fmt.Sprintf("data_%d", i+1)),
-			callback: conn.Callback,
+			callback: callback,
 			timeout:  time.Now().Add(200 * time.Millisecond),
 		}
 		conn.Events <- event
@@ -508,7 +608,7 @@ func TestBatchingCallbackOrder(t *testing.T) {
 	// Check that callbacks are received in order
 	for i, expectedID := range eventIDs {
 		select {
-		case response := <-conn.Callback:
+		case response := <-callback:
 			if !strings.HasPrefix(response, expectedID) {
 				t.Fatalf("Expected callback for event %s at position %d, got '%s'", expectedID, i, response)
 			}
@@ -524,6 +624,7 @@ func TestBatchingCallbackOrder(t *testing.T) {
 // TestBatchingCallbackWithErrors tests callback behavior when network write fails.
 func TestBatchingCallbackWithErrors(t *testing.T) {
 	conn := loadConnection(t)
+	callback := make(chan string, 32)
 
 	// Set the mock connection to return an error
 	mockConn := conn.NetworkConn.(*MockConnection)
@@ -540,7 +641,7 @@ func TestBatchingCallbackWithErrors(t *testing.T) {
 		event := Event{
 			id:       eventID,
 			data:     []byte("test_data"),
-			callback: conn.Callback,
+			callback: callback,
 			timeout:  time.Now().Add(200 * time.Millisecond),
 		}
 		conn.Events <- event
@@ -552,7 +653,7 @@ func TestBatchingCallbackWithErrors(t *testing.T) {
 	// Check that we received ERROR callbacks for all events
 	for i := 0; i < 3; i++ {
 		select {
-		case response := <-conn.Callback:
+		case response := <-callback:
 			if !strings.HasSuffix(response, " ERROR") {
 				t.Fatalf("Expected ERROR response for event %d, got '%s'", i, response)
 			}
@@ -570,6 +671,7 @@ func TestBatchingCallbackWithErrors(t *testing.T) {
 // TestBatchingCallbackMixedTimeout tests callback behavior with mixed valid and timeout events.
 func TestBatchingCallbackMixedTimeout(t *testing.T) {
 	conn := loadConnection(t)
+	callback := make(chan string, 32)
 
 	// Start the event processor
 	go conn.EventProcessor()
@@ -581,14 +683,14 @@ func TestBatchingCallbackMixedTimeout(t *testing.T) {
 	validEvent := Event{
 		id:       validEventID,
 		data:     []byte("valid_data"),
-		callback: conn.Callback,
+		callback: callback,
 		timeout:  time.Now().Add(200 * time.Millisecond),
 	}
 
 	timeoutEvent := Event{
 		id:       timeoutEventID,
 		data:     []byte("timeout_data"),
-		callback: conn.Callback,
+		callback: callback,
 		timeout:  time.Now().Add(-1 * time.Millisecond), // Already timed out
 	}
 
@@ -603,7 +705,7 @@ func TestBatchingCallbackMixedTimeout(t *testing.T) {
 	responses := make([]string, 0)
 	for i := 0; i < 2; i++ {
 		select {
-		case response := <-conn.Callback:
+		case response := <-callback:
 			responses = append(responses, response)
 		case <-time.After(100 * time.Millisecond):
 			t.Fatalf("Timeout waiting for response %d", i)
