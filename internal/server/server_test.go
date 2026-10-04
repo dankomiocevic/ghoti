@@ -960,8 +960,10 @@ func TestRequestToNodeThatIsNotLeader(t *testing.T) {
 
 	response := sendData(t, conn, "r000\n")
 
-	if response != "exxx000\n" {
-		t.Fatalf("Server did not return a NOT_LEADER error: %q", response)
+	// The leader has to be part of the same line as the error, so a client
+	// reading line by line knows where to send the request.
+	if response != "exxx000node2\n" {
+		t.Fatalf("Server did not return a NOT_LEADER error with the leader: %q", response)
 	}
 }
 

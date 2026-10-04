@@ -19,3 +19,13 @@ func TestError(t *testing.T) {
 		t.Fatalf("Error response was not e000: %s", e.response)
 	}
 }
+
+func TestResponseWithArgument(t *testing.T) {
+	e := Error("NOT_LEADER")
+
+	// The argument has to go before the newline, otherwise a client reading
+	// line by line never receives it.
+	if got := e.ResponseWithArgument("xxx", "nodeA"); got != "exxx000nodeA\n" {
+		t.Fatalf("ResponseWithArgument returned %q, want %q", got, "exxx000nodeA\n")
+	}
+}

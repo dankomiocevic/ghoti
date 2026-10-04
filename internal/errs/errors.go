@@ -34,6 +34,10 @@ func (e ErrorCode) Response(slot string) string {
 	return fmt.Sprintf("e%s%s", slot, e.response)
 }
 
+func (e ErrorCode) ResponseWithArgument(slot, argument string) string {
+	return fmt.Sprintf("e%s%s%s\n", slot, e.id, argument)
+}
+
 func loadValues() map[string]ErrorCode {
 	r := regexp.MustCompile(`## \d\d\d: [A-Z_]*`)
 	matches := r.FindAllString(readme, -1)
