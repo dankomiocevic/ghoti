@@ -930,3 +930,54 @@ func TestServerAppliesMaxConnections(t *testing.T) {
 		t.Fatalf("second connection was not served after the first closed: %v", err)
 	}
 }
+
+// followerCluster is a cluster where this node is not the leader, so the
+// server has to redirect every request to the leader.
+type followerCluster struct {
+	cluster.EmptyCluster
+}
+
+func (c *followerCluster) IsLeader() bool    { return false }
+func (c *followerCluster) GetLeader() string { return "node2" }
+
+func TestRequestToNodeThatIsNotLeader(t *testing.T) {
+	logtest.EnableDebug(t)
+
+	s, err := NewServer(generateConfig("0"), &followerCluster{})
+	if err != nil {
+		t.Fatalf("couldn't start the server: %v", err)
+	}
+	defer s.Stop()
+
+	// wait for the TCP Server to start
+	time.Sleep(time.Duration(100) * time.Millisecond)
+
+	conn, err := net.Dial("tcp", s.connections.GetAddr())
+	if err != nil {
+		t.Fatalf("couldn't connect to the server: %v", err)
+	}
+	defer conn.Close()
+
+	response := sendData(t, conn, "r000\n")
+
+	if response != "exxx000\n" {
+		t.Fatalf("Server did not return a NOT_LEADER error: %q", response)
+	}
+}
+
+func TestQuitClosesTheConnection(t *testing.T) {
+	logtest.EnableDebug(t)
+
+	s, conn := runServer(t)
+	defer s.Stop()
+	defer conn.Close()
+
+	if _, err := conn.Write([]byte("q\n")); err != nil {
+		t.Fatalf("couldn't send request: %v", err)
+	}
+
+	conn.SetReadDeadline(time.Now().Add(time.Second))
+	if _, err := bufio.NewReader(conn).ReadByte(); err != io.EOF {
+		t.Fatalf("expected the server to close the connection, got %v", err)
+	}
+}
