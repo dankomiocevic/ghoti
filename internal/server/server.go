@@ -96,7 +96,7 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connectionmanager.Co
 				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 			)
 		}
-		return conn.SendResponse(res.ResponseWithArgument("xxx"), s.cluster.GetLeader())
+		return conn.SendResponse(res.ResponseWithArgument("xxx", s.cluster.GetLeader()))
 	}
 
 	if msg.Command == 'u' {
