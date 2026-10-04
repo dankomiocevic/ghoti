@@ -13,6 +13,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/dankomiocevic/ghoti/internal/logging"
 )
 
 // peerNotifyTimeout bounds every request this node makes to a peer join
@@ -259,9 +261,11 @@ func (s *joinServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 
 	if !changed {
-		slog.Debug("Join for an already known peer, not notifying other peers",
-			slog.String("node_id", nodeID),
-		)
+		if logging.DebugEnabled() {
+			slog.Debug("Join for an already known peer, not notifying other peers",
+				slog.String("node_id", nodeID),
+			)
+		}
 		return
 	}
 

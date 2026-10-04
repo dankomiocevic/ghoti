@@ -5,6 +5,9 @@ import (
 	"net"
 	"net/http"
 	"testing"
+	"time"
+
+	"github.com/dankomiocevic/ghoti/internal/logging/logtest"
 )
 
 func noopCallback(_ int, _ []byte, _ *Connection) error { return nil }
@@ -139,5 +142,79 @@ func TestHTTPManagerServeConnectionsReportsListenerError(t *testing.T) {
 
 	if err := manager.ServeConnections(noopCallback); err == nil {
 		t.Fatalf("expected an error serving over a closed listener")
+	}
+}
+
+// Closing a manager while a client is still connected has to stop the
+// connection handler through its Quit channel. The client never hangs up, so
+// the handler only notices when a read times out and it checks Quit again.
+func TestCloseWithClientStillConnected(t *testing.T) {
+	logtest.EnableDebug(t)
+
+	managers := map[string]struct {
+		newManager func() lineManager
+		line       string
+	}{
+		"tcp":    {func() lineManager { return NewTCPManager() }, "r001\n"},
+		"telnet": {func() lineManager { return NewTelnetManager() }, "r001\r\n"},
+	}
+
+	for name, tt := range managers {
+		t.Run(name, func(t *testing.T) {
+			manager := tt.newManager()
+			if err := manager.StartListening("127.0.0.1:0"); err != nil {
+				t.Fatal(err)
+			}
+
+			received := make(chan string, 1)
+			go manager.ServeConnections(func(size int, buf []byte, c *Connection) error {
+				received <- string(buf[:size])
+				return nil
+			})
+
+			client, err := net.Dial("tcp", manager.GetAddr())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer client.Close()
+
+			// Wait until the handler is running, otherwise Close could find no
+			// connection to stop.
+			if _, err := client.Write([]byte(tt.line)); err != nil {
+				t.Fatal(err)
+			}
+			expectReceived(t, received, "r001")
+
+			closed := make(chan struct{})
+			go func() {
+				manager.Close()
+				close(closed)
+			}()
+
+			select {
+			case <-closed:
+			case <-time.After(2 * time.Second):
+				t.Fatal("Close did not return while a client was still connected")
+			}
+		})
+	}
+}
+
+// Deleting a connection that is not registered, for example because it was
+// already deleted, must leave the manager untouched.
+func TestTCPManagerDeleteUnknownConnection(t *testing.T) {
+	logtest.EnableDebug(t)
+
+	manager := NewTCPManager()
+	server, client := net.Pipe()
+	defer server.Close()
+	defer client.Close()
+
+	connection := manager.Add(server, 41)
+	manager.Delete(connection.ID)
+	manager.Delete(connection.ID)
+
+	if len(manager.connections) != 0 {
+		t.Fatalf("expected no connections left, got %d", len(manager.connections))
 	}
 }

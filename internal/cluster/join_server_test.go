@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/dankomiocevic/ghoti/internal/logging/logtest"
 )
 
 func newTestCluster(config ClusterConfig) *BullyCluster {
@@ -500,5 +502,44 @@ func TestManagerPassesLeaderEnabled(t *testing.T) {
 
 	if !js.leaderEnabled {
 		t.Fatalf("GetManager must propagate LeaderEnabled to the join server")
+	}
+}
+
+// A join for a peer the node already knows about must be answered, but must
+// not change the membership or be forwarded again. Forwarding it would keep
+// join notifications circulating between peers forever.
+func TestJoinForAlreadyKnownPeer(t *testing.T) {
+	logtest.EnableDebug(t)
+
+	mgrAddr := "localhost:2345"
+	config := &ClusterConfig{Node: "node1", User: "my_user", Pass: "my_pass", ManagerAddr: mgrAddr}
+
+	cluster := newTestCluster(*config)
+	cluster.peers["node2"] = "localhost:5555"
+
+	js := &joinServer{addr: config.ManagerAddr, nodeID: config.Node, user: config.User, pass: config.Pass, cluster: cluster}
+
+	b, err := json.Marshal(map[string]string{"addr": "localhost:5555", "id": "node2"})
+	if err != nil {
+		t.Fatalf("failed to encode key and value for POST: %s", err)
+	}
+	req := httptest.NewRequest("POST", fmt.Sprintf("http://%s/join", mgrAddr), bytes.NewReader(b))
+	req.Header.Add("Content-Type", "application/json")
+	req.SetBasicAuth("my_user", "my_pass")
+
+	w := httptest.NewRecorder()
+
+	js.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.Status != "200 OK" {
+		t.Fatalf("POST request returned wrong status %s", resp.Status)
+	}
+
+	peers := cluster.GetPeers()
+	if len(peers) != 1 || peers["node2"] != "localhost:5555" {
+		t.Fatalf("the membership changed for an already known peer: %v", peers)
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dankomiocevic/ghoti/internal/errs"
+	"github.com/dankomiocevic/ghoti/internal/logging"
 	"github.com/dankomiocevic/ghoti/internal/telemetry"
 )
 
@@ -71,10 +72,12 @@ func (c *TCPManager) ServeConnections(callback CallbackFn) error {
 			}
 		} else {
 			connection := c.Add(conn, 41)
-			slog.Debug("Connection received",
-				slog.String("id", connection.ID),
-				slog.String("remote_addr", conn.RemoteAddr().String()),
-			)
+			if logging.DebugEnabled() {
+				slog.Debug("Connection received",
+					slog.String("id", connection.ID),
+					slog.String("remote_addr", conn.RemoteAddr().String()),
+				)
+			}
 
 			c.wg.Add(1)
 			go func() {
@@ -88,29 +91,35 @@ func (c *TCPManager) ServeConnections(callback CallbackFn) error {
 func (c *TCPManager) handleUserConnection(callback CallbackFn, conn Connection) {
 	defer c.Delete(conn.ID)
 	defer conn.Close()
-	slog.Debug("Handling user connection",
-		slog.String("remote_addr", conn.ID),
-		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-	)
+	if logging.DebugEnabled() {
+		slog.Debug("Handling user connection",
+			slog.String("id", conn.ID),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+	}
 
 	go conn.EventProcessor()
 	for {
 		select {
 		case <-conn.Quit:
-			slog.Debug("Connection quit",
-				slog.String("remote_addr", conn.ID),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
+			if logging.DebugEnabled() {
+				slog.Debug("Connection quit",
+					slog.String("id", conn.ID),
+					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+				)
+			}
 			return
 		default:
 		}
 
 		size, err := conn.ReceiveMessage()
 		if err != nil {
-			slog.Debug(err.Error(),
-				slog.String("remote_addr", conn.ID),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
+			if logging.DebugEnabled() {
+				slog.Debug(err.Error(),
+					slog.String("id", conn.ID),
+					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+				)
+			}
 			switch err.(type) {
 			case errs.TranscientError:
 				if errors.Is(err, ErrMessageTooLong) {
@@ -181,9 +190,11 @@ func (c *TCPManager) Delete(id string) {
 
 	_, ok := c.connections[id]
 	if !ok {
-		slog.Debug("Connection already deleted",
-			slog.String("id", id),
-		)
+		if logging.DebugEnabled() {
+			slog.Debug("Connection already deleted",
+				slog.String("id", id),
+			)
+		}
 
 		return
 	}
@@ -209,10 +220,12 @@ func (c *TCPManager) Close() {
 	c.lock.Unlock()
 
 	for _, conn := range conns {
-		slog.Debug("Closing connection",
-			slog.String("id", conn.ID),
-			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-		)
+		if logging.DebugEnabled() {
+			slog.Debug("Closing connection",
+				slog.String("id", conn.ID),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+		}
 
 		close(conn.Quit)
 	}

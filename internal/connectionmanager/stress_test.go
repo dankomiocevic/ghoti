@@ -5,6 +5,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/dankomiocevic/ghoti/internal/logging/logtest"
 )
 
 // slowConn is a net.Conn whose writes take longer than the broadcast deadline,
@@ -64,6 +66,8 @@ func (c *stalledConn) Write(b []byte) (int, error) {
 // The number of connections is bounded on purpose: an unbounded churn loop
 // exhausts the ephemeral ports of the machine running the suite.
 func TestConcurrentConnectDisconnectBroadcast(t *testing.T) {
+	logtest.EnableDebug(t)
+
 	const clients = 8
 	const rounds = 15
 

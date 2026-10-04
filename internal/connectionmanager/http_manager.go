@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
+	"github.com/dankomiocevic/ghoti/internal/logging"
 	"github.com/dankomiocevic/ghoti/internal/telemetry"
 )
 
@@ -508,10 +509,12 @@ func (h *HTTPManager) handleSlot(w http.ResponseWriter, r *http.Request) {
 
 	msgBytes := []byte(msgStr + "\n")
 	if err := h.callback(len(msgStr), msgBytes, &conn); err != nil {
-		slog.Debug("HTTP callback returned error",
-			slog.String("path", r.URL.Path),
-			slog.Any("error", err),
-		)
+		if logging.DebugEnabled() {
+			slog.Debug("HTTP callback returned error",
+				slog.String("path", r.URL.Path),
+				slog.Any("error", err),
+			)
+		}
 	}
 
 	select {
@@ -608,10 +611,12 @@ func (h *HTTPManager) openBroadcastStream(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	slog.Debug("SSE subscriber connected",
-		slog.String("id", conn.ID),
-		slog.String("remote_addr", r.RemoteAddr),
-	)
+	if logging.DebugEnabled() {
+		slog.Debug("SSE subscriber connected",
+			slog.String("id", conn.ID),
+			slog.String("remote_addr", r.RemoteAddr),
+		)
+	}
 
 	processorDone := make(chan struct{})
 	h.wg.Add(1)
@@ -643,10 +648,12 @@ wait:
 		}
 	}
 
-	slog.Debug("SSE subscriber disconnected",
-		slog.String("id", conn.ID),
-		slog.String("remote_addr", r.RemoteAddr),
-	)
+	if logging.DebugEnabled() {
+		slog.Debug("SSE subscriber disconnected",
+			slog.String("id", conn.ID),
+			slog.String("remote_addr", r.RemoteAddr),
+		)
+	}
 
 	h.Delete(conn.ID)
 	conn.Close()

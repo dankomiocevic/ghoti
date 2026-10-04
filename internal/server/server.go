@@ -11,6 +11,7 @@ import (
 	"github.com/dankomiocevic/ghoti/internal/config"
 	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
 	"github.com/dankomiocevic/ghoti/internal/errs"
+	"github.com/dankomiocevic/ghoti/internal/logging"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 	"github.com/dankomiocevic/ghoti/internal/telemetry"
 )
@@ -32,7 +33,9 @@ func NewServer(config *config.Config, cluster cluster.Cluster) (*Server, error) 
 	}
 
 	slog.Info("Starting server...")
-	slog.Debug("Opening tcp for listening", slog.String("tcp", config.TCPAddr))
+	if logging.DebugEnabled() {
+		slog.Debug("Opening tcp for listening", slog.String("tcp", config.TCPAddr))
+	}
 
 	s.connections = config.Connections
 	s.connections.SetMaxConnections(config.MaxConnections)
@@ -67,26 +70,32 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connectionmanager.Co
 	msg, err := ParseMessage(size, data)
 	if err != nil {
 		res := errs.Error("PARSE_ERROR")
-		slog.Debug("Error parsing message: "+err.Error(),
-			slog.String("id", conn.ID),
-			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-		)
+		if logging.DebugEnabled() {
+			slog.Debug("Error parsing message: "+err.Error(),
+				slog.String("id", conn.ID),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+		}
 		return conn.SendEvent(res.Response("xxx"))
 	}
 
 	if msg.Command == 'q' {
-		slog.Debug("Client disconnected",
-			slog.String("id", conn.ID),
-			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-		)
+		if logging.DebugEnabled() {
+			slog.Debug("Client disconnected",
+				slog.String("id", conn.ID),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+		}
 		return errs.PermanentError{Err: "Client disconnected"}
 	}
 	if !s.cluster.IsLeader() {
 		res := errs.Error("NOT_LEADER")
-		slog.Debug("Request made to node that was not leader",
-			slog.String("id", conn.ID),
-			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-		)
+		if logging.DebugEnabled() {
+			slog.Debug("Request made to node that was not leader",
+				slog.String("id", conn.ID),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+		}
 		return conn.SendEvent(res.Response("xxx") + s.cluster.GetLeader())
 	}
 
@@ -113,11 +122,13 @@ func (s *Server) HandleMessage(size int, data []byte, conn *connectionmanager.Co
 	currentSlot := s.slotsArray[msg.Slot]
 	if currentSlot == nil {
 		res := errs.Error("MISSING_SLOT")
-		slog.Debug("Missing slot",
-			slog.Int("slot", msg.Slot),
-			slog.String("id", conn.ID),
-			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-		)
+		if logging.DebugEnabled() {
+			slog.Debug("Missing slot",
+				slog.Int("slot", msg.Slot),
+				slog.String("id", conn.ID),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+		}
 		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 	}
 
@@ -168,11 +179,13 @@ func processRegister(conn *connectionmanager.Connection, currentSlot slots.Slot,
 
 	groupSlot, ok := currentSlot.(slots.GroupSlot)
 	if !ok {
-		slog.Debug("Connection trying to register on a slot that does not support it",
-			slog.Int("slot", msg.Slot),
-			slog.String("id", conn.ID),
-			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-		)
+		if logging.DebugEnabled() {
+			slog.Debug("Connection trying to register on a slot that does not support it",
+				slog.Int("slot", msg.Slot),
+				slog.String("id", conn.ID),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+		}
 		res := errs.Error("UNSUPPORTED_COMMAND")
 		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 	}
@@ -203,11 +216,13 @@ func processDeregister(conn *connectionmanager.Connection, currentSlot slots.Slo
 
 	groupSlot, ok := currentSlot.(slots.GroupSlot)
 	if !ok {
-		slog.Debug("Connection trying to deregister on a slot that does not support it",
-			slog.Int("slot", msg.Slot),
-			slog.String("id", conn.ID),
-			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-		)
+		if logging.DebugEnabled() {
+			slog.Debug("Connection trying to deregister on a slot that does not support it",
+				slog.Int("slot", msg.Slot),
+				slog.String("id", conn.ID),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+		}
 		res := errs.Error("UNSUPPORTED_COMMAND")
 		return conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 	}
@@ -251,12 +266,14 @@ func processWrite(conn *connectionmanager.Connection, currentSlot slots.Slot, ms
 		err = conn.SendEvent(res.Response(fmt.Sprintf("%03d", msg.Slot)))
 		return err
 	}
-	slog.Debug("Value written in slot",
-		slog.Int("slot", msg.Slot),
-		slog.String("value", msg.Value),
-		slog.String("id", conn.ID),
-		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-	)
+	if logging.DebugEnabled() {
+		slog.Debug("Value written in slot",
+			slog.Int("slot", msg.Slot),
+			slog.String("value", msg.Value),
+			slog.String("id", conn.ID),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+	}
 	err = sendSlotData(msg, conn, value)
 	return err
 }
@@ -271,12 +288,14 @@ func sendSlotData(msg Message, conn *connectionmanager.Connection, value string)
 	if err != nil {
 		return err
 	}
-	slog.Debug("Value read from slot",
-		slog.Int("slot", msg.Slot),
-		slog.String("value", value),
-		slog.String("id", conn.ID),
-		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-	)
+	if logging.DebugEnabled() {
+		slog.Debug("Value read from slot",
+			slog.Int("slot", msg.Slot),
+			slog.String("value", value),
+			slog.String("id", conn.ID),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+	}
 	return nil
 }
 
@@ -285,12 +304,14 @@ func processUsername(conn *connectionmanager.Connection, msg Message) error {
 	if err != nil {
 		res := errs.Error("WRONG_USER")
 		conn.SendEvent(res.Response("xxx"))
-		slog.Debug("Invalid user received",
-			slog.String("user", msg.Value),
-			slog.String("id", conn.ID),
-			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-		)
-		slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
+		if logging.DebugEnabled() {
+			slog.Debug("Invalid user received",
+				slog.String("user", msg.Value),
+				slog.String("id", conn.ID),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+			slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
+		}
 		return errs.PermanentError{Err: "Bad password"}
 	}
 	conn.LoggedUser = auth.User{}
@@ -305,11 +326,13 @@ func processUsername(conn *connectionmanager.Connection, msg Message) error {
 	if err != nil {
 		return err
 	}
-	slog.Debug("Username set for connection",
-		slog.String("user", conn.Username),
-		slog.String("id", conn.ID),
-		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-	)
+	if logging.DebugEnabled() {
+		slog.Debug("Username set for connection",
+			slog.String("user", conn.Username),
+			slog.String("id", conn.ID),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+	}
 	return nil
 }
 
@@ -318,14 +341,16 @@ func processPassword(s *Server, conn *connectionmanager.Connection, msg Message)
 	if err != nil {
 		res := errs.Error("WRONG_PASS")
 		conn.SendEvent(res.Response("xxx"))
-		slog.Debug("Invalid password received",
-			slog.String("id", conn.ID),
-			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-		)
-		slog.Debug("Disconnecting",
-			slog.String("id", conn.ID),
-			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-		)
+		if logging.DebugEnabled() {
+			slog.Debug("Invalid password received",
+				slog.String("id", conn.ID),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+			slog.Debug("Disconnecting",
+				slog.String("id", conn.ID),
+				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+			)
+		}
 		return errs.PermanentError{Err: "Bad password"}
 	}
 	if s.usersMap[user.Name].Password != user.Password {
@@ -335,7 +360,9 @@ func processPassword(s *Server, conn *connectionmanager.Connection, msg Message)
 			slog.String("id", conn.ID),
 			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
 		)
-		slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
+		if logging.DebugEnabled() {
+			slog.Debug("Disconnecting", slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()))
+		}
 		return errs.PermanentError{Err: "Invalid login"}
 	}
 	conn.LoggedUser = user
@@ -349,10 +376,12 @@ func processPassword(s *Server, conn *connectionmanager.Connection, msg Message)
 	if err != nil {
 		return err
 	}
-	slog.Debug("User logged in for connection",
-		slog.String("user", conn.Username),
-		slog.String("id", conn.ID),
-		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-	)
+	if logging.DebugEnabled() {
+		slog.Debug("User logged in for connection",
+			slog.String("user", conn.Username),
+			slog.String("id", conn.ID),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+	}
 	return nil
 }

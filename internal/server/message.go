@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+
+	"github.com/dankomiocevic/ghoti/internal/logging"
 )
 
 const (
@@ -86,7 +88,9 @@ func ParseMessage(size int, buf []byte) (Message, error) {
 	}
 
 	command := input[0]
-	slog.Debug("Message received", slog.String("input", redactCredentials(command, input)))
+	if logging.DebugEnabled() {
+		slog.Debug("Message received", slog.String("input", redactCredentials(command, input)))
+	}
 
 	if command == 'q' {
 		if len(input) > 1 {

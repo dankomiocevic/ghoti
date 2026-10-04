@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dankomiocevic/ghoti/internal/logging"
 )
 
 type Cluster interface {
@@ -101,10 +103,12 @@ func (c *BullyCluster) Join(nodeID, addr string) (bool, error) {
 	defer c.mu.Unlock()
 
 	if current, ok := c.peers[nodeID]; ok && current == addr {
-		slog.Debug("Peer already known, ignoring join",
-			slog.String("node_id", nodeID),
-			slog.String("addr", addr),
-		)
+		if logging.DebugEnabled() {
+			slog.Debug("Peer already known, ignoring join",
+				slog.String("node_id", nodeID),
+				slog.String("addr", addr),
+			)
+		}
 		return false, nil
 	}
 
