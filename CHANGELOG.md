@@ -9,6 +9,12 @@ to exist before the tag is pushed. The Release workflow fails otherwise.
 
 ## [Unreleased]
 
+### Fixed
+
+- The `NOT_LEADER` error sent the leader name after the newline instead of
+  before it, so a client reading line by line never received it. The
+  response is now `exxx000<leader>` on a single line, as documented.
+
 ## [0.2.0] - 2026-09-19
 
 ### Upgrading from 0.1
