@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/dankomiocevic/ghoti/internal/logging/logtest"
 )
 
 // startTestHTTPServer runs the manager through its own StartListening and
@@ -36,6 +38,8 @@ func openSSE(t *testing.T, h *HTTPManager) *http.Response {
 }
 
 func TestHTTPManagerCloseReturnsWithSSESubscriber(t *testing.T) {
+	logtest.EnableDebug(t)
+
 	// http.Server.Shutdown never cancels request contexts, so an SSE handler
 	// that only waits for the client to go away keeps Close blocked forever.
 	h := buildTestManager(echoCallback)

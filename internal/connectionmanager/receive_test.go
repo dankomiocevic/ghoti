@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dankomiocevic/ghoti/internal/errs"
+	"github.com/dankomiocevic/ghoti/internal/logging/logtest"
 )
 
 // pipeConnection returns a Connection wired to one end of an in-memory
@@ -270,6 +271,8 @@ func TestTelnetManagerAnswersOversizedMessageWithParseError(t *testing.T) {
 }
 
 func TestTelnetManagerRejectsLineWithoutCarriageReturn(t *testing.T) {
+	logtest.EnableDebug(t)
+
 	client, received := serveManager(t, NewTelnetManager())
 
 	if _, err := client.Write([]byte("r001\nr002\r\n")); err != nil {

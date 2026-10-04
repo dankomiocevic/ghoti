@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
+	"github.com/dankomiocevic/ghoti/internal/logging/logtest"
 )
 
 // streamWriter is a ResponseWriter that supports the deadline and flush
@@ -307,6 +308,8 @@ func TestHandleSlotUnreadableBody(t *testing.T) {
 }
 
 func TestHandleSlotServerNeverAnswers(t *testing.T) {
+	logtest.EnableDebug(t)
+
 	// A callback that fails without producing a response must not hang the
 	// request: the handler gives up on its own deadline with a 504.
 	h := buildTestManager(func(int, []byte, *Connection) error { return errWriterBroken })

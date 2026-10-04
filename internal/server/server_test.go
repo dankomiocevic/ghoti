@@ -14,6 +14,7 @@ import (
 	"github.com/dankomiocevic/ghoti/internal/cluster"
 	"github.com/dankomiocevic/ghoti/internal/config"
 	"github.com/dankomiocevic/ghoti/internal/connectionmanager"
+	"github.com/dankomiocevic/ghoti/internal/logging/logtest"
 	"github.com/dankomiocevic/ghoti/internal/slots"
 )
 
@@ -340,6 +341,8 @@ func TestReadInANonConfiguredSlot(t *testing.T) {
 }
 
 func TestWriteInANonConfiguredSlot(t *testing.T) {
+	logtest.EnableDebug(t)
+
 	s, conn := runServer(t)
 	defer s.Stop()
 	defer conn.Close()
@@ -428,6 +431,8 @@ func TestUser(t *testing.T) {
 }
 
 func TestInvalidUsername(t *testing.T) {
+	logtest.EnableDebug(t)
+
 	s, conn := runServer(t)
 	defer s.Stop()
 	defer conn.Close()
@@ -441,6 +446,8 @@ func TestInvalidUsername(t *testing.T) {
 }
 
 func TestEmptyPassword(t *testing.T) {
+	logtest.EnableDebug(t)
+
 	s, conn := runServer(t)
 	defer s.Stop()
 	defer conn.Close()
@@ -454,6 +461,8 @@ func TestEmptyPassword(t *testing.T) {
 }
 
 func TestWrongPassword(t *testing.T) {
+	logtest.EnableDebug(t)
+
 	s, conn := runServer(t)
 	defer s.Stop()
 	defer conn.Close()
@@ -511,6 +520,8 @@ func TestReadOnly(t *testing.T) {
 }
 
 func TestWriteOnly(t *testing.T) {
+	logtest.EnableDebug(t)
+
 	s, conn := runServer(t)
 	defer s.Stop()
 	defer conn.Close()
@@ -661,6 +672,8 @@ func TestMulticastDeregister(t *testing.T) {
 }
 
 func TestMulticastUnsupportedOnOtherSlots(t *testing.T) {
+	logtest.EnableDebug(t)
+
 	s, conn := runServer(t)
 	defer s.Stop()
 	defer conn.Close()
@@ -755,6 +768,8 @@ func TestSplitFrameDoesNotCrashServer(t *testing.T) {
 }
 
 func TestNegativeSlotOnTelnetDoesNotCrashServer(t *testing.T) {
+	logtest.EnableDebug(t)
+
 	viper.Set("protocol", "telnet")
 
 	s, conn := runServer(t)
