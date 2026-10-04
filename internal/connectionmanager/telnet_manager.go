@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dankomiocevic/ghoti/internal/errs"
+	"github.com/dankomiocevic/ghoti/internal/logging"
 )
 
 type TelnetManager struct {
@@ -49,10 +50,12 @@ func (m *TelnetManager) ServeConnections(callback CallbackFn) error {
 			}
 		} else {
 			connection := c.Add(conn, 43)
-			slog.Debug("Connection received",
-				slog.String("id", connection.ID),
-				slog.String("remote_addr", conn.RemoteAddr().String()),
-			)
+			if logging.DebugEnabled() {
+				slog.Debug("Connection received",
+					slog.String("id", connection.ID),
+					slog.String("remote_addr", conn.RemoteAddr().String()),
+				)
+			}
 
 			c.wg.Add(1)
 			go func() {
@@ -67,29 +70,35 @@ func (m *TelnetManager) handleUserConnection(callback CallbackFn, conn Connectio
 	c := m.tcpManager
 	defer c.Delete(conn.ID)
 	defer conn.Close()
-	slog.Debug("Handling user connection",
-		slog.String("remote_addr", conn.ID),
-		slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-	)
+	if logging.DebugEnabled() {
+		slog.Debug("Handling user connection",
+			slog.String("id", conn.ID),
+			slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+		)
+	}
 
 	go conn.EventProcessor()
 	for {
 		select {
 		case <-conn.Quit:
-			slog.Debug("Connection quit",
-				slog.String("remote_addr", conn.ID),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
+			if logging.DebugEnabled() {
+				slog.Debug("Connection quit",
+					slog.String("id", conn.ID),
+					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+				)
+			}
 			return
 		default:
 		}
 
 		size, err := conn.ReceiveMessage()
 		if err != nil {
-			slog.Debug(err.Error(),
-				slog.String("remote_addr", conn.ID),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
+			if logging.DebugEnabled() {
+				slog.Debug(err.Error(),
+					slog.String("id", conn.ID),
+					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+				)
+			}
 			switch err.(type) {
 			case errs.TranscientError:
 				if errors.Is(err, ErrMessageTooLong) {
@@ -111,10 +120,12 @@ func (m *TelnetManager) handleUserConnection(callback CallbackFn, conn Connectio
 		// and line feed (CRLF), return an error otherwise
 		if size < 2 || conn.Buffer[size-2] != 13 || conn.Buffer[size-1] != 10 {
 			res := errs.Error("PARSE_ERROR")
-			slog.Debug("Message not terminated with CRLF",
-				slog.String("remote_addr", conn.ID),
-				slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
-			)
+			if logging.DebugEnabled() {
+				slog.Debug("Message not terminated with CRLF",
+					slog.String("id", conn.ID),
+					slog.String("remote_addr", conn.NetworkConn.RemoteAddr().String()),
+				)
+			}
 			conn.SendEvent(res.Response("xxx"))
 			continue
 		}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/dankomiocevic/ghoti/internal/auth"
 	"github.com/dankomiocevic/ghoti/internal/errs"
+	"github.com/dankomiocevic/ghoti/internal/logging"
 )
 
 // ErrMessageTooLong is returned by ReceiveMessage when a line does not fit
@@ -174,10 +175,12 @@ func (c *Connection) receiveError(err error) error {
 	}
 
 	slog.Error("Error receiving data from connection", slog.Any("error", err))
-	slog.Debug("Disconnecting",
-		slog.String("id", c.ID),
-		slog.String("remote_addr", c.NetworkConn.RemoteAddr().String()),
-	)
+	if logging.DebugEnabled() {
+		slog.Debug("Disconnecting",
+			slog.String("id", c.ID),
+			slog.String("remote_addr", c.NetworkConn.RemoteAddr().String()),
+		)
+	}
 	return errs.PermanentError{Err: "Connection closed"}
 }
 
@@ -212,9 +215,11 @@ func (c *Connection) SendEvent(data string) error {
 		timeout:  time.Now().Add(200 * time.Millisecond),
 	}
 
-	slog.Debug("Sending event",
-		slog.String("id", c.ID),
-		slog.Any("event", event))
+	if logging.DebugEnabled() {
+		slog.Debug("Sending event",
+			slog.String("id", c.ID),
+			slog.Any("event", event))
+	}
 
 	if !c.Enqueue(event) {
 		return errs.PermanentError{Err: "Could not send event, channel full"}
@@ -227,7 +232,9 @@ func (c *Connection) SendEvent(data string) error {
 	for {
 		select {
 		case response := <-c.Callback:
-			slog.Debug("Callback received", slog.String("response", response))
+			if logging.DebugEnabled() {
+				slog.Debug("Callback received", slog.String("response", response))
+			}
 
 			id, status, _ := strings.Cut(response, " ")
 			if id != eventID {
@@ -352,10 +359,12 @@ func (c *Connection) sendBatchedEvents(events []Event) {
 	c.NetworkConn.SetWriteDeadline(time.Now().Add(200 * time.Millisecond))
 	err := writeFull(c.NetworkConn, buf.Bytes())
 
-	slog.Debug("Sending batched events",
-		slog.String("id", c.ID),
-		slog.Int("event_count", len(events)),
-		slog.Int("total_size", buf.Len()))
+	if logging.DebugEnabled() {
+		slog.Debug("Sending batched events",
+			slog.String("id", c.ID),
+			slog.Int("event_count", len(events)),
+			slog.Int("total_size", buf.Len()))
+	}
 
 	// Handle each event's callback individually
 	status := "OK"
