@@ -7,10 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 The section for a version is used as the body of its GitHub release, so it has
 to exist before the tag is pushed. The Release workflow fails otherwise.
 
-## [Unreleased]
+## [0.3.0] - 2026-10-04
 
 ### Fixed
 
+- Performance improvements after profiling the server using ghoti-bench.
+- Setting up timeouts, connection limits, SSE keepalives, to keep the 
+  connections stable.
 - The `NOT_LEADER` error sent the leader name after the newline instead of
   before it, so a client reading line by line never received it. The
   response is now `exxx000<leader>` on a single line, as documented.
