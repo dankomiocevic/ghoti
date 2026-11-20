@@ -18,7 +18,22 @@ There are also a [simple memory](reference/configuration.md#simple-memory-slot) 
 
 ## Performance
 
-Ghoti is benchmarked with [ghoti-bench](https://github.com/dankomiocevic/ghoti-bench). It is an external client that drives Ghoti only through its public protocol, validates every response, and records closed-loop throughput and latency histograms. The scenarios and the method are described in its README. Published results are not available yet. Until they are, this README makes no throughput or latency claims.
+Ghoti v0.3.0 benchmarked with [ghoti-bench](https://github.com/dankomiocevic/ghoti-bench), reading a 36-byte value from a simple memory slot:
+
+|Connections|Requests per second|p50|p99|p99.9|Server CPU|
+|--:|--:|--:|--:|--:|--:|
+|1|3,359|0.290 ms|0.372 ms|0.597 ms|6%|
+|100|134,343|0.600 ms|3.541 ms|7.123 ms|82%|
+|1,000|112,647|8.376 ms|18.694 ms|26.231 ms|89%|
+
+- **Hardware.** The server is an AWS t4g.micro (2 Graviton2 cores, 1 GiB). The load comes from a c7g.xlarge in the same subnet in us-west-2.
+- **Workload.** Every connection stays open and keeps exactly one request in flight, as the protocol requires. The 100 and 1,000 connection rows are the median of 3 runs of 5 minutes each.
+- **What the latency includes.** Latency is the round trip measured on the client, including the network between the two instances. Ghoti's own histogram, which excludes the network, averages 7.6 µs per memory read.
+- **1,000 connections.** At 1,000 connections the server CPU is close to saturated, so most of the latency is time spent waiting for a turn.
+- **Other slot kinds.** Atomic counters and token buckets sustain the same load, even when every connection uses the same slot: 127,594 to 139,552 requests per second at 100 connections, and 110,026 to 113,173 at 1,000.
+- **Correctness.** All 21 runs finished with no errors, and every counter and token bucket returned exactly what it should have.
+
+The [full report](https://github.com/dankomiocevic/ghoti-bench/blob/main/RESULTS.md) has every scenario, the correctness checks and the commands to reproduce the runs. Expect a different round trip on other networks; the time Ghoti spends inside the server does not depend on the network.
 
 ## Quick start
 
