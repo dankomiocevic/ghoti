@@ -5,36 +5,112 @@
 [![Codecov](https://img.shields.io/codecov/c/github/dankomiocevic/ghoti)](https://app.codecov.io/gh/dankomiocevic/ghoti)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dankomiocevic/ghoti/badge)](https://securityscorecards.dev/viewer/?uri=github.com/dankomiocevic/ghoti)
 
-Ghoti is a fast and simple service that helps distributed systems by centralizing some key information that is really hard to work with when it is distributed.
-Distributed systems are complicated, there are too many moving parts and sometimes a simple task becomes really complex.
+Ghoti is a single-binary, in-memory server that gives a fleet of services a few shared primitives: rate limiters, counters, leases and signals. You configure up to 1000 numbered slots in a YAML file, give each one a behaviour, and talk to them over a plain-text protocol that any language, or `nc`, can speak. All state lives in memory and is lost on restart, by design.
 
-This is why we created Ghoti, because sometimes the problem can be easily resolved by removing all the distributed parts of it. But having a centralized solution, even for a small part of the problem usually doesn't come for free, it just generates a single point of failure and it is harder to scale up.
+## What you can use it for
 
-This is why Ghoti is created with a very Unix approach, let's do one thing and do it right!
+- **One rate limit shared by many instances.** Every API server takes tokens from the same [token bucket](#token-bucket-limiter) or [leaky bucket](#leaky-bucket-limiter) slot, so the limit holds no matter how many instances are running.
+- **Keeping one worker in charge.** A [timeout memory](#timeout-memory-slot) slot only accepts writes from the connection that holds it. The holder renews it by writing again; once it stops, another client can take over after the timeout. Ownership is forgotten if Ghoti restarts and there is no fencing token, so treat it as a best-effort lease, not a lock that protects data.
+- **Increasing numbers without coordination.** Every read of an [atomic counter](#atomic-counter-slot) increments it and returns the new value, which works for sequence numbers, job IDs or shared counts. The counter starts again from zero after a restart.
+- **Pushing a signal to running processes.** A write to a [broadcast](#broadcast-signal-propagation) slot is sent to every connected client. A [multicast](#multicast-signal-propagation) slot sends it only to clients that subscribed. Browsers can receive broadcasts over Server-Sent Events. Delivery is at most once.
 
-There are not many things that can be done with Ghoti, but these things, like the classic Unix CLI tools are the building blocks for bigger things.
+There are also a [simple memory](#simple-memory-slot) slot for short shared values and a [ticker](#ticker-watchdog) slot that counts down, which works as a watchdog.
 
-Ghoti is created with the following requirements:
-- Is fast, all requests must have single digit latency.
-- Is focused on throughput, it can handle tens of thousands of clients and support thousands of requests per second (official benchmarks on the way)
-- It is resilient, a Ghoti cluster is designed to have minimal downtime and high availability.
-- Chaos is in its core, design decisions are based on the fact that everything fails.
+## Performance
 
-Ghoti does not persist data.
+Ghoti is benchmarked with [ghoti-bench](https://github.com/dankomiocevic/ghoti-bench). It is an external client that drives Ghoti only through its public protocol, validates every response, and records closed-loop throughput and latency histograms. The scenarios and the method are described in its README. Published results are not available yet. Until they are, this README makes no throughput or latency claims.
 
-A Ghoti cluster allows to maintain availability but does not enforce data persistence. Ghoti servers are used to keep track or propagate what is happening in the moment but must not be used to store information.
+## Quick start
 
-Let's say that you are using a Ghoti node as a cache to store information, that information can be lost. But, if you are using it as a cache, and your application depends on this information, there is something in the design that needs to be revisited. If is truly a cache, the overall system must not fail when is down. It could have a performance hit, or be degraded temporarily, but not fail.
+Download a release, shown here for Linux on x86-64. For other platforms, pick the matching archive on the [releases page](https://github.com/dankomiocevic/ghoti/releases), or see [Installation](#installation).
 
-This is why by enforcing the no-persistence and reminding you about that "systems can fail" we want to make Ghoti simple and hopefully make the overall design better.
+```sh
+curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.3.0/ghoti_0.3.0_linux_amd64.tar.gz
+tar -xzf ghoti_0.3.0_linux_amd64.tar.gz
+```
+
+Ghoti needs a `config.yaml` in the current directory, in `$HOME/.ghoti` or in `/etc/ghoti`. Create one with four slots:
+
+```sh
+cat > config.yaml <<'EOF'
+slot_000:
+  kind: simple_memory
+slot_001:
+  kind: atomic
+slot_002:
+  kind: token_bucket
+  bucket_size: 2
+  refresh_rate: 2
+  period: minute
+slot_003:
+  kind: broadcast
+EOF
+```
+
+Start the server. It listens on `localhost:9090` by default:
+
+```sh
+./ghoti run
+```
+
+In a second terminal, open a connection and type one command per line, waiting for each answer:
+
+```sh
+nc localhost 9090
+```
+
+|You type|Ghoti answers|What happened|
+|--------|-------------|-------------|
+|`w000hello`|`v000hello`|Stored `hello` in slot 000|
+|`r000`|`v000hello`|Read it back|
+|`r001`|`v0011`|The counter was incremented to 1|
+|`r001`|`v0012`|And to 2|
+|`r002`|`v0021`|The rate limiter granted a token|
+|`r002`|`v0021`|And a second one|
+|`r002`|`v0020`|The bucket is empty: denied until the next minute|
+
+To see a signal, open a third terminal with `nc localhost 9090` and leave it idle. Then type `w003deploy-42` in the second terminal. Both connections receive the async event `a003deploy-42`, and the writer also gets `v0032/2/0`: the event was sent to 2 connections, 2 confirmed it and none failed. Press `Ctrl+C` to close `nc`, and stop the server the same way. Its state is gone with it.
+
+## Scope and maturity
+
+|Area|Status|
+|----|------|
+|Slot kinds: simple memory, timeout memory, token bucket, leaky bucket, ticker, atomic counter, broadcast, multicast|Implemented|
+|Transports: plain TCP (`standard`), `telnet`, and `http` with Server-Sent Events|Implemented|
+|Users and per-slot read/write permissions|Implemented. Passwords travel in cleartext, see below.|
+|Prometheus metrics endpoint, connection limits|Implemented|
+|Cluster mode: leader election for availability, no replication|Experimental|
+|Random signal propagation slot|Planned|
+|Docker image|Planned|
+
+Plan for these properties before depending on Ghoti:
+
+- **State is volatile.** Slot values, counters, bucket levels, lease ownership and multicast subscriptions exist only in memory. They are lost when the server restarts, and a node that becomes cluster leader starts empty. Use Ghoti for state your system can rebuild or do without. If Ghoti is unavailable, your system should degrade, not fail.
+- **No TLS.** No listener encrypts traffic, including logins. Terminate TLS in a load balancer or reverse proxy in front of Ghoti, or keep the traffic on a trusted network. See [SECURITY.md](SECURITY.md).
+- **Signals are at most once.** Broadcast and multicast make one delivery attempt per client and never retry. They are not a queue.
+- **Clustering adds failover, not durability.** Only the leader serves requests, there is no quorum, and split-brain is possible during a network partition. See [cluster.md](cluster.md).
+- **Configuration is read at start-up.** Changing slots requires a restart, which also clears their state. Clients must know the slot layout in advance.
+
+## Documentation
+
+This README is the reference documentation:
+
+- [Installation](#installation) and [verifying a download](#verifying-a-download)
+- [Protocol](#protocol): [framing and limits](#framing-and-limits), [commands](#commands), [command summary](#command-summary), [transports](#protocol-variants)
+- [Configuration](#configuration): [server settings](#server-settings), the slot kinds, [connection limits](#connection-limits)
+- [Auth](#auth): users and per-slot permissions
+- [Metrics](#metrics): the Prometheus endpoint
+- [Cluster configuration (Experimental)](#cluster-configuration-experimental), with the full design and failure scenarios in [cluster.md](cluster.md)
+
+Related documents: [error codes](internal/errs/README.md), [security model](SECURITY.md), [changelog](CHANGELOG.md), and the [benchmark methodology](https://github.com/dankomiocevic/ghoti-bench).
 
 ## Installation
 
 Every release on the [releases page](https://github.com/dankomiocevic/ghoti/releases) has one archive per platform, `ghoti_<version>_<os>_<arch>.tar.gz` for Linux and macOS and `ghoti_<version>_windows_<arch>.zip` for Windows. The archive has the `ghoti` binary at its root together with the README, the license and the changelog.
 
 ```sh
-curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.2.0/ghoti_0.2.0_linux_amd64.tar.gz
-tar -xzf ghoti_0.2.0_linux_amd64.tar.gz
+curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.3.0/ghoti_0.3.0_linux_amd64.tar.gz
+tar -xzf ghoti_0.3.0_linux_amd64.tar.gz
 ./ghoti version
 ```
 
@@ -51,14 +127,14 @@ Each release also ships with a `checksums.txt`, an SPDX SBOM next to every archi
 The checksum catches a corrupted or tampered download:
 
 ```sh
-curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.2.0/checksums.txt
+curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.3.0/checksums.txt
 sha256sum --ignore-missing -c checksums.txt
 ```
 
 The signature proves that `checksums.txt` itself was produced by the Release workflow of this repository. It is a keyless [Sigstore](https://www.sigstore.dev/) signature, so the check is against the workflow identity rather than a key you have to trust. The signature, the certificate and the transparency log entry come together in one bundle file. It needs [cosign](https://github.com/sigstore/cosign) v3:
 
 ```sh
-curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.2.0/checksums.txt.sigstore.json
+curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.3.0/checksums.txt.sigstore.json
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp '^https://github.com/dankomiocevic/ghoti/\.github/workflows/release\.yml@refs/tags/v' \
@@ -69,7 +145,7 @@ cosign verify-blob \
 The provenance attestation ties an archive to the exact commit and workflow run that built it. It is checked with the [GitHub CLI](https://cli.github.com/) and does not need any other file:
 
 ```sh
-gh attestation verify ghoti_0.2.0_linux_amd64.tar.gz --repo dankomiocevic/ghoti
+gh attestation verify ghoti_0.3.0_linux_amd64.tar.gz --repo dankomiocevic/ghoti
 ```
 
 The SBOM lists the Go modules linked into the binary, for scanners like [grype](https://github.com/anchore/grype) or for your own inventory.
@@ -122,7 +198,7 @@ v0042/2/0
 |`r` on simple memory, timeout memory, broadcast, multicast|Yes|
 |`r` on atomic counter|**No**, every read increments the counter|
 |`r` on token bucket, leaky bucket|**No**, every read consumes from the bucket|
-|`r` on ticker|**No**, every read advances the countdown|
+|`r` on ticker|Yes, the value is computed from the elapsed time, so reading does not change it|
 |`w` on simple memory, timeout memory, atomic counter, ticker|Yes, the value is absolute|
 |`w` on broadcast, multicast|**No**, every write re-sends the event to every client|
 |`s`, `d`|Yes, both are idempotent|
@@ -247,6 +323,24 @@ Clients must know the configuration beforehand in order to use the slots appropr
 For example, the same Ghoti server can be configured to have the first 3 slots as rate limiters and the next two as multicast signal propagation slots.
 This way the applications can use a single server to solve more than one problem. I mean, is already there!
 
+### Server settings
+
+The configuration is a YAML file named `config.yaml`, looked up in `/etc/ghoti`, then `$HOME/.ghoti`, then the current directory. If no file is found, the server exits with an error, it does not start with defaults. The file is only read at start-up, so a change needs a restart, which also clears every slot.
+
+|Config|Description|
+|------|-----------|
+|addr|`host:port` the server listens on. Default: `localhost:9090`. Can also be set with `ghoti run --addr`.|
+|protocol|Transport: `standard` (default), `telnet` or `http`. See [Protocol variants](#protocol-variants).|
+|max_connections|Maximum open client connections. Default: `0`, no cap. See [Connection limits](#connection-limits).|
+|log.level|`debug`, `info` (default), `warn` or `error`.|
+|log.format|`text` (default) or `json`.|
+
+Settings with a single value can also be set from the environment with the `GHOTI_` prefix, upper case and with `.` replaced by `_`, for example `GHOTI_ADDR`, `GHOTI_LOG_LEVEL` or `GHOTI_CLUSTER_PASS`. The environment overrides the file. Use this to keep credentials out of the file, see [SECURITY.md](SECURITY.md). Slots are only read from the file.
+
+Slots are configured as `slot_000` to `slot_999`, each with a `kind` and the options of that kind, described below.
+
+**An invalid slot definition is skipped silently.** If a slot has an unknown `kind`, a missing required option or an out-of-range value, the server still starts, logs nothing about it, and that slot answers every command with error `005` (MISSING_SLOT), as if it was not configured. After changing the configuration, read each slot once to check that it exists.
+
 ### Simple memory slot
 
 This is the most basic slot where a value can be stored. The value has a maximum of 36 bytes. You can read and write on the value and there are no restrictions.
@@ -359,7 +453,7 @@ The message is sent as an async event, the receiving client will receive the mes
 The message format is the following:
 
 ```
-<a000HelloWorld
+a000HelloWorld
 ```
 
 Where `a` is the async event, `000` is the slot number and `HelloWorld` is the message.
@@ -403,7 +497,7 @@ Writes will propagate the written value to all the connected clients. Reads will
 
 Similar to the Broadcast slot but this slot allows to send a message to a specific group of clients, instead of every connected client.
 
-Unlike the Broadcast slot, a client has to join the group before it can receive events. This is done with the `s` (subscribe) command described in the Protocol section. A client that no longer wants to receive events can leave the group with the `d` (deregister) command. Reading the slot with `s`/`d` returns whether the client is now a member: a non-zero value means it is registered, zero means it is not.
+Unlike the Broadcast slot, a client has to join the group before it can receive events. This is done with the `s` (subscribe) command described in the Protocol section. A client that no longer wants to receive events can leave the group with the `d` (deregister) command. The response to `s` and `d` says whether the client is now a member: a non-zero value means it is registered, zero means it is not.
 
 Writing to this slot works the same way as the Broadcast slot, but the message is only sent to the clients that are currently registered:
 
@@ -434,35 +528,25 @@ slot_005:
   dereg_tries: 3
 ```
 
-### Random signal propagation (TBD)
+### Random signal propagation (planned, not implemented)
 
-This signal propagation slot works like the Multicast signal propagation explained before but with a major diference, the message is not sent to all registered clients, but only one. It uses a pseudo-random generator to distribute the messages among the clients.
-
-Same as the Multicast slot, clients join and leave the group with the `s` and `d` commands described in the Protocol section.
-
-It has the same configuration as the previous slot:
-
-|Config          | Description |
-|----------------|-------------|
-| timeout        | Time in milliseconds to wait for a confirmation on the clients that the message was received. |
-| dereg_tries    | Number of consecutive failed messages tried on a client until is de-registered. |
-
+This slot kind does not exist yet: a slot configured with it is skipped, see [Server settings](#server-settings). The plan is a slot that works like the Multicast slot, but sends each message to only one of the registered clients, picked pseudo-randomly, with the same `s`/`d` commands and the same `timeout` and `dereg_tries` options.
 
 ### Ticker (watchdog)
 
-This is a classic slot used in embedded circuits and microcontrollers, the slot contains an integer value, the way this works is that the slot will tick once a second making its value go down by one until it reaches zero.
-If any client writes to this slot and sets a value (integer value), it will start decrementing that value once a second until it reaches zero again.
+This is a classic slot used in embedded circuits and microcontrollers. The slot contains an integer value that goes down by one every tick, `refresh_rate` milliseconds, until it reaches zero.
+If any client writes a value to this slot, the countdown starts again from that value.
 
-In other words, if a client writes `600` on this slot, then waits 9 minutes and reads the value, the value will be `60`. After one more minute, the value will be zero.
+In other words, with `refresh_rate: 1000`, if a client writes `600` on this slot, then waits 9 minutes and reads the value, the value will be `60`. After one more minute, the value will be zero.
 
 |Config          | Description |
 |----------------|-------------|
 | initial_value  | Initial value for the ticker. Required, must not be negative. |
 | refresh_rate	 | The number of milliseconds per tick. Required, must be at least 1. |
 
-Both options are required and the server refuses to start if either is missing.
+Both options are required. If either is missing or invalid the slot is skipped and answers `005`, see [Server settings](#server-settings).
 
-Writes must be a non-negative integer in decimal, anything else is rejected with error `007`. The countdown is evaluated lazily on read, so the value only moves when the slot is read.
+Writes must be a non-negative integer in decimal, anything else is rejected with error `007`. Ticks are aligned to multiples of `refresh_rate` on the server clock, so the first tick after a write can come up to one tick early. The value is computed from the elapsed time whenever the slot is read, so reading it does not change the countdown.
 
 Example config:
 
@@ -650,16 +734,18 @@ This serves `GET /leader` on the cluster manager address, which returns `200` on
 
 See [cluster.md](cluster.md) for the full cluster documentation.
 
-# Next steps
+## Contributing
 
-This list is not exhaustive, but it is a good starting point to understand what is missing and what is planned for the future.
-Here are some of the things that are planned for the future:
-- Implement missing slots.
-- Add benchmark for the performance of the slots.
-- Add docker support.
+Issues and pull requests are welcome on [GitHub](https://github.com/dankomiocevic/ghoti). Building needs the Go version listed in `go.mod`. `make help` lists every target, the main ones are:
 
-# License
+```sh
+make build   # binary in .dist/
+make test    # all tests
+make lint    # golangci-lint with .golangci.yaml
+```
 
-This software is using the Apache-2.0 license.
+Pull requests run the same lint and test checks in CI. Report security issues privately as described in [SECURITY.md](SECURITY.md), not as public issues. Planned work is listed in [Scope and maturity](#scope-and-maturity).
 
-[Complete license](LICENSE.md)
+## License
+
+Ghoti is licensed under the Apache License 2.0, see [LICENSE](LICENSE).
