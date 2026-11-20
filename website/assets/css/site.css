@@ -394,15 +394,6 @@ pre:hover .copy-btn, .copy-btn:focus-visible { opacity: 1; }
 .demo-notes p { margin: 0; color: var(--text-muted); font-size: 14.5px; padding-left: 14px; border-left: 2px solid var(--border-strong); }
 .demo-notes code { font-size: 12.5px; }
 
-/* "is not" */
-.not-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-@media (max-width: 960px) { .not-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .not-grid { grid-template-columns: minmax(0, 1fr); } }
-.not-item { padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-elev); }
-.not-item h3 { margin: 0 0 6px; font-size: 16.5px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; }
-.not-item h3::before { content: "✕"; display: grid; place-items: center; width: 22px; height: 22px; flex: none; border-radius: 50%; font-size: 11px; color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
-.not-item p { margin: 0; color: var(--text-muted); font-size: 14.5px; }
-
 /* routes */
 .routes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
 .route { text-decoration: none; color: var(--text); }

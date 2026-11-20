@@ -202,23 +202,7 @@
 
 <hr class="divider">
 
-<section class="section" id="not">
-  <div class="container">
-    <div class="section-head reveal">
-      <p class="eyebrow">Know the trade-offs</p>
-      <h2>What Ghoti is not.</h2>
-      <p>Ghoti keeps things simple by leaving things out. Design around these limits from the start.</p>
-    </div>
-    <div class="not-grid">
-      <div class="not-item reveal"><h3>Not durable</h3><p>All state lives in memory. A restart, or a new cluster leader, starts with every slot empty.</p></div>
-      <div class="not-item reveal d1"><h3>Not a queue</h3><p>Broadcast and multicast are at-most-once with no retries. A client that is slow or disconnected misses the event.</p></div>
-      <div class="not-item reveal d2"><h3>No TLS</h3><p>No listener encrypts traffic, and passwords travel in cleartext. Terminate TLS in a proxy or keep Ghoti on a trusted network.</p></div>
-      <div class="not-item reveal d3"><h3>Clustering is experimental</h3><p>Leader election only: no replication, no quorum, and split-brain is possible under network partitions.</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="section" id="explore" style="padding-top:0">
+<section class="section" id="explore">
   <div class="container">
     <div class="section-head reveal">
       <p class="eyebrow">Explore</p>
