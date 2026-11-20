@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benchmarks · Ghoti</title>
+<meta name="description" content="Ghoti v0.3.0 benchmarked on a 2-core, 1 GiB AWS t4g.micro: sub-millisecond median round trips, over 130,000 requests per second with 100 connections, and zero errors over 255 million requests.">
+<link rel="canonical" href="https://ghoti.miocevic.com/benchmarks/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ghoti">
+<meta property="og:title" content="Benchmarks · Ghoti">
+<meta property="og:description" content="Ghoti v0.3.0 benchmarked on a 2-core, 1 GiB AWS t4g.micro: sub-millisecond median round trips, over 130,000 requests per second with 100 connections, and zero errors over 255 million requests.">
+<meta property="og:url" content="https://ghoti.miocevic.com/benchmarks/">
+<meta name="theme-color" content="#07080d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7f8fb" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="/favicon.png">
+<link rel="alternate" type="application/rss+xml" title="Ghoti blog" href="/blog/index.xml">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script>(function(){var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("ghoti-theme");if(t==="light"||t==="dark")d.setAttribute("data-theme",t);}catch(e){}})();</script>
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="/"><img src="/assets/img/logo.png" width="28" height="28" alt=""><span>Ghoti</span><span class="ver">v0.3.0</span></a>
+    <nav class="nav" aria-label="Main">
+      <a href="/docs/">Docs</a>
+      <a href="/benchmarks/" aria-current="page">Benchmarks</a>
+      <a href="/blog/">Blog</a>
+      <a class="gh" href="https://github.com/dankomiocevic/ghoti"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+      <button class="theme-toggle" type="button" aria-label="Toggle dark mode"><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<section class="hero bench-hero">
+  <div class="hero-bg" aria-hidden="true"></div>
+  <div class="container">
+    <p class="eyebrow reveal">Benchmarks · Ghoti v0.3.0</p>
+    <h1 class="reveal d1">Sub-millisecond answers from a <span class="grad">2-core, 1 GiB</span> server.</h1>
+    <p class="lede reveal d2">Ghoti ran alone on an AWS <strong>t4g.micro</strong>, a small burstable Graviton instance, and a separate, bigger machine sent the load over the network. Every request was checked, and every number below can be reproduced with <a href="https://github.com/dankomiocevic/ghoti-bench">ghoti-bench</a>.</p>
+    <div class="stats">
+      <div class="stat reveal">
+        <p class="stat-value">0.29<span> ms</span></p>
+        <p class="stat-label">Median round trip with one connection, network included</p>
+        <p class="stat-note">memory-read, p50. 99.9% of every slot type's requests under 0.75 ms.</p>
+      </div>
+      <div class="stat reveal d1">
+        <p class="stat-value">134,343<span> req/s</span></p>
+        <p class="stat-label">Memory reads with 100 connections, on 2 cores</p>
+        <p class="stat-note">Median of 3 runs of 5 minutes, with a 0.60 ms median round trip.</p>
+      </div>
+      <div class="stat reveal d2">
+        <p class="stat-value">7.6<span> µs</span></p>
+        <p class="stat-label">Average time inside Ghoti per memory read</p>
+        <p class="stat-note">Over 247,423,099 requests; 99.83% took under 50 µs.</p>
+      </div>
+      <div class="stat reveal d3">
+        <p class="stat-value">0<span> errors</span></p>
+        <p class="stat-label">Over 255,244,437 requests in 21 runs</p>
+        <p class="stat-note">Every value, counter and token bucket gave the answer it had to.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="setup">
+  <div class="container">
+    <div class="section-head reveal">
+      <p class="eyebrow">Setup</p>
+      <h2>A small server, a big load generator.</h2>
+      <p>Both instances run in the same subnet of one availability zone in AWS us-west-2. The generator is much bigger than the server, so the numbers measure Ghoti, not the benchmark.</p>
+    </div>
+    <div class="setup">
+      <div class="card reveal">
+        <p class="eyebrow">Load generator</p>
+        <h3>c7g.xlarge</h3>
+        <p>4 Graviton3 cores, running ghoti-bench. A run only counts if the generator stayed under 80% CPU.</p>
+      </div>
+      <div class="setup-link reveal d1" aria-hidden="true"><span>1, 100 or 1,000 TCP connections →</span></div>
+      <div class="card reveal d2">
+        <p class="eyebrow">Server</p>
+        <h3>t4g.micro</h3>
+        <p>2 Graviton2 cores, 1 GiB of memory, unlimited CPU credits. The released v0.3.0 linux/arm64 binary, checked against the release checksums.</p>
+      </div>
+    </div>
+    <ul class="method reveal">
+      <li><strong>One request in flight per connection.</strong> Each connection sends a request, waits for the whole answer, checks it, and only then sends the next. That's the <a href="/docs/concepts/#one-request-in-flight">only way Ghoti supports</a>.</li>
+      <li><strong>All connections opened first</strong> and kept open for the whole run. A warm-up runs before every measurement and isn't counted.</li>
+      <li><strong>Two clocks.</strong> The generator times every round trip, network included. Ghoti's own Prometheus histogram times each request inside the server.</li>
+      <li><strong>Strict validity.</strong> A run counts only if no connection dropped, there were no errors, and the correctness checks passed.</li>
+    </ul>
+  </div>
+</section>
+
+<hr class="divider">
+
+<section class="section" id="latency">
+  <div class="container">
+    <div class="section-head reveal">
+      <p class="eyebrow">Latency with one connection</p>
+      <h2>The fastest a client can get an answer.</h2>
+      <p>Measured on the client, so each time includes the network round trip between the two instances. Every slot type answers in about the same time, including atomic counters and token buckets that every connection shares.</p>
+    </div>
+    <div class="charts-2">
+      <figure class="chart card reveal" aria-labelledby="c1-title">
+        <figcaption><h3 id="c1-title">Median round trip (p50)</h3><p>1 connection, milliseconds</p></figcaption>
+        <div class="bars" style="--ticks:5"><div class="bar-row" title="memory-read: 0.290 ms"><span class="bar-label">memory-read</span><span class="bar-track"><span class="bar" style="width:29.00%"></span></span><span class="bar-value">0.290</span></div><div class="bar-row" title="counter-hot: 0.282 ms"><span class="bar-label">counter-hot</span><span class="bar-track"><span class="bar" style="width:28.20%"></span></span><span class="bar-value">0.282</span></div><div class="bar-row" title="counter-spread: 0.294 ms"><span class="bar-label">counter-spread</span><span class="bar-track"><span class="bar" style="width:29.40%"></span></span><span class="bar-value">0.294</span></div><div class="bar-row" title="token-bucket-hot: 0.242 ms"><span class="bar-label">token-bucket-hot</span><span class="bar-track"><span class="bar" style="width:24.20%"></span></span><span class="bar-value">0.242</span></div><div class="bar-row" title="token-bucket-spread: 0.242 ms"><span class="bar-label">token-bucket-spread</span><span class="bar-track"><span class="bar" style="width:24.20%"></span></span><span class="bar-value">0.242</span></div><div class="bar-row axis" aria-hidden="true"><span></span><span class="ticks"><span style="left:0.00%">0</span><span style="left:25.00%">0.25</span><span style="left:50.00%">0.5</span><span style="left:75.00%">0.75</span><span style="left:100.00%">1</span></span><span class="bar-unit">ms</span></div></div>
+      </figure>
+      <figure class="chart card reveal d1" aria-labelledby="c2-title">
+        <figcaption><h3 id="c2-title">Slowest 1 in 1,000 (p99.9)</h3><p>1 connection, milliseconds</p></figcaption>
+        <div class="bars" style="--ticks:5"><div class="bar-row" title="memory-read: 0.597 ms"><span class="bar-label">memory-read</span><span class="bar-track"><span class="bar" style="width:59.70%"></span></span><span class="bar-value">0.597</span></div><div class="bar-row" title="counter-hot: 0.747 ms"><span class="bar-label">counter-hot</span><span class="bar-track"><span class="bar" style="width:74.70%"></span></span><span class="bar-value">0.747</span></div><div class="bar-row" title="counter-spread: 0.552 ms"><span class="bar-label">counter-spread</span><span class="bar-track"><span class="bar" style="width:55.20%"></span></span><span class="bar-value">0.552</span></div><div class="bar-row" title="token-bucket-hot: 0.681 ms"><span class="bar-label">token-bucket-hot</span><span class="bar-track"><span class="bar" style="width:68.10%"></span></span><span class="bar-value">0.681</span></div><div class="bar-row" title="token-bucket-spread: 0.719 ms"><span class="bar-label">token-bucket-spread</span><span class="bar-track"><span class="bar" style="width:71.90%"></span></span><span class="bar-value">0.719</span></div><div class="bar-row axis" aria-hidden="true"><span></span><span class="ticks"><span style="left:0.00%">0</span><span style="left:25.00%">0.25</span><span style="left:50.00%">0.5</span><span style="left:75.00%">0.75</span><span style="left:100.00%">1</span></span><span class="bar-unit">ms</span></div></div>
+      </figure>
+    </div>
+    <div class="table-wrap reveal">
+      <table class="num">
+        <thead><tr><th>Scenario</th><th>p50 ms</th><th>p90 ms</th><th>p99 ms</th><th>p99.9 ms</th></tr></thead>
+        <tbody>
+          <tr><td>memory-read</td><td>0.290</td><td>0.322</td><td>0.372</td><td>0.597</td></tr>
+          <tr><td>counter-hot</td><td>0.282</td><td>0.309</td><td>0.368</td><td>0.747</td></tr>
+          <tr><td>counter-spread</td><td>0.294</td><td>0.321</td><td>0.369</td><td>0.552</td></tr>
+          <tr><td>token-bucket-hot</td><td>0.242</td><td>0.274</td><td>0.332</td><td>0.681</td></tr>
+          <tr><td>token-bucket-spread</td><td>0.242</td><td>0.286</td><td>0.368</td><td>0.719</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="scenarios reveal">
+      <p><code>memory-read</code> reads a 36-byte value from a <a href="/docs/configuration/slots/#simple-memory">simple memory</a> slot.</p>
+      <p><code>counter-hot</code> increments one <a href="/docs/configuration/slots/#atomic">atomic counter</a> shared by every connection; <code>counter-spread</code> one of 100, chosen at random.</p>
+      <p><code>token-bucket-hot</code> takes a token from one shared <a href="/docs/configuration/slots/#token-bucket">token bucket</a> refilled at 1,000 per second; <code>token-bucket-spread</code> from one of 100 buckets at 10 per second each.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="load" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal">
+      <p class="eyebrow">Latency under load</p>
+      <h2>Over 127,000 requests per second, still under a millisecond at the median.</h2>
+      <p>With 100 connections sending at full speed, every slot type served between 127,594 and 139,552 requests per second on the 2-core server, and half of the requests came back in about 0.6 ms. The slowest requests take a few milliseconds, because some requests wait for others to be answered first.</p>
+    </div>
+    <div class="charts-2">
+      <figure class="chart card reveal" aria-labelledby="c3-title">
+        <figcaption><h3 id="c3-title">Median round trip (p50)</h3><p>100 connections, milliseconds</p></figcaption>
+        <div class="bars" style="--ticks:5"><div class="bar-row" title="memory-read: 0.600 ms"><span class="bar-label">memory-read</span><span class="bar-track"><span class="bar" style="width:60.00%"></span></span><span class="bar-value">0.600</span></div><div class="bar-row" title="counter-hot: 0.628 ms"><span class="bar-label">counter-hot</span><span class="bar-track"><span class="bar" style="width:62.80%"></span></span><span class="bar-value">0.628</span></div><div class="bar-row" title="counter-spread: 0.602 ms"><span class="bar-label">counter-spread</span><span class="bar-track"><span class="bar" style="width:60.20%"></span></span><span class="bar-value">0.602</span></div><div class="bar-row" title="token-bucket-hot: 0.588 ms"><span class="bar-label">token-bucket-hot</span><span class="bar-track"><span class="bar" style="width:58.80%"></span></span><span class="bar-value">0.588</span></div><div class="bar-row" title="token-bucket-spread: 0.591 ms"><span class="bar-label">token-bucket-spread</span><span class="bar-track"><span class="bar" style="width:59.10%"></span></span><span class="bar-value">0.591</span></div><div class="bar-row axis" aria-hidden="true"><span></span><span class="ticks"><span style="left:0.00%">0</span><span style="left:25.00%">0.25</span><span style="left:50.00%">0.5</span><span style="left:75.00%">0.75</span><span style="left:100.00%">1</span></span><span class="bar-unit">ms</span></div></div>
+      </figure>
+      <figure class="chart card reveal d1" aria-labelledby="c4-title">
+        <figcaption><h3 id="c4-title">Requests per second</h3><p>100 connections</p></figcaption>
+        <div class="bars" style="--ticks:4"><div class="bar-row" title="memory-read: 134,343 req/s"><span class="bar-label">memory-read</span><span class="bar-track"><span class="bar" style="width:89.56%"></span></span><span class="bar-value">134,343</span></div><div class="bar-row" title="counter-hot: 127,594 req/s"><span class="bar-label">counter-hot</span><span class="bar-track"><span class="bar" style="width:85.06%"></span></span><span class="bar-value">127,594</span></div><div class="bar-row" title="counter-spread: 134,746 req/s"><span class="bar-label">counter-spread</span><span class="bar-track"><span class="bar" style="width:89.83%"></span></span><span class="bar-value">134,746</span></div><div class="bar-row" title="token-bucket-hot: 139,552 req/s"><span class="bar-label">token-bucket-hot</span><span class="bar-track"><span class="bar" style="width:93.03%"></span></span><span class="bar-value">139,552</span></div><div class="bar-row" title="token-bucket-spread: 139,188 req/s"><span class="bar-label">token-bucket-spread</span><span class="bar-track"><span class="bar" style="width:92.79%"></span></span><span class="bar-value">139,188</span></div><div class="bar-row axis" aria-hidden="true"><span></span><span class="ticks"><span style="left:0.00%">0</span><span style="left:33.33%">50k</span><span style="left:66.67%">100k</span><span style="left:100.00%">150k</span></span><span class="bar-unit">req/s</span></div></div>
+      </figure>
+    </div>
+    <div class="table-wrap reveal">
+      <table class="num">
+        <thead><tr><th>Scenario</th><th>Requests/s</th><th>p50 ms</th><th>p90 ms</th><th>p99 ms</th><th>p99.9 ms</th><th>Server CPU</th></tr></thead>
+        <tbody>
+          <tr><td>memory-read</td><td>134,343</td><td>0.600</td><td>1.101</td><td>3.541</td><td>7.123</td><td>82%</td></tr>
+          <tr><td>counter-hot</td><td>127,594</td><td>0.628</td><td>1.168</td><td>4.053</td><td>8.864</td><td>78%</td></tr>
+          <tr><td>counter-spread</td><td>134,746</td><td>0.602</td><td>1.092</td><td>3.494</td><td>7.881</td><td>83%</td></tr>
+          <tr><td>token-bucket-hot</td><td>139,552</td><td>0.588</td><td>1.075</td><td>3.379</td><td>7.803</td><td>86%</td></tr>
+          <tr><td>token-bucket-spread</td><td>139,188</td><td>0.591</td><td>1.081</td><td>3.238</td><td>7.520</td><td>86%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine-print reveal">memory-read is the median of three runs; the other slot types are one run each, so differences of a few percent between them are within what one run can show.</p>
+  </div>
+</section>
+
+<hr class="divider">
+
+<section class="section" id="inside">
+  <div class="container">
+    <div class="inside">
+      <div class="section-head reveal">
+        <p class="eyebrow">Time inside Ghoti</p>
+        <h2>A few microseconds per request.</h2>
+        <p>Ghoti's own metrics time each request from the moment the complete request arrives until the answer is written to the connection. Almost all of a sub-millisecond round trip is the network, the operating systems and the client.</p>
+        <p class="fine-print">These cover every request of each session, warm-ups and all connection counts included. The histogram's smallest bucket is 50 µs, so the shares below are bucket boundaries.</p>
+      </div>
+      <div class="table-wrap reveal d1">
+        <table class="num">
+          <thead><tr><th>Session</th><th>Requests</th><th>Average</th><th>Under 50 µs</th><th>Under 1 ms</th></tr></thead>
+          <tbody>
+            <tr><td>Memory reads</td><td>247,423,099</td><td>7.6 µs</td><td>99.83%</td><td>99.97%</td></tr>
+            <tr><td>Counters</td><td>17,275,413</td><td>11.6 µs</td><td>99.64%</td><td>99.91%</td></tr>
+            <tr><td>Token buckets</td><td>17,976,490</td><td>11.2 µs</td><td>99.65%</td><td>99.92%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="many" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal">
+      <p class="eyebrow">1,000 connections</p>
+      <h2>Throughput holds; requests wait their turn.</h2>
+      <p>With 1,000 connections the server still served over 110,000 requests per second, using 88 to 90% of its 2 cores. The median round trip rises to about 8.4 ms. Ghoti isn't slower per request; 1,000 clients that each keep one request waiting share the same rate, so each waits about 1,000 / 112,647 ≈ 8.9 ms for its turn, which matches the measured average.</p>
+    </div>
+    <div class="charts-2">
+      <figure class="chart card reveal" aria-labelledby="c5-title">
+        <figcaption><h3 id="c5-title">Requests per second</h3><p>1,000 connections</p></figcaption>
+        <div class="bars" style="--ticks:4"><div class="bar-row" title="memory-read: 112,647 req/s"><span class="bar-label">memory-read</span><span class="bar-track"><span class="bar" style="width:75.10%"></span></span><span class="bar-value">112,647</span></div><div class="bar-row" title="counter-hot: 110,026 req/s"><span class="bar-label">counter-hot</span><span class="bar-track"><span class="bar" style="width:73.35%"></span></span><span class="bar-value">110,026</span></div><div class="bar-row" title="counter-spread: 112,955 req/s"><span class="bar-label">counter-spread</span><span class="bar-track"><span class="bar" style="width:75.30%"></span></span><span class="bar-value">112,955</span></div><div class="bar-row" title="token-bucket-hot: 113,173 req/s"><span class="bar-label">token-bucket-hot</span><span class="bar-track"><span class="bar" style="width:75.45%"></span></span><span class="bar-value">113,173</span></div><div class="bar-row" title="token-bucket-spread: 113,062 req/s"><span class="bar-label">token-bucket-spread</span><span class="bar-track"><span class="bar" style="width:75.37%"></span></span><span class="bar-value">113,062</span></div><div class="bar-row axis" aria-hidden="true"><span></span><span class="ticks"><span style="left:0.00%">0</span><span style="left:33.33%">50k</span><span style="left:66.67%">100k</span><span style="left:100.00%">150k</span></span><span class="bar-unit">req/s</span></div></div>
+      </figure>
+      <figure class="chart card reveal d1" aria-labelledby="c6-title">
+        <figcaption><h3 id="c6-title">Median round trip (p50)</h3><p>1,000 connections, milliseconds</p></figcaption>
+        <div class="bars" style="--ticks:5"><div class="bar-row" title="memory-read: 8.376 ms"><span class="bar-label">memory-read</span><span class="bar-track"><span class="bar" style="width:83.76%"></span></span><span class="bar-value">8.376</span></div><div class="bar-row" title="counter-hot: 8.552 ms"><span class="bar-label">counter-hot</span><span class="bar-track"><span class="bar" style="width:85.52%"></span></span><span class="bar-value">8.552</span></div><div class="bar-row" title="counter-spread: 8.385 ms"><span class="bar-label">counter-spread</span><span class="bar-track"><span class="bar" style="width:83.85%"></span></span><span class="bar-value">8.385</span></div><div class="bar-row" title="token-bucket-hot: 8.339 ms"><span class="bar-label">token-bucket-hot</span><span class="bar-track"><span class="bar" style="width:83.39%"></span></span><span class="bar-value">8.339</span></div><div class="bar-row" title="token-bucket-spread: 8.397 ms"><span class="bar-label">token-bucket-spread</span><span class="bar-track"><span class="bar" style="width:83.97%"></span></span><span class="bar-value">8.397</span></div><div class="bar-row axis" aria-hidden="true"><span></span><span class="ticks"><span style="left:0.00%">0</span><span style="left:25.00%">2.5</span><span style="left:50.00%">5</span><span style="left:75.00%">7.5</span><span style="left:100.00%">10</span></span><span class="bar-unit">ms</span></div></div>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<section class="section" id="correctness">
+  <div class="container">
+    <div class="section-head reveal">
+      <p class="eyebrow">Correctness</p>
+      <h2>Fast only counts if it's right.</h2>
+      <p>Every memory read was compared byte by byte with the value the slot holds. Counters and token buckets change on every request, so they were checked after each run.</p>
+    </div>
+    <div class="checks">
+      <div class="card reveal">
+        <h3>Atomic counters</h3>
+        <p>Read back after each run, every counter held exactly the number of increments the benchmark sent: nothing lost, nothing applied twice. That held in all 6 runs, up to 4,716,734 increments with 100 connections.</p>
+      </div>
+      <div class="card reveal d1">
+        <h3>Token buckets</h3>
+        <p>Under constant load, each bucket handed out every token it refilled and never more than it can hold plus its refills. For example, the shared bucket at 1,000 tokens per second gave out exactly 30,000 tokens in the 30-second window with 100 and 1,000 connections.</p>
+      </div>
+      <div class="card reveal d2">
+        <h3>Zero errors</h3>
+        <p>All 21 runs finished with 0 errors over 255,244,437 requests, and every connection stayed open for the whole run.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="caveats" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal">
+      <p class="eyebrow">Reading these numbers</p>
+      <h2>What they do and don't tell you.</h2>
+    </div>
+    <ul class="method reveal">
+      <li><strong>Your network decides the round trip.</strong> Both instances sat in one availability zone, the shortest network EC2 offers. Expect a different round trip from yours. The time inside Ghoti doesn't depend on the network.</li>
+      <li><strong>This is version 0.3.0</strong> on one instance type, with the plain-text <code>standard</code> transport over TCP and no TLS. The <code>http</code> transport, broadcast and multicast slots, and clustering weren't measured.</li>
+      <li><strong>One run for most scenarios.</strong> Only memory-read has three repetitions; counters and token buckets ran once for 30 seconds each.</li>
+      <li><strong>Maximums are higher.</strong> The slowest single round trip of any run ranged from 5.7 ms with one connection to 255 ms with 1,000. They are in the <a href="#all-results">full table</a>.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="section" id="reproduce" style="padding-top:0">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2 class="h2">Reproduce it.</h2>
+      <p>With AWS credentials, Go, ssh and curl, one script creates both instances, runs the benchmark, downloads the results and deletes everything it created, even when it fails. The memory session takes about an hour.</p>
+<pre data-lang="shell"><code><span class="p">$ </span>git clone https://github.com/dankomiocevic/ghoti-bench.git &amp;&amp; cd ghoti-bench
+<span class="p">$ </span>AWS_REGION=us-west-2 GHOTI_REF=v0.3.0 scripts/ec2-bench.sh</code></pre>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/dankomiocevic/ghoti-bench/blob/main/RESULTS.md">Read the full report <span aria-hidden="true">→</span></a>
+        <a class="btn btn-ghost" href="https://github.com/dankomiocevic/ghoti-bench">ghoti-bench on GitHub</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="all-results" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal">
+      <p class="eyebrow">All results</p>
+      <h2>Every case, in one table.</h2>
+      <p>Ghoti v0.3.0 on a t4g.micro: the median of the valid runs for every case. Max is the slowest round trip of any run.</p>
+    </div>
+    <div class="table-wrap">
+      <table class="num">
+        <thead><tr><th>Scenario</th><th>Conns</th><th>Runs</th><th>Requests/s</th><th>p50 ms</th><th>p90 ms</th><th>p99 ms</th><th>p99.9 ms</th><th>max ms</th><th>CPU</th><th>Errors</th></tr></thead>
+        <tbody>
+          <tr><td>memory-read</td><td>1</td><td>3</td><td>3,359</td><td>0.290</td><td>0.322</td><td>0.372</td><td>0.597</td><td>16.829</td><td>6%</td><td>0</td></tr>
+          <tr><td>memory-read</td><td>100</td><td>3</td><td>134,343</td><td>0.600</td><td>1.101</td><td>3.541</td><td>7.123</td><td>57.185</td><td>82%</td><td>0</td></tr>
+          <tr><td>memory-read</td><td>1,000</td><td>3</td><td>112,647</td><td>8.376</td><td>11.190</td><td>18.694</td><td>26.231</td><td>255.356</td><td>89%</td><td>0</td></tr>
+          <tr><td>counter-hot</td><td>1</td><td>1</td><td>3,453</td><td>0.282</td><td>0.309</td><td>0.368</td><td>0.747</td><td>9.754</td><td>6%</td><td>0</td></tr>
+          <tr><td>counter-hot</td><td>100</td><td>1</td><td>127,594</td><td>0.628</td><td>1.168</td><td>4.053</td><td>8.864</td><td>74.566</td><td>78%</td><td>0</td></tr>
+          <tr><td>counter-hot</td><td>1,000</td><td>1</td><td>110,026</td><td>8.552</td><td>11.502</td><td>19.300</td><td>36.078</td><td>71.779</td><td>88%</td><td>0</td></tr>
+          <tr><td>counter-spread</td><td>1</td><td>1</td><td>3,320</td><td>0.294</td><td>0.321</td><td>0.369</td><td>0.552</td><td>5.697</td><td>6%</td><td>0</td></tr>
+          <tr><td>counter-spread</td><td>100</td><td>1</td><td>134,746</td><td>0.602</td><td>1.092</td><td>3.494</td><td>7.881</td><td>51.752</td><td>83%</td><td>0</td></tr>
+          <tr><td>counter-spread</td><td>1,000</td><td>1</td><td>112,955</td><td>8.385</td><td>11.133</td><td>17.990</td><td>24.789</td><td>32.151</td><td>90%</td><td>0</td></tr>
+          <tr><td>token-bucket-hot</td><td>1</td><td>1</td><td>3,996</td><td>0.242</td><td>0.274</td><td>0.332</td><td>0.681</td><td>10.764</td><td>7%</td><td>0</td></tr>
+          <tr><td>token-bucket-hot</td><td>100</td><td>1</td><td>139,552</td><td>0.588</td><td>1.075</td><td>3.379</td><td>7.803</td><td>65.059</td><td>86%</td><td>0</td></tr>
+          <tr><td>token-bucket-hot</td><td>1,000</td><td>1</td><td>113,173</td><td>8.339</td><td>11.174</td><td>18.711</td><td>26.329</td><td>223.583</td><td>89%</td><td>0</td></tr>
+          <tr><td>token-bucket-spread</td><td>1</td><td>1</td><td>3,957</td><td>0.242</td><td>0.286</td><td>0.368</td><td>0.719</td><td>8.952</td><td>7%</td><td>0</td></tr>
+          <tr><td>token-bucket-spread</td><td>100</td><td>1</td><td>139,188</td><td>0.591</td><td>1.081</td><td>3.238</td><td>7.520</td><td>27.378</td><td>86%</td><td>0</td></tr>
+          <tr><td>token-bucket-spread</td><td>1,000</td><td>1</td><td>113,062</td><td>8.397</td><td>11.035</td><td>17.842</td><td>25.068</td><td>222.237</td><td>90%</td><td>0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine-print">Source: <a href="https://github.com/dankomiocevic/ghoti-bench/blob/main/RESULTS.md">ghoti-bench RESULTS.md</a>, Ghoti v0.3.0 benchmark report of 2026-11-19.</p>
+  </div>
+</section>
+
+</main>
+<footer class="site-footer">
+  <div class="container">
+    <div class="cols">
+      <div>
+        <a class="brand" href="/"><img src="/assets/img/logo.png" width="28" height="28" alt=""><span>Ghoti</span></a>
+        <p style="max-width:28em;margin:12px 0 0">A single-binary, in-memory server for coordination primitives. All state is volatile by design.</p>
+      </div>
+      <nav aria-label="Footer">
+        <div><b>Docs</b><a href="/docs/getting-started/">Getting started</a><a href="/docs/protocol/">Protocol</a><a href="/docs/configuration/slots/">Slot reference</a><a href="/docs/reference/errors/">Error codes</a></div>
+        <div><b>Project</b><a href="https://github.com/dankomiocevic/ghoti">GitHub</a><a href="https://github.com/dankomiocevic/ghoti/releases">Releases</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/SECURITY.md">Security policy</a></div>
+        <div><b>More</b><a href="/benchmarks/">Benchmarks</a><a href="/blog/">Blog</a><a href="/blog/index.xml">RSS feed</a><a href="/docs/contributing/">Contributing</a></div>
+      </nav>
+    </div>
+    <p class="fine">Ghoti is open source under the <a href="https://github.com/dankomiocevic/ghoti/blob/main/LICENSE">Apache-2.0 license</a>.</p>
+  </div>
+</footer>
+<script src="/assets/js/site.js" defer></script>
+</body>
+</html>
