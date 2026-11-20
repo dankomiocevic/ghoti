@@ -194,3 +194,105 @@ func TestTickerWriteNonIntegerData(t *testing.T) {
 		t.Fatalf("Error must be returned when storing non-integer value")
 	}
 }
+
+// newHourTicker returns a ticker with a one-hour tick, so the real clock
+// does not move to the next tick while a test runs. Elapsed ticks are
+// simulated by moving the slot's window back.
+func newHourTicker(t *testing.T, initial int) *tickerSlot {
+	t.Helper()
+	slot, err := newTickerSlot(3_600_000, initial, map[string]string{})
+	if err != nil {
+		t.Fatalf("ticker must be created: %s", err)
+	}
+	return slot
+}
+
+// sameTick runs f and reports whether the real clock stayed in one tick of
+// an hour, so the result does not depend on an accidental real tick.
+func sameTick(f func()) bool {
+	before := currentWindowMillis(3_600_000)
+	f()
+	return before == currentWindowMillis(3_600_000)
+}
+
+// Reading a ticker repeatedly within one tick must not change its value,
+// which is what makes a read safe to retry.
+func TestTickerRepeatedReadsDoNotAdvance(t *testing.T) {
+	for attempt := 0; attempt < 3; attempt++ {
+		slot := newHourTicker(t, 100)
+		slot.window -= 5 // five ticks have elapsed since the slot started
+
+		var reads []string
+		if !sameTick(func() {
+			for i := 0; i < 10; i++ {
+				reads = append(reads, slot.Read())
+			}
+		}) {
+			continue
+		}
+
+		for i, v := range reads {
+			if v != "95" {
+				t.Fatalf("read %d returned %s, every read must return 95", i, v)
+			}
+		}
+		return
+	}
+	t.Fatal("the clock crossed a tick on every attempt")
+}
+
+// The value after some elapsed time must be the same whether the slot was
+// read once at the end or many times along the way: reads do not consume
+// ticks.
+func TestTickerValueDependsOnlyOnElapsedTicks(t *testing.T) {
+	for attempt := 0; attempt < 3; attempt++ {
+		once := newHourTicker(t, 100)
+		often := newHourTicker(t, 100)
+
+		var onceValue, oftenValue string
+		var intermediate []string
+		if !sameTick(func() {
+			// once: 7 ticks pass, then a single read.
+			once.window -= 7
+			onceValue = once.Read()
+
+			// often: the same 7 ticks pass in steps of 2, 3 and 2, with
+			// several reads after each step.
+			for _, step := range []int64{2, 3, 2} {
+				often.window -= step
+				for i := 0; i < 3; i++ {
+					intermediate = append(intermediate, often.Read())
+				}
+			}
+			oftenValue = often.Read()
+		}) {
+			continue
+		}
+
+		if onceValue != "93" {
+			t.Fatalf("a single read after 7 ticks must return 93, got %s", onceValue)
+		}
+		if oftenValue != onceValue {
+			t.Fatalf("many reads must end at the same value as one read: %s != %s", oftenValue, onceValue)
+		}
+		want := []string{"98", "98", "98", "95", "95", "95", "93", "93", "93"}
+		for i := range want {
+			if intermediate[i] != want[i] {
+				t.Fatalf("intermediate reads = %v, want %v", intermediate, want)
+			}
+		}
+		return
+	}
+	t.Fatal("the clock crossed a tick on every attempt")
+}
+
+// The countdown stops at zero however many reads happen after it expires.
+func TestTickerRepeatedReadsStayAtZero(t *testing.T) {
+	slot := newHourTicker(t, 3)
+	slot.window -= 10
+	for i := 0; i < 5; i++ {
+		if v := slot.Read(); v != "0" {
+			t.Fatalf("read %d returned %s, an expired ticker must return 0", i, v)
+		}
+	}
+}
