@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transports · Ghoti</title>
+<meta name="description" content="The standard, telnet and http transports, line endings, HTTP status mapping, timeouts, SSE heartbeats and backpressure.">
+<link rel="canonical" href="https://ghoti.miocevic.com/docs/protocol/transports/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ghoti">
+<meta property="og:title" content="Transports · Ghoti">
+<meta property="og:description" content="The standard, telnet and http transports, line endings, HTTP status mapping, timeouts, SSE heartbeats and backpressure.">
+<meta property="og:url" content="https://ghoti.miocevic.com/docs/protocol/transports/">
+<meta name="theme-color" content="#07080d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7f8fb" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/rss+xml" title="Ghoti blog" href="/blog/index.xml">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script>(function(){var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("ghoti-theme");if(t==="light"||t==="dark")d.setAttribute("data-theme",t);}catch(e){}})();</script>
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="/"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset=".5" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#lg)"/>
+  <path d="M12 32c6-9 14-13 22-13 7 0 12 4 16 8l6-6v22l-6-6c-4 4-9 8-16 8-8 0-16-4-22-13z" fill="#06231f"/>
+  <circle cx="23" cy="30" r="2.6" fill="#5eead4"/>
+  <path d="M33 25v14M38 25v14M43 27v10" stroke="#5eead4" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+</svg>
+<span>Ghoti</span><span class="ver">v0.3.0</span></a>
+    <nav class="nav" aria-label="Main">
+      <a href="/docs/" aria-current="page">Docs</a>
+      <a href="/blog/">Blog</a>
+      <a class="gh" href="https://github.com/dankomiocevic/ghoti"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+      <button class="theme-toggle" type="button" aria-label="Toggle dark mode"><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    </nav>
+  </div>
+</header>
+<div class="container docs-shell">
+<aside class="sidebar" aria-label="Documentation"><details class="m-nav"><summary><span>Docs menu</span><b>Transports</b></summary><div class="groups"><div class="group"><p class="group-title">Start</p><ul><li><a href="/docs/"><span>Overview</span></a></li><li><a href="/docs/getting-started/"><span>Getting started</span></a></li><li><a href="/docs/concepts/"><span>Concepts</span></a></li></ul></div><div class="group"><p class="group-title">Protocol</p><ul><li><a href="/docs/protocol/"><span>Protocol</span></a></li><li><a href="/docs/protocol/transports/" aria-current="page"><span>Transports</span></a></li></ul></div><div class="group"><p class="group-title">Configure</p><ul><li><a href="/docs/configuration/"><span>Configuration</span></a></li><li><a href="/docs/configuration/slots/"><span>Slot reference</span></a></li><li><a href="/docs/authentication/"><span>Authentication</span></a></li></ul></div><div class="group"><p class="group-title">Run</p><ul><li><a href="/docs/operations/"><span>Operations</span></a></li><li><a href="/docs/cluster/"><span>Cluster</span><span class="tag">exp</span></a></li></ul></div><div class="group"><p class="group-title">Reference</p><ul><li><a href="/docs/reference/errors/"><span>Error codes</span></a></li><li><a href="/docs/contributing/"><span>Contributing</span></a></li></ul></div></div></details><div class="d-nav"><div class="group"><p class="group-title">Start</p><ul><li><a href="/docs/"><span>Overview</span></a></li><li><a href="/docs/getting-started/"><span>Getting started</span></a></li><li><a href="/docs/concepts/"><span>Concepts</span></a></li></ul></div><div class="group"><p class="group-title">Protocol</p><ul><li><a href="/docs/protocol/"><span>Protocol</span></a></li><li><a href="/docs/protocol/transports/" aria-current="page"><span>Transports</span></a></li></ul></div><div class="group"><p class="group-title">Configure</p><ul><li><a href="/docs/configuration/"><span>Configuration</span></a></li><li><a href="/docs/configuration/slots/"><span>Slot reference</span></a></li><li><a href="/docs/authentication/"><span>Authentication</span></a></li></ul></div><div class="group"><p class="group-title">Run</p><ul><li><a href="/docs/operations/"><span>Operations</span></a></li><li><a href="/docs/cluster/"><span>Cluster</span><span class="tag">exp</span></a></li></ul></div><div class="group"><p class="group-title">Reference</p><ul><li><a href="/docs/reference/errors/"><span>Error codes</span></a></li><li><a href="/docs/contributing/"><span>Contributing</span></a></li></ul></div></div></aside>
+<main id="main" class="prose">
+<div class="crumbs"><a href="/docs/">Docs</a> / Protocol</div>
+<h1>Transports</h1>
+<p class="lead">The protocol is the same on every transport. The transport only changes how requests are framed and how responses reach the client. Pick one with the top-level <code>protocol</code> key.</p>
+
+<pre data-lang="yaml"><code><span class="k">protocol</span>: <span class="s">standard  </span><span class="c"> # standard (default), telnet or http</span></code></pre>
+
+<div class="table-wrap"><div class="table-wrap"><table>
+<thead><tr><th>Transport</th><th>Use it for</th></tr></thead>
+<tbody>
+<tr><td><code>standard</code></td><td>The default. Plain TCP, one command per line ending in <code>\n</code>. Use this from application code and with <code>nc</code>.</td></tr>
+<tr><td><code>telnet</code></td><td>Same as <code>standard</code>, but requests end in <code>\r\n</code> as a telnet client sends them.</td></tr>
+<tr><td><code>http</code></td><td>Read and write slots with <code>GET</code> and <code>POST</code>, and receive broadcast events in a browser or any client over Server-Sent Events.</td></tr>
+</tbody></table></div></div>
+<p>A server runs one transport at a time, on <code>addr</code>.</p>
+
+<h2 id="line-endings">Line endings<a class="anchor" href="#line-endings" aria-label="Link to this section">#</a></h2>
+<p>Line endings are strict and differ per transport:</p>
+<div class="table-wrap"><div class="table-wrap"><table>
+<thead><tr><th>Transport</th><th>Request terminator</th><th>Response terminator</th></tr></thead>
+<tbody>
+<tr><td><code>standard</code></td><td class="wrap"><code>\n</code> only. The <code>\r</code> of a <code>\r\n</code> ending is kept as part of the request, so <code>w000abc\r\n</code> stores <code>abc\r</code>, and <code>r000\r\n</code> is rejected with <code>exxx001</code> as a read with trailing bytes. Always send a bare <code>\n</code>.</td><td><code>\n</code></td></tr>
+<tr><td><code>telnet</code></td><td class="wrap"><code>\r\n</code> only. A request ending in a bare <code>\n</code> is rejected with <code>exxx001</code>.</td><td><code>\n</code>, <strong>not</strong> <code>\r\n</code></td></tr>
+<tr><td><code>http</code></td><td>Not applicable: one command per request.</td><td>Not applicable</td></tr>
+</tbody></table></div></div>
+
+<div class="callout warn"><span class="title">Connecting with telnet</span>
+<p>A telnet client sends <code>\r\n</code>. Against the default <code>standard</code> transport, reads fail with <code>exxx001</code> and written values keep a trailing <code>\r</code>. If you want to use telnet, set <code>protocol: telnet</code>. Otherwise use <code>nc</code> or another client that sends a bare <code>\n</code>.</p></div>
+
+<h2 id="standard-and-telnet">standard and telnet<a class="anchor" href="#standard-and-telnet" aria-label="Link to this section">#</a></h2>
+<p>Both transports are a long-lived TCP connection carrying the commands described in <a href="/docs/protocol/">Protocol</a>. The connection is the client's identity: it holds the logged-in user, <code>timeout_memory</code> ownership and multicast subscriptions, and it receives async events from broadcast and multicast slots.</p>
+<p>Events are written to each connection with a 200 ms deadline. A connection that stops reading until its socket buffers fill up misses events, and those count as errors in the writer's <code>received/sent/errors</code> summary.</p>
+
+<h2 id="http">http<a class="anchor" href="#http" aria-label="Link to this section">#</a></h2>
+<pre data-lang="yaml"><code><span class="k">protocol</span>: <span class="s">http</span></code></pre>
+<p>Slots are addressed by path, where <code>&lt;id&gt;</code> is exactly three ASCII digits:</p>
+<div class="table-wrap"><div class="table-wrap"><table>
+<thead><tr><th>Request</th><th>Equivalent command</th></tr></thead>
+<tbody>
+<tr><td><code>GET /&lt;id&gt;</code></td><td><code>r&lt;id&gt;</code>, or an SSE stream on a broadcast slot (below)</td></tr>
+<tr><td><code>POST /&lt;id&gt;</code> with the value as the body</td><td><code>w&lt;id&gt;&lt;value&gt;</code></td></tr>
+</tbody></table></div></div>
+<ul>
+<li>Any other path shape, including <code>/+00</code>, <code>/-01</code> and <code>/1</code>, is rejected with <code>400</code>.</li>
+<li>A trailing <code>\n</code> or <code>\r\n</code> in a <code>POST</code> body is stripped. A body longer than 36 bytes is rejected with <code>400</code>.</li>
+<li>Methods other than <code>GET</code> and <code>POST</code> get <code>405</code>.</li>
+<li>Authentication uses HTTP Basic Auth on every request, instead of <code>u</code> and <code>p</code>. A request without credentials is anonymous.</li>
+<li><code>s</code>, <code>d</code>, <code>u</code>, <code>p</code> and <code>q</code> have no HTTP equivalent, so <strong>multicast groups can't be joined over HTTP</strong>.</li>
+<li>Every request is its own connection, so <strong>no HTTP client can own a <code>timeout_memory</code> slot</strong> across two writes. Use <code>standard</code> or <code>telnet</code> for leases.</li>
+</ul>
+<p>Captured against the configuration shown, with <code>slot_000</code> a <code>simple_memory</code> slot open to everyone and <code>slot_002</code> restricted to <code>my_service</code>:</p>
+<pre data-lang="shell"><code><span class="p">$ </span>curl -s -X POST --data 'hello' localhost:9090/000
+hello
+<span class="p">$ </span>curl -s localhost:9090/000
+hello
+<span class="p">$ </span>curl -s localhost:9090/002
+forbidden
+<span class="p">$ </span>curl -s localhost:9090/999
+slot not configured
+<span class="p">$ </span>curl -s localhost:9090/1
+slot must be a 3-digit number (e.g. GET /000)</code></pre>
+
+<h3 id="http-status-mapping">HTTP status mapping<a class="anchor" href="#http-status-mapping" aria-label="Link to this section">#</a></h3>
+<p>The protocol response is translated into a status code. On <code>200</code> the body is the value, without the <code>v</code> and slot prefix.</p>
+<div class="table-wrap"><div class="table-wrap"><table>
+<thead><tr><th>Status</th><th>When</th></tr></thead>
+<tbody>
+<tr><td><code>200</code></td><td>Success, with the value as the body.</td></tr>
+<tr><td><code>400</code></td><td>A path that is not three digits, a body over 36 bytes, or any protocol error not listed below (for example <code>007</code> WRITE_FAILED). The body is <code>error: &lt;code&gt;</code>.</td></tr>
+<tr><td><code>401</code></td><td>Basic Auth credentials were sent but don't match a configured user.</td></tr>
+<tr><td><code>403</code></td><td>Permission error: <code>006</code> WRITE_PERMISSION or <code>008</code> READ_PERMISSION.</td></tr>
+<tr><td><code>404</code></td><td>The slot is not configured (<code>005</code> MISSING_SLOT).</td></tr>
+<tr><td><code>405</code></td><td>A method other than <code>GET</code> or <code>POST</code>.</td></tr>
+<tr><td><code>503</code></td><td>The node is not the cluster leader (<code>000</code> NOT_LEADER).</td></tr>
+<tr><td><code>504</code></td><td>The server didn't produce a response within 500 ms.</td></tr>
+</tbody></table></div></div>
+
+<h3 id="server-sent-events">Server-Sent Events on broadcast slots<a class="anchor" href="#server-sent-events" aria-label="Link to this section">#</a></h3>
+<p>A <code>GET</code> on a <strong>broadcast</strong> slot doesn't return the current value. It opens a persistent <a href="https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events">Server-Sent Events</a> stream, and every later write to <em>any</em> broadcast slot is pushed to it as a <code>data:</code> line carrying the full async event. The server decides which slots stream from the configuration at startup.</p>
+<pre data-lang="shell"><code><span class="p">$ </span>curl -sN localhost:9090/001
+data: a001deploy-42</code></pre>
+<p>That event came from a write in another terminal. Over HTTP, broadcast events go to the open SSE streams only, so the writer itself isn't counted:</p>
+<pre data-lang="shell"><code><span class="p">$ </span>curl -s -X POST --data 'deploy-42' localhost:9090/001
+1/1/0</code></pre>
+<p>The stream is sent with <code>Access-Control-Allow-Origin: *</code>, so a page on another origin can subscribe with the browser's <code>EventSource</code>:</p>
+<pre data-lang="text"><code>const events = new EventSource("http://localhost:9090/001");
+events.onmessage = (e) =&amp;gt; console.log(e.data); // "a001deploy-42"</code></pre>
+<p>The SSE data is the async event line, so it starts with <code>a</code> and the slot number. A stream opened on one broadcast slot receives the events of every broadcast slot, so check the slot number in the data.</p>
+
+<h3 id="timeouts">Timeouts<a class="anchor" href="#timeouts" aria-label="Link to this section">#</a></h3>
+<p>The HTTP server is bounded so that a slow or idle client can't hold resources for long:</p>
+<div class="table-wrap"><div class="table-wrap"><table>
+<thead><tr><th>Limit</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Time to send the request headers</td><td>5 seconds</td></tr>
+<tr><td>Time for the whole request</td><td>10 seconds</td></tr>
+<tr><td>Time to write a response</td><td>10 seconds</td></tr>
+<tr><td>Idle keep-alive connection</td><td>Closed after 60 seconds</td></tr>
+<tr><td>Request headers</td><td>At most 8 KiB</td></tr>
+</tbody></table></div></div>
+<p>Every command is a single short request, so well-behaved clients never hit these limits.</p>
+
+<h3 id="heartbeats">Heartbeats<a class="anchor" href="#heartbeats" aria-label="Link to this section">#</a></h3>
+<p>SSE streams are the deliberate exception to the timeouts: a stream stays open for as long as the client keeps reading it, with no read or write timeout. When nothing has been written to a stream for 15 seconds, the server sends an SSE comment line, <code>: keepalive</code>, which SSE clients ignore. The check runs every 15 seconds, so a quiet stream carries a comment at least every 30 seconds and a busy one carries none. This stops proxies from closing an idle stream and lets the server notice a client that went away without closing the connection.</p>
+
+<h3 id="backpressure">Backpressure<a class="anchor" href="#backpressure" aria-label="Link to this section">#</a></h3>
+<p>A subscriber must keep reading. Each event is written with a 200 ms deadline, the same as on the <code>standard</code> transport. Once a subscriber's socket buffers are full because it stopped reading, the next event or heartbeat fails and the subscriber is disconnected. The event it missed counts as an error in the writer's <code>received/sent/errors</code> response, exactly like a stalled TCP subscriber.</p>
+<p>Each SSE stream holds a connection for as long as it is open, so it counts against <a href="/docs/operations/#connection-limits"><code>max_connections</code></a>.</p>
+
+<nav class="pager" aria-label="Previous and next page"><a class="prev" href="/docs/protocol/"><small>Previous</small>Protocol</a><a class="next" href="/docs/configuration/"><small>Next</small>Configuration</a></nav>
+<p class="page-meta">Found something out of date? <a href="https://github.com/dankomiocevic/ghoti/issues">Open an issue</a> or edit <code>website/docs/protocol/transports/index.html</code>.</p>
+</main>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ul><li><a href="#line-endings">Line endings</a></li><li><a href="#standard-and-telnet">standard and telnet</a></li><li><a href="#http">http</a></li></ul></nav>
+</div>
+<footer class="site-footer">
+  <div class="container">
+    <div class="cols">
+      <div>
+        <a class="brand" href="/"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset=".5" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#lg)"/>
+  <path d="M12 32c6-9 14-13 22-13 7 0 12 4 16 8l6-6v22l-6-6c-4 4-9 8-16 8-8 0-16-4-22-13z" fill="#06231f"/>
+  <circle cx="23" cy="30" r="2.6" fill="#5eead4"/>
+  <path d="M33 25v14M38 25v14M43 27v10" stroke="#5eead4" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+</svg>
+<span>Ghoti</span></a>
+        <p style="max-width:28em;margin:12px 0 0">A single-binary, in-memory server for coordination primitives. All state is volatile by design.</p>
+      </div>
+      <nav aria-label="Footer">
+        <div><b>Docs</b><a href="/docs/getting-started/">Getting started</a><a href="/docs/protocol/">Protocol</a><a href="/docs/configuration/slots/">Slot reference</a><a href="/docs/reference/errors/">Error codes</a></div>
+        <div><b>Project</b><a href="https://github.com/dankomiocevic/ghoti">GitHub</a><a href="https://github.com/dankomiocevic/ghoti/releases">Releases</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/SECURITY.md">Security policy</a></div>
+        <div><b>More</b><a href="/blog/">Blog</a><a href="/blog/index.xml">RSS feed</a><a href="/docs/contributing/">Contributing</a></div>
+      </nav>
+    </div>
+    <p class="fine">Ghoti is open source under the <a href="https://github.com/dankomiocevic/ghoti/blob/main/LICENSE">Apache-2.0 license</a>.</p>
+  </div>
+</footer>
+<script src="/assets/js/site.js" defer></script>
+</body>
+</html>

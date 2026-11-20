@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Error codes · Ghoti</title>
+<meta name="description" content="Every error code Ghoti returns, with its name, meaning and when it closes the connection.">
+<link rel="canonical" href="https://ghoti.miocevic.com/docs/reference/errors/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ghoti">
+<meta property="og:title" content="Error codes · Ghoti">
+<meta property="og:description" content="Every error code Ghoti returns, with its name, meaning and when it closes the connection.">
+<meta property="og:url" content="https://ghoti.miocevic.com/docs/reference/errors/">
+<meta name="theme-color" content="#07080d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7f8fb" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/rss+xml" title="Ghoti blog" href="/blog/index.xml">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script>(function(){var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("ghoti-theme");if(t==="light"||t==="dark")d.setAttribute("data-theme",t);}catch(e){}})();</script>
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="/"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset=".5" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#lg)"/>
+  <path d="M12 32c6-9 14-13 22-13 7 0 12 4 16 8l6-6v22l-6-6c-4 4-9 8-16 8-8 0-16-4-22-13z" fill="#06231f"/>
+  <circle cx="23" cy="30" r="2.6" fill="#5eead4"/>
+  <path d="M33 25v14M38 25v14M43 27v10" stroke="#5eead4" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+</svg>
+<span>Ghoti</span><span class="ver">v0.3.0</span></a>
+    <nav class="nav" aria-label="Main">
+      <a href="/docs/" aria-current="page">Docs</a>
+      <a href="/blog/">Blog</a>
+      <a class="gh" href="https://github.com/dankomiocevic/ghoti"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+      <button class="theme-toggle" type="button" aria-label="Toggle dark mode"><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    </nav>
+  </div>
+</header>
+<div class="container docs-shell">
+<aside class="sidebar" aria-label="Documentation"><details class="m-nav"><summary><span>Docs menu</span><b>Error codes</b></summary><div class="groups"><div class="group"><p class="group-title">Start</p><ul><li><a href="/docs/"><span>Overview</span></a></li><li><a href="/docs/getting-started/"><span>Getting started</span></a></li><li><a href="/docs/concepts/"><span>Concepts</span></a></li></ul></div><div class="group"><p class="group-title">Protocol</p><ul><li><a href="/docs/protocol/"><span>Protocol</span></a></li><li><a href="/docs/protocol/transports/"><span>Transports</span></a></li></ul></div><div class="group"><p class="group-title">Configure</p><ul><li><a href="/docs/configuration/"><span>Configuration</span></a></li><li><a href="/docs/configuration/slots/"><span>Slot reference</span></a></li><li><a href="/docs/authentication/"><span>Authentication</span></a></li></ul></div><div class="group"><p class="group-title">Run</p><ul><li><a href="/docs/operations/"><span>Operations</span></a></li><li><a href="/docs/cluster/"><span>Cluster</span><span class="tag">exp</span></a></li></ul></div><div class="group"><p class="group-title">Reference</p><ul><li><a href="/docs/reference/errors/" aria-current="page"><span>Error codes</span></a></li><li><a href="/docs/contributing/"><span>Contributing</span></a></li></ul></div></div></details><div class="d-nav"><div class="group"><p class="group-title">Start</p><ul><li><a href="/docs/"><span>Overview</span></a></li><li><a href="/docs/getting-started/"><span>Getting started</span></a></li><li><a href="/docs/concepts/"><span>Concepts</span></a></li></ul></div><div class="group"><p class="group-title">Protocol</p><ul><li><a href="/docs/protocol/"><span>Protocol</span></a></li><li><a href="/docs/protocol/transports/"><span>Transports</span></a></li></ul></div><div class="group"><p class="group-title">Configure</p><ul><li><a href="/docs/configuration/"><span>Configuration</span></a></li><li><a href="/docs/configuration/slots/"><span>Slot reference</span></a></li><li><a href="/docs/authentication/"><span>Authentication</span></a></li></ul></div><div class="group"><p class="group-title">Run</p><ul><li><a href="/docs/operations/"><span>Operations</span></a></li><li><a href="/docs/cluster/"><span>Cluster</span><span class="tag">exp</span></a></li></ul></div><div class="group"><p class="group-title">Reference</p><ul><li><a href="/docs/reference/errors/" aria-current="page"><span>Error codes</span></a></li><li><a href="/docs/contributing/"><span>Contributing</span></a></li></ul></div></div></aside>
+<main id="main" class="prose">
+<div class="crumbs"><a href="/docs/">Docs</a> / Reference</div>
+<h1>Error codes</h1>
+<p class="lead">Ghoti answers a failed command with a short code instead of a message, which keeps every response small.</p>
+
+<div class="callout"><span class="title">Source of truth</span>
+<p>The authoritative list is <a href="https://github.com/dankomiocevic/ghoti/blob/main/internal/errs/README.md"><code>internal/errs/README.md</code></a>. The server embeds that file at compile time and reads its codes from it, so the code and the list can't drift apart. This page is a copy of it. If they ever disagree, the file in the repository wins.</p></div>
+
+<h2 id="format">Format<a class="anchor" href="#format" aria-label="Link to this section">#</a></h2>
+<p>An error is <code>e</code>, three characters for the slot, and three digits for the code. For slot 135 and error 006:</p>
+<pre data-lang="transcript"><code><span class="p">&lt; </span><span class="e">e135006</span></code></pre>
+<p>Errors that aren't about a specific slot, such as a parse error, use <code>xxx</code> as the slot:</p>
+<pre data-lang="transcript"><code><span class="p">&lt; </span><span class="e">exxx001</span></code></pre>
+<p>An error can carry an argument after the code. In a cluster, a follower answers with <code>000</code> followed by the leader's node ID, so the client knows which node to contact:</p>
+<pre data-lang="transcript"><code><span class="p">&lt; </span><span class="e">exxx000node1</span></code></pre>
+
+<h2 id="summary">Summary<a class="anchor" href="#summary" aria-label="Link to this section">#</a></h2>
+<div class="table-wrap"><div class="table-wrap"><table>
+<thead><tr><th>Code</th><th>Name</th><th>Closes connection</th><th>HTTP status</th></tr></thead>
+<tbody>
+<tr><td><a href="#error-000"><code>000</code></a></td><td>NOT_LEADER</td><td>No</td><td><code>503</code></td></tr>
+<tr><td><a href="#error-001"><code>001</code></a></td><td>PARSE_ERROR</td><td>No</td><td><code>400</code></td></tr>
+<tr><td><a href="#error-002"><code>002</code></a></td><td>WRONG_USER</td><td>Yes</td><td>Not applicable</td></tr>
+<tr><td><a href="#error-003"><code>003</code></a></td><td>WRONG_PASS</td><td>Yes</td><td>Not applicable</td></tr>
+<tr><td><a href="#error-004"><code>004</code></a></td><td>WRONG_LOGIN</td><td>Yes</td><td>Not applicable (<code>401</code> for bad Basic Auth)</td></tr>
+<tr><td><a href="#error-005"><code>005</code></a></td><td>MISSING_SLOT</td><td>No</td><td><code>404</code></td></tr>
+<tr><td><a href="#error-006"><code>006</code></a></td><td>WRITE_PERMISSION</td><td>No</td><td><code>403</code></td></tr>
+<tr><td><a href="#error-007"><code>007</code></a></td><td>WRITE_FAILED</td><td>No</td><td><code>400</code></td></tr>
+<tr><td><a href="#error-008"><code>008</code></a></td><td>READ_PERMISSION</td><td>No</td><td><code>403</code></td></tr>
+<tr><td><a href="#error-009"><code>009</code></a></td><td>WRONG_FORMAT</td><td>Reserved, not returned</td><td>Not applicable</td></tr>
+<tr><td><a href="#error-010"><code>010</code></a></td><td>UNSUPPORTED_COMMAND</td><td>No</td><td>Not applicable</td></tr>
+</tbody></table></div></div>
+
+<h2 id="error-000">000: NOT_LEADER<a class="anchor" href="#error-000" aria-label="Link to this section">#</a></h2>
+<p>This node is not the leader. Send the command to the leader node.</p>
+<p>In cluster mode only the leader can be used to read and write. A follower answers every command with this error, followed by the name of the leader node:</p>
+<pre data-lang="transcript"><code><span class="p">&lt; </span><span class="e">exxx000nodeA</span></code></pre>
+<p>Here <code>nodeA</code> is the node to contact. How the client maps that name to an address depends on how the cluster and the client were set up. See <a href="/docs/cluster/#routing-traffic-to-the-leader">Routing traffic to the leader</a>.</p>
+
+<h2 id="error-001">001: PARSE_ERROR<a class="anchor" href="#error-001" aria-label="Link to this section">#</a></h2>
+<p>The message couldn't be parsed: it doesn't follow the <a href="/docs/protocol/">protocol</a>. The cases that produce it are:</p>
+<ul>
+<li>The message is not terminated correctly for the transport in use: a missing <code>\n</code> on <code>standard</code>, or a missing <code>\r\n</code> on <code>telnet</code>.</li>
+<li>The message is shorter than 4 bytes (<code>q</code> excepted).</li>
+<li>The message is longer than 40 bytes, not counting the terminator. This is measured in <strong>bytes</strong>, so a value with multi-byte characters reaches the limit sooner than its character count suggests.</li>
+<li>The command byte is not a supported command.</li>
+<li>For commands that address a slot, the three bytes after the command are not a decimal number.</li>
+</ul>
+<p>This error is never tied to a slot, so it is always <code>exxx001</code>.</p>
+
+<h2 id="error-002">002: WRONG_USER<a class="anchor" href="#error-002" aria-label="Link to this section">#</a></h2>
+<p>The username is too short or contains invalid characters: it is shorter than 4 bytes, or doesn't match <code>^[a-zA-Z][a-zA-Z0-9_]*$</code> (a letter, then letters, numbers or underscores).</p>
+<p>The connection is closed after this error.</p>
+
+<h2 id="error-003">003: WRONG_PASS<a class="anchor" href="#error-003" aria-label="Link to this section">#</a></h2>
+<p>The password is too short: it is shorter than 4 bytes, or the username set before it was invalid.</p>
+<p>The connection is closed after this error.</p>
+
+<h2 id="error-004">004: WRONG_LOGIN<a class="anchor" href="#error-004" aria-label="Link to this section">#</a></h2>
+<p>No configured user matches the username and password sent.</p>
+<p>The connection is closed after this error.</p>
+
+<h2 id="error-005">005: MISSING_SLOT<a class="anchor" href="#error-005" aria-label="Link to this section">#</a></h2>
+<p>The slot addressed by the command is not configured. The slot number is valid and in range, but no slot with that number is defined in the configuration. Unlike the login errors, this response carries the requested slot number rather than <code>xxx</code>, for example <code>e999005</code>.</p>
+<p>A slot whose definition is invalid is ignored at startup, so it also answers <code>005</code>. See <a href="/docs/configuration/slots/">Slot reference</a>.</p>
+
+<h2 id="error-006">006: WRITE_PERMISSION<a class="anchor" href="#error-006" aria-label="Link to this section">#</a></h2>
+<p>The logged-in user doesn't have permission to write this slot. If no user is logged in, the slot doesn't allow anonymous writes.</p>
+<p>Token bucket and leaky bucket slots can't be written at all, so every write to them gets this error.</p>
+
+<h2 id="error-007">007: WRITE_FAILED<a class="anchor" href="#error-007" aria-label="Link to this section">#</a></h2>
+<p>The write was allowed, but the slot rejected it. Currently this happens when:</p>
+<ul>
+<li>On a <code>timeout_memory</code> slot, the writing connection is not the owner and the owner's timeout hasn't expired yet.</li>
+<li>On an <code>atomic</code> or <code>ticker</code> slot, the value written is not a non-negative decimal integer.</li>
+</ul>
+<p>This is not a permission error: <code>006</code> means the user may not write the slot at all, while <code>007</code> means the write was allowed but the slot rejected it.</p>
+
+<h2 id="error-008">008: READ_PERMISSION<a class="anchor" href="#error-008" aria-label="Link to this section">#</a></h2>
+<p>The logged-in user doesn't have permission to read this slot. If no user is logged in, the slot doesn't allow anonymous reads. <code>s</code> and <code>d</code> need read permission too.</p>
+
+<h2 id="error-009">009: WRONG_FORMAT<a class="anchor" href="#error-009" aria-label="Link to this section">#</a></h2>
+<p>The message doesn't have the right format.</p>
+<p>This code is <strong>reserved and not returned</strong> by the server: malformed messages are reported as <code>001</code>. It is kept so the code stays stable if the two cases are ever separated.</p>
+
+<h2 id="error-010">010: UNSUPPORTED_COMMAND<a class="anchor" href="#error-010" aria-label="Link to this section">#</a></h2>
+<p>The command is not supported by this slot. <code>s</code> (subscribe) and <code>d</code> (deregister) only work on slots that manage a group of clients, such as multicast slots. Sending them to any other kind of slot returns this error.</p>
+
+<nav class="pager" aria-label="Previous and next page"><a class="prev" href="/docs/cluster/"><small>Previous</small>Cluster</a><a class="next" href="/docs/contributing/"><small>Next</small>Contributing</a></nav>
+<p class="page-meta">Found something out of date? <a href="https://github.com/dankomiocevic/ghoti/issues">Open an issue</a> or edit <code>website/docs/reference/errors/index.html</code>.</p>
+</main>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ul><li><a href="#format">Format</a></li><li><a href="#summary">Summary</a></li><li><a href="#error-000">000: NOT_LEADER</a></li><li><a href="#error-001">001: PARSE_ERROR</a></li><li><a href="#error-002">002: WRONG_USER</a></li><li><a href="#error-003">003: WRONG_PASS</a></li><li><a href="#error-004">004: WRONG_LOGIN</a></li><li><a href="#error-005">005: MISSING_SLOT</a></li><li><a href="#error-006">006: WRITE_PERMISSION</a></li><li><a href="#error-007">007: WRITE_FAILED</a></li><li><a href="#error-008">008: READ_PERMISSION</a></li><li><a href="#error-009">009: WRONG_FORMAT</a></li><li><a href="#error-010">010: UNSUPPORTED_COMMAND</a></li></ul></nav>
+</div>
+<footer class="site-footer">
+  <div class="container">
+    <div class="cols">
+      <div>
+        <a class="brand" href="/"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset=".5" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#lg)"/>
+  <path d="M12 32c6-9 14-13 22-13 7 0 12 4 16 8l6-6v22l-6-6c-4 4-9 8-16 8-8 0-16-4-22-13z" fill="#06231f"/>
+  <circle cx="23" cy="30" r="2.6" fill="#5eead4"/>
+  <path d="M33 25v14M38 25v14M43 27v10" stroke="#5eead4" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+</svg>
+<span>Ghoti</span></a>
+        <p style="max-width:28em;margin:12px 0 0">A single-binary, in-memory server for coordination primitives. All state is volatile by design.</p>
+      </div>
+      <nav aria-label="Footer">
+        <div><b>Docs</b><a href="/docs/getting-started/">Getting started</a><a href="/docs/protocol/">Protocol</a><a href="/docs/configuration/slots/">Slot reference</a><a href="/docs/reference/errors/">Error codes</a></div>
+        <div><b>Project</b><a href="https://github.com/dankomiocevic/ghoti">GitHub</a><a href="https://github.com/dankomiocevic/ghoti/releases">Releases</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/SECURITY.md">Security policy</a></div>
+        <div><b>More</b><a href="/blog/">Blog</a><a href="/blog/index.xml">RSS feed</a><a href="/docs/contributing/">Contributing</a></div>
+      </nav>
+    </div>
+    <p class="fine">Ghoti is open source under the <a href="https://github.com/dankomiocevic/ghoti/blob/main/LICENSE">Apache-2.0 license</a>.</p>
+  </div>
+</footer>
+<script src="/assets/js/site.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concepts · Ghoti</title>
+<meta name="description" content="Slots, volatile state, connections and ownership, and the one-request-in-flight rule.">
+<link rel="canonical" href="https://ghoti.miocevic.com/docs/concepts/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ghoti">
+<meta property="og:title" content="Concepts · Ghoti">
+<meta property="og:description" content="Slots, volatile state, connections and ownership, and the one-request-in-flight rule.">
+<meta property="og:url" content="https://ghoti.miocevic.com/docs/concepts/">
+<meta name="theme-color" content="#07080d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7f8fb" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/rss+xml" title="Ghoti blog" href="/blog/index.xml">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script>(function(){var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("ghoti-theme");if(t==="light"||t==="dark")d.setAttribute("data-theme",t);}catch(e){}})();</script>
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="/"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset=".5" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#lg)"/>
+  <path d="M12 32c6-9 14-13 22-13 7 0 12 4 16 8l6-6v22l-6-6c-4 4-9 8-16 8-8 0-16-4-22-13z" fill="#06231f"/>
+  <circle cx="23" cy="30" r="2.6" fill="#5eead4"/>
+  <path d="M33 25v14M38 25v14M43 27v10" stroke="#5eead4" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+</svg>
+<span>Ghoti</span><span class="ver">v0.3.0</span></a>
+    <nav class="nav" aria-label="Main">
+      <a href="/docs/" aria-current="page">Docs</a>
+      <a href="/blog/">Blog</a>
+      <a class="gh" href="https://github.com/dankomiocevic/ghoti"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+      <button class="theme-toggle" type="button" aria-label="Toggle dark mode"><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    </nav>
+  </div>
+</header>
+<div class="container docs-shell">
+<aside class="sidebar" aria-label="Documentation"><details class="m-nav"><summary><span>Docs menu</span><b>Concepts</b></summary><div class="groups"><div class="group"><p class="group-title">Start</p><ul><li><a href="/docs/"><span>Overview</span></a></li><li><a href="/docs/getting-started/"><span>Getting started</span></a></li><li><a href="/docs/concepts/" aria-current="page"><span>Concepts</span></a></li></ul></div><div class="group"><p class="group-title">Protocol</p><ul><li><a href="/docs/protocol/"><span>Protocol</span></a></li><li><a href="/docs/protocol/transports/"><span>Transports</span></a></li></ul></div><div class="group"><p class="group-title">Configure</p><ul><li><a href="/docs/configuration/"><span>Configuration</span></a></li><li><a href="/docs/configuration/slots/"><span>Slot reference</span></a></li><li><a href="/docs/authentication/"><span>Authentication</span></a></li></ul></div><div class="group"><p class="group-title">Run</p><ul><li><a href="/docs/operations/"><span>Operations</span></a></li><li><a href="/docs/cluster/"><span>Cluster</span><span class="tag">exp</span></a></li></ul></div><div class="group"><p class="group-title">Reference</p><ul><li><a href="/docs/reference/errors/"><span>Error codes</span></a></li><li><a href="/docs/contributing/"><span>Contributing</span></a></li></ul></div></div></details><div class="d-nav"><div class="group"><p class="group-title">Start</p><ul><li><a href="/docs/"><span>Overview</span></a></li><li><a href="/docs/getting-started/"><span>Getting started</span></a></li><li><a href="/docs/concepts/" aria-current="page"><span>Concepts</span></a></li></ul></div><div class="group"><p class="group-title">Protocol</p><ul><li><a href="/docs/protocol/"><span>Protocol</span></a></li><li><a href="/docs/protocol/transports/"><span>Transports</span></a></li></ul></div><div class="group"><p class="group-title">Configure</p><ul><li><a href="/docs/configuration/"><span>Configuration</span></a></li><li><a href="/docs/configuration/slots/"><span>Slot reference</span></a></li><li><a href="/docs/authentication/"><span>Authentication</span></a></li></ul></div><div class="group"><p class="group-title">Run</p><ul><li><a href="/docs/operations/"><span>Operations</span></a></li><li><a href="/docs/cluster/"><span>Cluster</span><span class="tag">exp</span></a></li></ul></div><div class="group"><p class="group-title">Reference</p><ul><li><a href="/docs/reference/errors/"><span>Error codes</span></a></li><li><a href="/docs/contributing/"><span>Contributing</span></a></li></ul></div></div></aside>
+<main id="main" class="prose">
+<div class="crumbs"><a href="/docs/">Docs</a> / Start</div>
+<h1>Concepts</h1>
+<p class="lead">Four ideas explain almost every behaviour in Ghoti: slots, volatile state, connections as identities, and one request in flight per connection.</p>
+
+<h2 id="slots">Slots<a class="anchor" href="#slots" aria-label="Link to this section">#</a></h2>
+<p>A Ghoti server has 1000 slots, numbered <code>000</code> to <code>999</code>. A slot exists only if the configuration defines it, as <code>slot_000</code> to <code>slot_999</code> with a <code>kind</code>. A command that addresses an undefined slot gets error <a href="/docs/reference/errors/#error-005"><code>005</code></a> (MISSING_SLOT).</p>
+<p>The kind decides what reads and writes do. On a <code>simple_memory</code> slot a read is free of side effects. On <code>atomic</code>, <code>token_bucket</code>, <code>leaky_bucket</code> and <code>ticker</code> slots <strong>every read changes the state</strong>. On <code>broadcast</code> and <code>multicast</code> slots every write sends events to other clients. The <a href="/docs/configuration/slots/">slot reference</a> covers each kind.</p>
+<p>Clients must know the configuration beforehand: the protocol has no command to list slots or ask for a slot's kind. If a slot's configuration changes, Ghoti can't keep the data consistent until every server runs the new configuration.</p>
+<p>Values are opaque byte strings of at most <strong>36 bytes</strong>. Ghoti never validates, normalises or transcodes them, so binary data is allowed, and a read returns exactly the bytes that were written.</p>
+
+<div class="callout warn"><span class="title">An invalid slot definition is ignored silently</span>
+<p>If a slot's definition is invalid, for example an unknown <code>kind</code> or a <code>ticker</code> without <code>refresh_rate</code>, the server still starts and logs nothing about it. That slot behaves as if it was never defined and answers <code>e&lt;slot&gt;005</code>. After changing the configuration, read each slot once to confirm it exists.</p></div>
+
+<h2 id="volatile-state">Volatile state<a class="anchor" href="#volatile-state" aria-label="Link to this section">#</a></h2>
+<p>Ghoti keeps everything in memory and writes nothing to disk. When the process stops, every value, counter, bucket, subscription and lease owner is gone. When it starts again, every slot is back at its initial state.</p>
+<p>The same applies to a cluster: <a href="/docs/cluster/">clustering</a> elects a leader but doesn't replicate data, so a newly elected leader starts empty.</p>
+<p>Design the system so that losing Ghoti's state costs performance or a short degradation, never correctness. If a slot is a cache, the system must still work when it is empty. If it holds a lease, the system must tolerate two holders around a restart.</p>
+
+<h2 id="connections-and-ownership">Connections and ownership<a class="anchor" href="#connections-and-ownership" aria-label="Link to this section">#</a></h2>
+<p>On the <code>standard</code> and <code>telnet</code> transports, a client is a TCP connection. Ghoti tracks two things per connection:</p>
+<ul>
+<li><strong>The logged-in user</strong>, set by the <code>u</code> and <code>p</code> commands. See <a href="/docs/authentication/">Authentication</a>.</li>
+<li><strong>Identity for ownership and subscriptions.</strong> A <code>timeout_memory</code> slot is owned by the connection that wrote it, and a <code>multicast</code> subscription belongs to the connection that sent <code>s</code>.</li>
+</ul>
+<p>Ownership is tied to the connection, not to the user or the host. Two connections from the same process, or logged in as the same user, are two different owners. This has consequences:</p>
+<ul>
+<li><strong>A dropped connection does not release a lease.</strong> The owner stays the owner until its timeout expires. A client that reconnects right after a drop is a new connection, so its writes fail with <code>007</code> until the old timeout runs out.</li>
+<li><strong>A restart forgets the owner.</strong> After Ghoti restarts the slot has no owner, and the first connection to write takes it, even if a client still believes it holds the lease.</li>
+<li><strong>Over HTTP every request is its own connection.</strong> No HTTP client can own a <code>timeout_memory</code> slot across two writes, and HTTP clients cannot subscribe to multicast slots.</li>
+</ul>
+
+<h2 id="one-request-in-flight">One request in flight<a class="anchor" href="#one-request-in-flight" aria-label="Link to this section">#</a></h2>
+<p>A client must send a command and wait for its response before it sends the next one. Ghoti handles a connection's commands one at a time and finishes writing each response before it reads the next command. That gives a strict one-request, one-response relation, and it is the only supported way to use a connection. Pipelining (sending more commands before the response arrives) is not supported, and Ghoti may reject it in the future.</p>
+<p>To run commands in parallel, open more connections. Keep in mind that leases and subscriptions belong to the connection that created them.</p>
+
+<h2 id="async-events">Async events<a class="anchor" href="#async-events" aria-label="Link to this section">#</a></h2>
+<p>Besides answers to its own commands, a connection can receive <strong>async events</strong>: lines that start with <code>a</code>, produced by another client's write to a broadcast slot or to a multicast slot this connection subscribed to. They can arrive at any moment, before or after any response but never in the middle of one, so a client has to split the stream on <code>\n</code> and route lines by their first byte. The <a href="/docs/protocol/#ordering">protocol page</a> has the exact rules.</p>
+
+<nav class="pager" aria-label="Previous and next page"><a class="prev" href="/docs/getting-started/"><small>Previous</small>Getting started</a><a class="next" href="/docs/protocol/"><small>Next</small>Protocol</a></nav>
+<p class="page-meta">Found something out of date? <a href="https://github.com/dankomiocevic/ghoti/issues">Open an issue</a> or edit <code>website/docs/concepts/index.html</code>.</p>
+</main>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ul><li><a href="#slots">Slots</a></li><li><a href="#volatile-state">Volatile state</a></li><li><a href="#connections-and-ownership">Connections and ownership</a></li><li><a href="#one-request-in-flight">One request in flight</a></li><li><a href="#async-events">Async events</a></li></ul></nav>
+</div>
+<footer class="site-footer">
+  <div class="container">
+    <div class="cols">
+      <div>
+        <a class="brand" href="/"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset=".5" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#lg)"/>
+  <path d="M12 32c6-9 14-13 22-13 7 0 12 4 16 8l6-6v22l-6-6c-4 4-9 8-16 8-8 0-16-4-22-13z" fill="#06231f"/>
+  <circle cx="23" cy="30" r="2.6" fill="#5eead4"/>
+  <path d="M33 25v14M38 25v14M43 27v10" stroke="#5eead4" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+</svg>
+<span>Ghoti</span></a>
+        <p style="max-width:28em;margin:12px 0 0">A single-binary, in-memory server for coordination primitives. All state is volatile by design.</p>
+      </div>
+      <nav aria-label="Footer">
+        <div><b>Docs</b><a href="/docs/getting-started/">Getting started</a><a href="/docs/protocol/">Protocol</a><a href="/docs/configuration/slots/">Slot reference</a><a href="/docs/reference/errors/">Error codes</a></div>
+        <div><b>Project</b><a href="https://github.com/dankomiocevic/ghoti">GitHub</a><a href="https://github.com/dankomiocevic/ghoti/releases">Releases</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/SECURITY.md">Security policy</a></div>
+        <div><b>More</b><a href="/blog/">Blog</a><a href="/blog/index.xml">RSS feed</a><a href="/docs/contributing/">Contributing</a></div>
+      </nav>
+    </div>
+    <p class="fine">Ghoti is open source under the <a href="https://github.com/dankomiocevic/ghoti/blob/main/LICENSE">Apache-2.0 license</a>.</p>
+  </div>
+</footer>
+<script src="/assets/js/site.js" defer></script>
+</body>
+</html>

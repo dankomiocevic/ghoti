@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration · Ghoti</title>
+<meta name="description" content="Where Ghoti reads config.yaml, GHOTI_ environment variables, and the addr, protocol, max_connections and log settings.">
+<link rel="canonical" href="https://ghoti.miocevic.com/docs/configuration/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ghoti">
+<meta property="og:title" content="Configuration · Ghoti">
+<meta property="og:description" content="Where Ghoti reads config.yaml, GHOTI_ environment variables, and the addr, protocol, max_connections and log settings.">
+<meta property="og:url" content="https://ghoti.miocevic.com/docs/configuration/">
+<meta name="theme-color" content="#07080d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7f8fb" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/rss+xml" title="Ghoti blog" href="/blog/index.xml">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script>(function(){var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("ghoti-theme");if(t==="light"||t==="dark")d.setAttribute("data-theme",t);}catch(e){}})();</script>
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="/"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset=".5" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#lg)"/>
+  <path d="M12 32c6-9 14-13 22-13 7 0 12 4 16 8l6-6v22l-6-6c-4 4-9 8-16 8-8 0-16-4-22-13z" fill="#06231f"/>
+  <circle cx="23" cy="30" r="2.6" fill="#5eead4"/>
+  <path d="M33 25v14M38 25v14M43 27v10" stroke="#5eead4" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+</svg>
+<span>Ghoti</span><span class="ver">v0.3.0</span></a>
+    <nav class="nav" aria-label="Main">
+      <a href="/docs/" aria-current="page">Docs</a>
+      <a href="/blog/">Blog</a>
+      <a class="gh" href="https://github.com/dankomiocevic/ghoti"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+      <button class="theme-toggle" type="button" aria-label="Toggle dark mode"><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    </nav>
+  </div>
+</header>
+<div class="container docs-shell">
+<aside class="sidebar" aria-label="Documentation"><details class="m-nav"><summary><span>Docs menu</span><b>Configuration</b></summary><div class="groups"><div class="group"><p class="group-title">Start</p><ul><li><a href="/docs/"><span>Overview</span></a></li><li><a href="/docs/getting-started/"><span>Getting started</span></a></li><li><a href="/docs/concepts/"><span>Concepts</span></a></li></ul></div><div class="group"><p class="group-title">Protocol</p><ul><li><a href="/docs/protocol/"><span>Protocol</span></a></li><li><a href="/docs/protocol/transports/"><span>Transports</span></a></li></ul></div><div class="group"><p class="group-title">Configure</p><ul><li><a href="/docs/configuration/" aria-current="page"><span>Configuration</span></a></li><li><a href="/docs/configuration/slots/"><span>Slot reference</span></a></li><li><a href="/docs/authentication/"><span>Authentication</span></a></li></ul></div><div class="group"><p class="group-title">Run</p><ul><li><a href="/docs/operations/"><span>Operations</span></a></li><li><a href="/docs/cluster/"><span>Cluster</span><span class="tag">exp</span></a></li></ul></div><div class="group"><p class="group-title">Reference</p><ul><li><a href="/docs/reference/errors/"><span>Error codes</span></a></li><li><a href="/docs/contributing/"><span>Contributing</span></a></li></ul></div></div></details><div class="d-nav"><div class="group"><p class="group-title">Start</p><ul><li><a href="/docs/"><span>Overview</span></a></li><li><a href="/docs/getting-started/"><span>Getting started</span></a></li><li><a href="/docs/concepts/"><span>Concepts</span></a></li></ul></div><div class="group"><p class="group-title">Protocol</p><ul><li><a href="/docs/protocol/"><span>Protocol</span></a></li><li><a href="/docs/protocol/transports/"><span>Transports</span></a></li></ul></div><div class="group"><p class="group-title">Configure</p><ul><li><a href="/docs/configuration/" aria-current="page"><span>Configuration</span></a></li><li><a href="/docs/configuration/slots/"><span>Slot reference</span></a></li><li><a href="/docs/authentication/"><span>Authentication</span></a></li></ul></div><div class="group"><p class="group-title">Run</p><ul><li><a href="/docs/operations/"><span>Operations</span></a></li><li><a href="/docs/cluster/"><span>Cluster</span><span class="tag">exp</span></a></li></ul></div><div class="group"><p class="group-title">Reference</p><ul><li><a href="/docs/reference/errors/"><span>Error codes</span></a></li><li><a href="/docs/contributing/"><span>Contributing</span></a></li></ul></div></div></aside>
+<main id="main" class="prose">
+<div class="crumbs"><a href="/docs/">Docs</a> / Configure</div>
+<h1>Configuration</h1>
+<p class="lead">Ghoti reads one YAML file, <code>config.yaml</code>. Any key in it can be overridden with an environment variable, and the listen address with a command-line flag.</p>
+
+<h2 id="file-locations">File locations<a class="anchor" href="#file-locations" aria-label="Link to this section">#</a></h2>
+<p><code>ghoti run</code> looks for a file named <code>config.yaml</code> in these directories, in this order, and uses the first one it finds:</p>
+<ol>
+<li><code>/etc/ghoti</code></li>
+<li><code>$HOME/.ghoti</code></li>
+<li>The current working directory</li>
+</ol>
+<div class="callout warn"><span class="title">A configuration file is required</span>
+<p>If no <code>config.yaml</code> is found, the server logs <code>Config File "config" Not Found</code> and exits with status 1. It does not start with defaults.</p></div>
+
+<h2 id="environment-variables">Environment variables<a class="anchor" href="#environment-variables" aria-label="Link to this section">#</a></h2>
+<p>Any key can be set through an environment variable named <code>GHOTI_</code> plus the key in upper case, with <code>.</code> (and <code>-</code>) replaced by <code>_</code>:</p>
+<div class="table-wrap"><div class="table-wrap"><table>
+<thead><tr><th>Key</th><th>Environment variable</th></tr></thead>
+<tbody>
+<tr><td><code>addr</code></td><td><code>GHOTI_ADDR</code></td></tr>
+<tr><td><code>protocol</code></td><td><code>GHOTI_PROTOCOL</code></td></tr>
+<tr><td><code>log.level</code></td><td><code>GHOTI_LOG_LEVEL</code></td></tr>
+<tr><td><code>cluster.pass</code></td><td><code>GHOTI_CLUSTER_PASS</code></td></tr>
+</tbody></table></div></div>
+<p>An environment variable overrides the file, and the <code>--addr</code> flag overrides both. Use environment variables to inject secrets such as <code>cluster.pass</code> at runtime instead of committing them to a file. The file is still required, even if every key you need comes from the environment.</p>
+<p>One exception: the <code>users</code> block is read as a map, and its entries can't be injected from the environment. Per-user passwords have to come from the file.</p>
+
+<h2 id="server-settings">Server settings<a class="anchor" href="#server-settings" aria-label="Link to this section">#</a></h2>
+<div class="table-wrap"><div class="table-wrap"><table>
+<thead><tr><th>Key</th><th>Default</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>addr</code></td><td><code>localhost:9090</code></td><td class="wrap"><code>host:port</code> the server listens on, for every transport. Also settable with <code>ghoti run --addr host:port</code>.</td></tr>
+<tr><td><code>protocol</code></td><td><code>standard</code></td><td class="wrap"><code>standard</code>, <code>telnet</code> or <code>http</code>. Any other value stops the server with <code>protocol not supported</code>. See <a href="/docs/protocol/transports/">Transports</a>.</td></tr>
+<tr><td><code>max_connections</code></td><td><code>0</code> (no cap)</td><td class="wrap">How many client connections may be open at once. A negative value stops the server. See <a href="/docs/operations/#connection-limits">Connection limits</a>.</td></tr>
+<tr><td><code>log.level</code></td><td><code>info</code></td><td class="wrap"><code>debug</code>, <code>info</code>, <code>warn</code> or <code>error</code>. Any other value stops the server.</td></tr>
+<tr><td><code>log.format</code></td><td><code>text</code></td><td class="wrap"><code>text</code> or <code>json</code>. Logs go to standard output.</td></tr>
+</tbody></table></div></div>
+<p>The default address binds to loopback, so a fresh server is not reachable from other hosts. Before binding to a routable address, read the <a href="/docs/operations/#tls">TLS notes</a>: Ghoti doesn't encrypt any traffic.</p>
+
+<h2 id="other-sections">Other sections<a class="anchor" href="#other-sections" aria-label="Link to this section">#</a></h2>
+<div class="table-wrap"><div class="table-wrap"><table>
+<thead><tr><th>Key</th><th>Documented in</th></tr></thead>
+<tbody>
+<tr><td><code>slot_000</code> … <code>slot_999</code></td><td><a href="/docs/configuration/slots/">Slot reference</a></td></tr>
+<tr><td><code>users</code> and per-slot <code>users</code></td><td><a href="/docs/authentication/">Authentication</a></td></tr>
+<tr><td><code>metrics</code></td><td><a href="/docs/operations/#prometheus-metrics">Operations</a></td></tr>
+<tr><td><code>cluster</code></td><td><a href="/docs/cluster/#configuration">Cluster</a> <span class="badge badge-exp">Experimental</span></td></tr>
+</tbody></table></div></div>
+
+<h2 id="validation">What is validated at startup<a class="anchor" href="#validation" aria-label="Link to this section">#</a></h2>
+<p>The server refuses to start, and logs the reason, when:</p>
+<ul>
+<li>No configuration file is found.</li>
+<li><code>protocol</code>, <code>log.level</code> or <code>log.format</code> has an unsupported value, or <code>max_connections</code> is negative.</li>
+<li>A user in <code>users</code> has a name or password that breaks the <a href="/docs/authentication/#login-rules">login rules</a>.</li>
+<li>The <code>cluster</code> section is missing <code>node</code>, <code>user</code>, <code>pass</code> or <code>manager.type</code>, or <code>node</code> is longer than 20 characters.</li>
+<li><code>metrics.enabled</code> is true without <code>metrics.addr</code>, or the <code>metrics</code> section still has a key from the removed file-based writer (<code>output_dir</code>, <code>rotation</code>, <code>retain</code>, <code>interval</code>).</li>
+<li>The address can't be bound.</li>
+</ul>
+<div class="callout danger"><span class="title">Slot definitions are not validated at startup</span>
+<p>An invalid slot (an unknown <code>kind</code>, a missing required option or an out-of-range value) is <strong>ignored silently</strong>. The server starts without a warning, and that slot answers <code>e&lt;slot&gt;005</code> (MISSING_SLOT) as if it was never defined. Read every slot once after a configuration change.</p></div>
+
+<h2 id="example">Annotated example<a class="anchor" href="#example" aria-label="Link to this section">#</a></h2>
+<p>This is the example <a href="https://github.com/dankomiocevic/ghoti/blob/main/config.yaml"><code>config.yaml</code></a> from the repository:</p>
+<pre data-lang="yaml"><code><span class="c"># Example config file for Ghoti</span>
+
+<span class="k">log</span>:
+  <span class="k">level</span>: <span class="s">debug</span>
+  <span class="k">format</span>: <span class="s">text</span>
+
+<span class="c"># Metrics are disabled by default. Uncomment and configure to enable.</span>
+<span class="c">#metrics:</span>
+<span class="c">#  enabled: true</span>
+<span class="c">#  addr: "127.0.0.1:9100"       # host:port where GET /metrics is served for Prometheus</span>
+
+<span class="c"># Cluster mode is disabled by default. Uncomment and configure to enable.</span>
+<span class="c">#cluster:</span>
+<span class="c">#  node: node1                  # unique node ID, decides election priority</span>
+<span class="c">#  user: cluster_user           # inter-node credentials (min 4 characters)</span>
+<span class="c">#  pass: cluster_pass</span>
+<span class="c">#  manager:</span>
+<span class="c">#    type: join_server</span>
+<span class="c">#    addr: "0.0.0.0:2222"       # where this node's cluster server listens</span>
+<span class="c">#    join: "10.0.0.2:2222"      # existing member to join; omit to bootstrap</span>
+<span class="c">#  leader:</span>
+<span class="c">#    enabled: true              # serve GET /leader for load balancer health</span>
+<span class="c">#                               # checks: 200 on the leader, 503 on followers</span>
+
+<span class="k">slot_000</span>:
+  <span class="k">kind</span>: <span class="s">broadcast</span>
+
+<span class="k">slot_001</span>:
+  <span class="k">kind</span>: <span class="s">simple_memory</span>
+
+<span class="k">slot_002</span>:
+  <span class="k">kind</span>: <span class="s">simple_memory</span>
+
+<span class="k">slot_003</span>:
+  <span class="k">kind</span>: <span class="s">timeout_memory</span>
+  <span class="k">timeout</span>: <span class="s">60</span></code></pre>
+
+<nav class="pager" aria-label="Previous and next page"><a class="prev" href="/docs/protocol/transports/"><small>Previous</small>Transports</a><a class="next" href="/docs/configuration/slots/"><small>Next</small>Slot reference</a></nav>
+<p class="page-meta">Found something out of date? <a href="https://github.com/dankomiocevic/ghoti/issues">Open an issue</a> or edit <code>website/docs/configuration/index.html</code>.</p>
+</main>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ul><li><a href="#file-locations">File locations</a></li><li><a href="#environment-variables">Environment variables</a></li><li><a href="#server-settings">Server settings</a></li><li><a href="#other-sections">Other sections</a></li><li><a href="#validation">What is validated at startup</a></li><li><a href="#example">Annotated example</a></li></ul></nav>
+</div>
+<footer class="site-footer">
+  <div class="container">
+    <div class="cols">
+      <div>
+        <a class="brand" href="/"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset=".5" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#lg)"/>
+  <path d="M12 32c6-9 14-13 22-13 7 0 12 4 16 8l6-6v22l-6-6c-4 4-9 8-16 8-8 0-16-4-22-13z" fill="#06231f"/>
+  <circle cx="23" cy="30" r="2.6" fill="#5eead4"/>
+  <path d="M33 25v14M38 25v14M43 27v10" stroke="#5eead4" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+</svg>
+<span>Ghoti</span></a>
+        <p style="max-width:28em;margin:12px 0 0">A single-binary, in-memory server for coordination primitives. All state is volatile by design.</p>
+      </div>
+      <nav aria-label="Footer">
+        <div><b>Docs</b><a href="/docs/getting-started/">Getting started</a><a href="/docs/protocol/">Protocol</a><a href="/docs/configuration/slots/">Slot reference</a><a href="/docs/reference/errors/">Error codes</a></div>
+        <div><b>Project</b><a href="https://github.com/dankomiocevic/ghoti">GitHub</a><a href="https://github.com/dankomiocevic/ghoti/releases">Releases</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/SECURITY.md">Security policy</a></div>
+        <div><b>More</b><a href="/blog/">Blog</a><a href="/blog/index.xml">RSS feed</a><a href="/docs/contributing/">Contributing</a></div>
+      </nav>
+    </div>
+    <p class="fine">Ghoti is open source under the <a href="https://github.com/dankomiocevic/ghoti/blob/main/LICENSE">Apache-2.0 license</a>.</p>
+  </div>
+</footer>
+<script src="/assets/js/site.js" defer></script>
+</body>
+</html>
