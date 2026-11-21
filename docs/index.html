@@ -11,13 +11,12 @@
 <meta property="og:title" content="Ghoti">
 <meta property="og:description" content="Ghoti is a single-binary, in-memory server with up to 1000 configurable slots (rate limiters, leases, counters, broadcast channels) over plain-text TCP or HTTP with Server-Sent Events.">
 <meta property="og:url" content="https://ghoti.miocevic.com/">
-<meta name="theme-color" content="#07080d" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#f7f8fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#07080d">
 <link rel="icon" href="/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="/favicon.png">
 <link rel="alternate" type="application/rss+xml" title="Ghoti blog" href="/blog/index.xml">
 <link rel="stylesheet" href="/assets/css/site.css">
-<script>(function(){var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("ghoti-theme");if(t==="light"||t==="dark")d.setAttribute("data-theme",t);}catch(e){}})();</script>
+<script>(function(){var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("ghoti-theme");if(t==="light")d.setAttribute("data-theme","light");}catch(e){}})();</script>
 </head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header">
@@ -59,51 +58,80 @@
   </div>
 </section>
 
+<section class="section" id="how">
+  <div class="container">
+    <div class="section-head reveal">
+      <p class="eyebrow">How it works</p>
+      <h2>Declare slots. Run one binary. Speak a line protocol.</h2>
+      <p>No client library, no schema, no cluster to bootstrap. If your language can open a socket, it can use Ghoti.</p>
+    </div>
+    <ol class="steps">
+      <li class="card reveal">
+        <span class="step-num">1</span>
+        <h3>Map slots to primitives</h3>
+        <p><code>config.yaml</code> assigns each slot number, <code>000</code> to <code>999</code>, a <code>kind</code> and its options: a token bucket on 000, a lease on 001, a counter on 002. Clients know the map up front.</p>
+      </li>
+      <li class="card reveal d1">
+        <span class="step-num">2</span>
+        <h3><code>ghoti run</code></h3>
+        <p>One Go binary, all state in memory, nothing written to disk. Optional per-slot ACLs, Prometheus metrics and an experimental leader-elected cluster mode.</p>
+      </li>
+      <li class="card reveal d2">
+        <span class="step-num">3</span>
+        <h3>One command per line</h3>
+        <p><code>r000</code> reads, <code>w001value</code> writes, <code>s</code>/<code>d</code> subscribe and leave. Requests are at most 40 bytes and one is in flight per connection. Over HTTP it's <code>GET</code>/<code>POST /001</code> plus SSE.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<hr class="divider">
+
 <section class="section" id="use">
   <div class="container">
     <div class="section-head reveal">
-      <p class="eyebrow">What you can build with it</p>
-      <h2>Small shared state that your fleet agrees on.</h2>
-      <p>Every slot has one kind, set in the configuration file. Point all your instances at the same Ghoti server and they share the same limiter, lease, counter or channel.</p>
+      <p class="eyebrow">Use cases</p>
+      <h2>The coordination you'd otherwise build on Redis scripts or ZooKeeper.</h2>
+      <p>Each one is a single slot. Every instance in the fleet talks to the same server, so they share one limit, one lease, one sequence, one channel.</p>
     </div>
     <div class="bento">
       <article class="card reveal">
         <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M5.6 5.6l2.1 2.1M3 12h3M18.4 5.6l-2.1 2.1M21 12h-3"/><path d="M12 12l4-4"/><circle cx="12" cy="12" r="2"/><path d="M4 18h16"/></svg></div>
-        <h3>A rate limit that holds across the whole fleet</h3>
-        <p>Every API instance asks the same slot for tokens before it calls an upstream, so the limit applies to the fleet rather than to each process.</p>
+        <h3>Fleet-wide rate limiting</h3>
+        <p>Twenty API instances, one upstream quota of 100 req/s. Each instance takes tokens from a shared bucket before it calls out, so the limit holds for the fleet instead of per process. <code>tokens_per_req</code> lets an instance take a batch and spend it locally, cutting the round trips.</p>
         <div class="viz meter" aria-hidden="true"><span style="height:90%"></span><span style="height:75%"></span><span style="height:60%"></span><span style="height:45%"></span><span style="height:30%"></span><span style="height:15%"></span><span class="off" style="height:8%"></span><span class="off" style="height:8%"></span><span style="height:50%"></span><span style="height:40%"></span><span style="height:30%"></span><span class="off" style="height:8%"></span></div>
         <div class="kind"><code>token_bucket</code><code>leaky_bucket</code></div>
-        <p class="caveat">Every read consumes from the bucket, so reads are not safe to retry blindly.</p>
+        <p class="caveat">A read consumes tokens, so it isn't idempotent: don't retry it blindly.</p>
         <a class="more" href="/docs/configuration/slots/#token-bucket">Token bucket reference →</a>
       </article>
       <article class="card reveal d1">
         <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
-        <h3>A single active worker</h3>
-        <p>The first connection to write owns the slot. Everyone else gets <code>e&lt;slot&gt;007</code> until the owner stops writing for <code>timeout</code> seconds.</p>
+        <h3>A lease for one active worker</h3>
+        <p>The first connection to write the slot owns it. Everyone else gets <code>e&lt;slot&gt;007</code> until the owner stops renewing for <code>timeout</code> seconds. That's leader election for a cron job, without running Raft.</p>
         <div class="viz lease" aria-hidden="true"><span>owner</span><span class="bar"><i></i></span><span>10s</span></div>
         <div class="kind"><code>timeout_memory</code></div>
-        <p class="caveat">Ownership belongs to the TCP connection and lives in memory only. A crashed owner that reconnects waits out the timeout, and a Ghoti restart forgets the owner.</p>
+        <p class="caveat">Owned by the TCP connection and held in memory, with no fencing token. A Ghoti restart drops the lease, so holders can overlap. Good for deduplicating work, not for guarding correctness.</p>
         <a class="more" href="/docs/configuration/slots/#timeout-memory">Timeout memory reference →</a>
       </article>
       <article class="card reveal">
         <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></svg></div>
-        <h3>Shared counters and sequence numbers</h3>
-        <p>Each read increments the counter and returns the new value, so concurrent workers never receive the same number.</p>
+        <h3>Sequences without collisions</h3>
+        <p>Every read is an atomic increment-and-get, so concurrent workers never draw the same number. Even with every connection hammering one counter, it benchmarks as fast as a plain read.</p>
         <div class="viz counter" aria-hidden="true">1 2 3 4<small>r002 → v0024</small></div>
         <div class="kind"><code>atomic</code></div>
-        <p class="caveat">A restart resets the counter to zero. Don't use it for IDs that must stay unique forever.</p>
+        <p class="caveat">Volatile: the counter resets to 0 on restart. Monotonic for the life of the process, not unique forever.</p>
         <a class="more" href="/docs/configuration/slots/#atomic">Atomic counter reference →</a>
       </article>
       <article class="card reveal d1">
         <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1a10 10 0 0 1 0-14.2M19.1 4.9a10 10 0 0 1 0 14.2M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4"/><circle cx="12" cy="12" r="2"/></svg></div>
-        <h3>Push a signal to every client, or only to subscribers</h3>
-        <p>Write once and Ghoti fans it out. <strong>Broadcast</strong> reaches every connected client, including the writer, with no subscription needed. <strong>Multicast</strong> only reaches clients that joined with <code>s</code>. Browsers can listen to broadcast slots over Server-Sent Events.</p>
+        <h3>Fan-out signals, all the way to the browser</h3>
+        <p><strong>Broadcast</strong> pushes a write to every open connection, with no subscription step. <strong>Multicast</strong> pushes only to connections that sent <code>s</code>. Over HTTP a broadcast slot is an SSE stream, so a browser tab can listen with a plain <code>EventSource</code>.</p>
         <div class="viz fanout" aria-hidden="true">
           <span class="src">w003reload-config</span>
           <span class="dst"><span class="hit">api-1</span><span class="hit">api-2</span><span class="hit">worker-7</span><span class="hit">browser (SSE)</span></span>
         </div>
         <div class="kind"><code>broadcast</code><code>multicast</code></div>
-        <p class="caveat">Delivery is at most once, with no retries. The writer gets a <code>received/sent/errors</code> summary.</p>
+        <p class="caveat">At-most-once, no replay. The writer gets a <code>received/sent/errors</code> count and decides whether that's good enough.</p>
         <div class="more-row"><a class="more" href="/docs/configuration/slots/#broadcast">Broadcast reference →</a><a class="more" href="/docs/configuration/slots/#multicast">Multicast reference →</a></div>
       </article>
     </div>
@@ -113,20 +141,30 @@
 <hr class="divider">
 
 <section class="section" id="performance">
-  <div class="container perf">
-    <div class="section-head reveal">
-      <p class="eyebrow">Benchmarks</p>
-      <h2>Sub-millisecond answers from a 2-core server.</h2>
-      <p>Ghoti v0.3.0 ran alone on an AWS t4g.micro (2 cores, 1 GiB) while a separate machine in the same availability zone sent the load. Every answer was checked, and the full method and every number are public.</p>
-      <div class="cta-row" style="margin-top:24px">
-        <a class="btn btn-ghost" href="/benchmarks/">See the benchmarks <span aria-hidden="true">→</span></a>
+  <div class="container">
+    <div class="perf">
+      <div class="section-head reveal">
+        <p class="eyebrow">Benchmarks</p>
+        <h2>Sub-millisecond on a 2 vCPU, 1 GiB box.</h2>
+        <p>Ghoti v0.3.0 ran alone on an AWS t4g.micro, with load from a c7g.xlarge in the same availability zone and one request in flight per connection. Every response was verified, and you can reproduce the run with ghoti-bench.</p>
+        <div class="cta-row" style="margin-top:24px">
+          <a class="btn btn-ghost" href="/benchmarks/">Method and full results <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat reveal"><p class="stat-value">0.29<span> ms</span></p><p class="stat-label">p50 round trip</p><p class="stat-note">1 connection, network included. p99.9 under 0.75 ms for every slot type.</p></div>
+        <div class="stat reveal d1"><p class="stat-value">134k<span> req/s</span></p><p class="stat-label">100 connections</p><p class="stat-note">Memory reads at 0.60 ms p50, with 82% of two cores busy.</p></div>
+        <div class="stat reveal d2"><p class="stat-value">7.6<span> µs</span></p><p class="stat-label">Mean time in the server</p><p class="stat-note">Per memory read, across 247M requests. The rest is network and kernel.</p></div>
+        <div class="stat reveal d3"><p class="stat-value">0<span> errors</span></p><p class="stat-label">255M requests, 21 runs</p><p class="stat-note">Counters matched every increment; buckets never over-issued.</p></div>
       </div>
     </div>
-    <div class="stats">
-      <div class="stat reveal"><p class="stat-value">0.29<span> ms</span></p><p class="stat-label">Median round trip</p><p class="stat-note">One connection, network included.</p></div>
-      <div class="stat reveal d1"><p class="stat-value">134k<span> req/s</span></p><p class="stat-label">Memory reads, 100 connections</p><p class="stat-note">With a 0.60 ms median round trip.</p></div>
-      <div class="stat reveal d2"><p class="stat-value">7.6<span> µs</span></p><p class="stat-label">Average time inside Ghoti</p><p class="stat-note">Per memory read, over 247 million requests.</p></div>
-      <div class="stat reveal d3"><p class="stat-value">0<span> errors</span></p><p class="stat-label">Over 255 million requests</p><p class="stat-note">Counters and token buckets exact in every run.</p></div>
+    <div class="machine reveal">
+      <p class="machine-title">For scale: the box under test</p>
+      <div class="machine-grid">
+        <div><p class="machine-value">2 vCPU</p><p class="machine-label">Graviton2, burstable</p><p class="machine-note">Fewer cores than a typical laptop.</p></div>
+        <div><p class="machine-value">1 GiB</p><p class="machine-label">RAM</p><p class="machine-note">Less memory than most phones.</p></div>
+        <div><p class="machine-value">t4g.micro</p><p class="machine-label">Second-smallest t4g size</p><p class="machine-note">The kind of instance you'd give a sidecar, not a datastore.</p></div>
+      </div>
     </div>
   </div>
 </section>
@@ -137,59 +175,66 @@
   <div class="container">
     <div class="section-head reveal">
       <p class="eyebrow">On the wire</p>
-      <h2>Ten lines of YAML, one plain-text protocol.</h2>
-      <p>This transcript was captured from <code>ghoti run</code> with the configuration on the left. Two clients are connected at the same time.</p>
+      <h2>The protocol fits on a napkin.</h2>
+      <p>Two clients against the configuration on the left, replaying a session captured from <code>ghoti run</code>. One byte of command, three digits of slot, an optional value.</p>
+      <div class="legend-row">
+        <span><b>&gt;</b> sent</span><span><b>&lt;</b> received</span><span><code>r</code> read · <code>w</code> write</span><span><code>v</code> value · <code>e</code> error · <code>a</code> async event</span>
+      </div>
     </div>
     <div class="demo">
       <div class="reveal">
         <div class="window">
           <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i><span class="title">config.yaml</span></div>
-<pre data-lang="yaml"><code><span class="k">slot_000</span>:
+<pre data-lang="yaml"><code><span class="k">slot_000</span>:           <span class="c"> # rate limit</span>
   <span class="k">kind</span>: <span class="s">token_bucket</span>
   <span class="k">bucket_size</span>: <span class="s">100</span>
   <span class="k">period</span>: <span class="s">second</span>
   <span class="k">refresh_rate</span>: <span class="s">50</span>
   <span class="k">tokens_per_req</span>: <span class="s">10</span>
-<span class="k">slot_001</span>:
+<span class="k">slot_001</span>:           <span class="c"> # lease</span>
   <span class="k">kind</span>: <span class="s">timeout_memory</span>
   <span class="k">timeout</span>: <span class="s">10</span>
-<span class="k">slot_002</span>:
+<span class="k">slot_002</span>:           <span class="c"> # sequence</span>
   <span class="k">kind</span>: <span class="s">atomic</span>
-<span class="k">slot_003</span>:
+<span class="k">slot_003</span>:           <span class="c"> # fan-out</span>
   <span class="k">kind</span>: <span class="s">broadcast</span></code></pre>
         </div>
         <div class="demo-notes">
-          <p><code>r000</code> took 10 tokens from the shared bucket.</p>
-          <p>Client B can't take the lease on <code>001</code> (<code>e001007</code>) while A owns it, but it can read who does.</p>
-          <p>Each read of <code>002</code> returns the next number, whichever client asks.</p>
-          <p>A write to <code>003</code> reaches both clients. The writer gets <code>2/2/0</code>: 2 confirmed, 2 sent, 0 errors.</p>
+          <p data-note="1"><b>000:</b> A takes a batch of 10 tokens from the shared bucket.</p>
+          <p data-note="2"><b>001:</b> A holds the lease. B is refused with <code>007</code> but can still read the holder.</p>
+          <p data-note="3"><b>002:</b> A draws 1, B draws 2. No coordination between them.</p>
+          <p data-note="4"><b>003:</b> B's write reaches both connections, B included. <code>2/2/0</code> is received/sent/errors.</p>
         </div>
       </div>
-      <div class="window reveal d1">
-        <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i><span class="title">nc localhost 9090</span></div>
+      <div class="window reveal d1" data-demo>
+        <div class="window-bar"><i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i><span class="title">nc localhost 9090</span><button class="demo-toggle" type="button" hidden>Pause</button></div>
         <div class="window-tabs">
-          <div>
+          <div data-pane="A">
             <p class="pane-label">Client A</p>
-<pre data-lang="transcript"><code><span class="p">&gt; </span><span class="in">r000</span>
+<pre data-lang="transcript"><code><span class="c"># take tokens</span>
+<span class="p">&gt; </span><span class="in">r000</span>
 <span class="p">&lt; </span><span class="v">v00010</span>
+<span class="c"># acquire the lease</span>
 <span class="p">&gt; </span><span class="in">w001worker-a</span>
 <span class="p">&lt; </span><span class="v">v001worker-a</span>
+<span class="c"># next sequence number</span>
 <span class="p">&gt; </span><span class="in">r002</span>
 <span class="p">&lt; </span><span class="v">v0021</span>
-
-<span class="c"># B writes to slot 003</span>
+<span class="c"># B's event lands first</span>
 <span class="p">&gt; </span><span class="in">r003</span>
 <span class="p">&lt; </span><span class="a">a003reload-config</span>
 <span class="p">&lt; </span><span class="v">v003reload-config</span></code></pre>
           </div>
-          <div>
+          <div data-pane="B">
             <p class="pane-label">Client B</p>
-<pre data-lang="transcript"><code><span class="p">&gt; </span><span class="in">w001worker-b</span>
+<pre data-lang="transcript"><code><span class="c"># lease is held</span>
+<span class="p">&gt; </span><span class="in">w001worker-b</span>
 <span class="p">&lt; </span><span class="e">e001007</span>
 <span class="p">&gt; </span><span class="in">r001</span>
 <span class="p">&lt; </span><span class="v">v001worker-a</span>
 <span class="p">&gt; </span><span class="in">r002</span>
 <span class="p">&lt; </span><span class="v">v0022</span>
+<span class="c"># fan out</span>
 <span class="p">&gt; </span><span class="in">w003reload-config</span>
 <span class="p">&lt; </span><span class="a">a003reload-config</span>
 <span class="p">&lt; </span><span class="v">v0032/2/0</span></code></pre>
@@ -199,6 +244,17 @@
     </div>
   </div>
 </section>
+<script type="application/json" id="demo-timeline">
+[
+  {"note": 1, "lines": [["A", "c", "# take tokens"], ["A", ">", "r000"], ["A", "<", "v00010"]]},
+  {"note": 2, "lines": [["A", "c", "# acquire the lease"], ["A", ">", "w001worker-a"], ["A", "<", "v001worker-a"]]},
+  {"note": 2, "lines": [["B", "c", "# lease is held"], ["B", ">", "w001worker-b"], ["B", "<", "e001007"], ["B", ">", "r001"], ["B", "<", "v001worker-a"]]},
+  {"note": 3, "lines": [["A", "c", "# next sequence number"], ["A", ">", "r002"], ["A", "<", "v0021"], ["B", "c", "# next sequence number"], ["B", ">", "r002"], ["B", "<", "v0022"]]},
+  {"note": 4, "lines": [["B", "c", "# fan out"], ["B", ">", "w003reload-config"], ["AB", "<", "a003reload-config"], ["B", "<", "v0032/2/0"]]},
+  {"note": 4, "lines": [["A", "c", "# the slot keeps the last value"], ["A", ">", "r003"], ["A", "<", "v003reload-config"]]}
+]
+</script>
+
 
 <hr class="divider">
 
