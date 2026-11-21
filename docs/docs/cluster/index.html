@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cluster · Ghoti</title>
+<meta name="description" content="Experimental leader election between Ghoti nodes with the bully algorithm, without replication. Configuration, routing, lifecycle, failure scenarios and limitations.">
+<link rel="canonical" href="https://ghoti.miocevic.com/docs/cluster/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ghoti">
+<meta property="og:title" content="Cluster · Ghoti">
+<meta property="og:description" content="Experimental leader election between Ghoti nodes with the bully algorithm, without replication. Configuration, routing, lifecycle, failure scenarios and limitations.">
+<meta property="og:url" content="https://ghoti.miocevic.com/docs/cluster/">
+<meta name="theme-color" content="#07080d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7f8fb" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="/favicon.png">
+<link rel="alternate" type="application/rss+xml" title="Ghoti blog" href="/blog/index.xml">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script>(function(){var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("ghoti-theme");if(t==="light"||t==="dark")d.setAttribute("data-theme",t);}catch(e){}})();</script>
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="/"><img src="/assets/img/logo.png" width="28" height="28" alt=""><span>Ghoti</span><span class="ver">v0.3.0</span></a>
+    <nav class="nav" aria-label="Main">
+      <a href="/docs/" aria-current="page">Docs</a>
+      <a href="/benchmarks/">Benchmarks</a>
+      <a href="/blog/">Blog</a>
+      <a class="gh" href="https://github.com/dankomiocevic/ghoti"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+      <button class="theme-toggle" type="button" aria-label="Toggle dark mode"><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    </nav>
+  </div>
+</header>
+<div class="container docs-shell">
+<aside class="sidebar" aria-label="Documentation"><details class="m-nav"><summary><span>Docs menu</span><b>Cluster</b></summary><div class="groups"><div class="group"><p class="group-title">Start</p><ul><li><a href="/docs/"><span>Overview</span></a></li><li><a href="/docs/getting-started/"><span>Getting started</span></a></li><li><a href="/docs/concepts/"><span>Concepts</span></a></li></ul></div><div class="group"><p class="group-title">Protocol</p><ul><li><a href="/docs/protocol/"><span>Protocol</span></a></li><li><a href="/docs/protocol/transports/"><span>Transports</span></a></li></ul></div><div class="group"><p class="group-title">Configure</p><ul><li><a href="/docs/configuration/"><span>Configuration</span></a></li><li><a href="/docs/configuration/slots/"><span>Slot reference</span></a></li><li><a href="/docs/authentication/"><span>Authentication</span></a></li></ul></div><div class="group"><p class="group-title">Run</p><ul><li><a href="/docs/operations/"><span>Operations</span></a></li><li><a href="/docs/cluster/" aria-current="page"><span>Cluster</span><span class="tag">exp</span></a></li></ul></div><div class="group"><p class="group-title">Reference</p><ul><li><a href="/docs/reference/errors/"><span>Error codes</span></a></li><li><a href="/docs/contributing/"><span>Contributing</span></a></li></ul></div></div></details><div class="d-nav"><div class="group"><p class="group-title">Start</p><ul><li><a href="/docs/"><span>Overview</span></a></li><li><a href="/docs/getting-started/"><span>Getting started</span></a></li><li><a href="/docs/concepts/"><span>Concepts</span></a></li></ul></div><div class="group"><p class="group-title">Protocol</p><ul><li><a href="/docs/protocol/"><span>Protocol</span></a></li><li><a href="/docs/protocol/transports/"><span>Transports</span></a></li></ul></div><div class="group"><p class="group-title">Configure</p><ul><li><a href="/docs/configuration/"><span>Configuration</span></a></li><li><a href="/docs/configuration/slots/"><span>Slot reference</span></a></li><li><a href="/docs/authentication/"><span>Authentication</span></a></li></ul></div><div class="group"><p class="group-title">Run</p><ul><li><a href="/docs/operations/"><span>Operations</span></a></li><li><a href="/docs/cluster/" aria-current="page"><span>Cluster</span><span class="tag">exp</span></a></li></ul></div><div class="group"><p class="group-title">Reference</p><ul><li><a href="/docs/reference/errors/"><span>Error codes</span></a></li><li><a href="/docs/contributing/"><span>Contributing</span></a></li></ul></div></div></aside>
+<main id="main" class="prose">
+<div class="crumbs"><a href="/docs/">Docs</a> / Run</div>
+<h1>Cluster <span class="badge badge-exp">Experimental</span></h1>
+<p class="lead">A Ghoti cluster elects one leader among several nodes, so a client can fail over to another node. It does <strong>not</strong> replicate data: when a node takes over as leader, it starts with every slot empty.</p>
+
+<div class="callout warn"><span class="title">Clustering is experimental</span>
+<ul>
+<li>Leader election uses the bully algorithm. There is <strong>no replication and no quorum</strong>.</li>
+<li><strong>Split-brain is possible</strong> under network partitions: several nodes can act as leader at once.</li>
+<li>Heartbeat and election timeouts are fixed and can't be configured.</li>
+<li>A node that fails to join doesn't retry.</li>
+</ul></div>
+
+<h2 id="why-a-cluster">Why a cluster<a class="anchor" href="#why-a-cluster" aria-label="Link to this section">#</a></h2>
+<p>A cluster exists for availability, not durability. Ghoti doesn't persist data, so there is no data worth replicating, and replication would cost performance. When the leader fails, another node takes its place with a clean state.</p>
+<p>Two nodes is the suggested default, for two reasons:</p>
+<ul>
+<li><strong>Deployments with minimal downtime.</strong> Replace one node, let it become leader, then replace the other.</li>
+<li><strong>Failover.</strong> If one node has a problem, the other can take over.</li>
+</ul>
+<p>If something goes really wrong, for example a failed deployment, the impact is a longer downtime. If the time it takes to bring up a replacement node is too long, add a third node.</p>
+
+<h2 id="architecture">Architecture<a class="anchor" href="#architecture" aria-label="Link to this section">#</a></h2>
+<h3 id="bully-election">Bully election<a class="anchor" href="#bully-election" aria-label="Link to this section">#</a></h3>
+<p>Ghoti uses a <a href="https://en.wikipedia.org/wiki/Bully_algorithm">bully election</a>. The core rule: <strong>the reachable node with the highest node ID, compared as strings, wins</strong>.</p>
+<ol>
+<li>When a follower sees that the leader is unreachable (a failed heartbeat), it starts an election.</li>
+<li>It sends an election message to every peer with a <strong>higher</strong> ID.</li>
+<li>If any higher-ID peer responds, the node backs off and waits for that peer to declare itself leader.</li>
+<li>If no higher-ID peer responds, the node declares itself leader and sends a coordinator message to all peers.</li>
+<li>A node that receives a coordinator message accepts the sender as the new leader.</li>
+<li>A node that receives an election message from a lower-ID peer responds OK and starts its own election.</li>
+</ol>
+
+<h3 id="components">Components<a class="anchor" href="#components" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><strong><code>Cluster</code> interface</strong>: <code>Start</code>, <code>Join</code>, <code>Remove</code>, <code>IsLeader</code>, <code>GetLeader</code>, <code>Shutdown</code>.</li>
+<li><strong><code>BullyCluster</code></strong>: the implementation, with election logic, peer tracking, heartbeat monitoring and election coordination.</li>
+<li><strong><code>MembershipManager</code></strong>: the abstraction for cluster membership. The only implementation is <code>joinServer</code>.</li>
+<li><strong><code>joinServer</code></strong>: an HTTP server on each node that handles join requests, node removal, election messages, coordinator announcements and heartbeats.</li>
+<li><strong><code>EmptyCluster</code></strong>: a no-op used when clustering is disabled. It always reports itself as leader, so a standalone server serves every request.</li>
+</ul>
+
+<h3 id="inter-node-communication">Inter-node communication<a class="anchor" href="#inter-node-communication" aria-label="Link to this section">#</a></h3>
+<p>Nodes talk over HTTP. Each node's <code>joinServer</code> listens on <code>cluster.manager.addr</code> and exposes:</p>
+<div class="table-wrap"><div class="table-wrap"><table>
+<thead><tr><th>Endpoint</th><th>Method</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>/join</code></td><td>POST</td><td>Register a new node in the cluster</td></tr>
+<tr><td><code>/remove</code></td><td>POST</td><td>Remove a node from the cluster (leader only)</td></tr>
+<tr><td><code>/election</code></td><td>POST</td><td>Bully election message: "I am starting an election"</td></tr>
+<tr><td><code>/coordinator</code></td><td>POST</td><td>Leader announcement: "I am the new leader"</td></tr>
+<tr><td><code>/heartbeat</code></td><td>GET</td><td>Health check used by followers to verify the leader is up</td></tr>
+<tr><td><code>/leader</code></td><td>GET</td><td>Leader check for external load balancers (opt-in)</td></tr>
+</tbody></table></div></div>
+<p>Every endpoint except <code>/heartbeat</code> and <code>/leader</code> requires HTTP Basic Auth with the cluster credentials. Any other path returns <code>404</code>. This traffic is not encrypted: see <a href="/docs/operations/#tls">TLS</a>.</p>
+
+<h2 id="configuration">Configuration<a class="anchor" href="#configuration" aria-label="Link to this section">#</a></h2>
+<p>The <code>cluster</code> section is optional. Without it, the server runs standalone.</p>
+<div class="table-wrap"><div class="table-wrap"><table>
+<thead><tr><th>Key</th><th>Required</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>cluster.node</code></td><td>Yes</td><td class="wrap">Unique node ID, at most 20 characters. Decides election priority.</td></tr>
+<tr><td><code>cluster.user</code></td><td>Yes</td><td class="wrap">Username for inter-node authentication, at least 4 characters.</td></tr>
+<tr><td><code>cluster.pass</code></td><td>Yes</td><td class="wrap">Password for inter-node authentication, at least 4 characters. Set it with <code>GHOTI_CLUSTER_PASS</code> to keep it out of the file.</td></tr>
+<tr><td><code>cluster.manager.type</code></td><td>Yes</td><td class="wrap">Membership manager. Only <code>join_server</code> is supported.</td></tr>
+<tr><td><code>cluster.manager.addr</code></td><td>Yes</td><td class="wrap">Address this node's cluster HTTP server listens on.</td></tr>
+<tr><td><code>cluster.manager.join</code></td><td>No</td><td class="wrap">Manager address of an existing node to join. Leave it empty to bootstrap a new cluster.</td></tr>
+<tr><td><code>cluster.leader.enabled</code></td><td>No</td><td class="wrap">Serve <code>GET /leader</code> for load balancers. Default <code>false</code>.</td></tr>
+<tr><td><code>cluster.bind</code></td><td>No</td><td class="wrap"><strong>Parsed but not used by the server.</strong> It has no effect. Clients connect to each node's top-level <code>addr</code>.</td></tr>
+</tbody></table></div></div>
+<p>Each node serves clients on its own top-level <code>addr</code>, like a standalone server.</p>
+
+<h3 id="bootstrap-node">Bootstrap node<a class="anchor" href="#bootstrap-node" aria-label="Link to this section">#</a></h3>
+<pre data-lang="yaml"><code><span class="k">addr</span>: <span class="s">localhost:9091</span>
+<span class="k">cluster</span>:
+  <span class="k">node</span>: <span class="s">node1</span>
+  <span class="k">user</span>: <span class="s">cluster_user</span>
+  <span class="k">pass</span>: <span class="s">cluster_pass</span>
+  <span class="k">manager</span>:
+    <span class="k">type</span>: <span class="s">join_server</span>
+    <span class="k">addr</span>: <span class="s">localhost:2222</span></code></pre>
+<p>Without <code>cluster.manager.join</code>, the node bootstraps as leader of a new single-node cluster.</p>
+
+<h3 id="joining-node">Joining node<a class="anchor" href="#joining-node" aria-label="Link to this section">#</a></h3>
+<pre data-lang="yaml"><code><span class="k">addr</span>: <span class="s">localhost:9092</span>
+<span class="k">cluster</span>:
+  <span class="k">node</span>: <span class="s">node2</span>
+  <span class="k">user</span>: <span class="s">cluster_user</span>
+  <span class="k">pass</span>: <span class="s">cluster_pass</span>
+  <span class="k">manager</span>:
+    <span class="k">type</span>: <span class="s">join_server</span>
+    <span class="k">addr</span>: <span class="s">localhost:2223</span>
+    <span class="k">join</span>: <span class="s">localhost:2222</span></code></pre>
+<p><code>join</code> points to the manager address of any existing member. On startup, the joining node sends a <code>/join</code> request and receives the current peer list and the leader's identity.</p>
+
+<h2 id="routing-traffic-to-the-leader">Routing traffic to the leader<a class="anchor" href="#routing-traffic-to-the-leader" aria-label="Link to this section">#</a></h2>
+<p>Only the leader serves client requests. <strong>Followers don't redirect or proxy.</strong> They answer every command with error <code>000</code> (NOT_LEADER), followed by the leader's node ID. The client has to connect to the leader itself:</p>
+<pre data-lang="transcript"><code><span class="c"># connected to node2 (follower)</span>
+<span class="p">&gt; </span><span class="in">w000x</span>
+<span class="p">&lt; </span><span class="e">exxx000node1</span></code></pre>
+<p>Over the <code>http</code> transport, a follower answers <code>503</code>. The node ID is a name, not an address, so clients need their own mapping from node IDs to addresses.</p>
+
+<h3 id="leader-endpoint-for-load-balancers">Leader endpoint for load balancers<a class="anchor" href="#leader-endpoint-for-load-balancers" aria-label="Link to this section">#</a></h3>
+<p>To put a load balancer in front of the cluster, enable the leader endpoint on every node:</p>
+<pre data-lang="yaml"><code><span class="k">cluster</span>:
+  <span class="k">node</span>: <span class="s">node1</span>
+  <span class="k">user</span>: <span class="s">cluster_user</span>
+  <span class="k">pass</span>: <span class="s">cluster_pass</span>
+  <span class="k">manager</span>:
+    <span class="k">type</span>: <span class="s">join_server</span>
+    <span class="k">addr</span>: <span class="s">"0.0.0.0:2222"</span>
+  <span class="k">leader</span>:
+    <span class="k">enabled</span>: <span class="s">true</span></code></pre>
+<p>It serves <code>GET /leader</code> on <code>cluster.manager.addr</code>:</p>
+<div class="table-wrap"><div class="table-wrap"><table>
+<thead><tr><th>Node state</th><th>Status</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>Leader</td><td><code>200</code></td><td><code>leader</code></td></tr>
+<tr><td>Follower</td><td><code>503</code></td><td><code>not leader: &lt;node ID&gt;</code></td></tr>
+<tr><td>Flag not set</td><td><code>404</code></td><td>Empty</td></tr>
+</tbody></table></div></div>
+<pre data-lang="shell"><code><span class="p">$ </span>curl -s localhost:2222/leader
+leader
+<span class="p">$ </span>curl -s localhost:2223/leader
+not leader: node1</code></pre>
+<p>Point the load balancer's health check at <code>/leader</code>. Every follower fails the check and drops out of rotation, so traffic converges on the leader and follows it after a failover.</p>
+<ul>
+<li>The endpoint is <strong>unauthenticated</strong>, because health checks can't send credentials. It only reveals which node is the leader, but it is served on the inter-node port, so the load balancer needs network access to that port. Make that port reachable from the load balancer only.</li>
+<li>It only exists on nodes with a <code>cluster</code> section. A standalone node never answers it.</li>
+</ul>
+
+<h2 id="node-ids">Node IDs and election priority<a class="anchor" href="#node-ids" aria-label="Link to this section">#</a></h2>
+<p>Node IDs are compared <strong>as strings</strong>, and the highest wins:</p>
+<ul>
+<li><code>"node3"</code> beats <code>"node2"</code>, which beats <code>"node1"</code>.</li>
+<li><code>"z"</code> beats <code>"a"</code>.</li>
+<li><code>"node10"</code> beats <code>"node1"</code>, but <strong>loses</strong> to <code>"node9"</code> and to <code>"node2"</code>, because the comparison stops at the first different character and <code>"1"</code> sorts before <code>"2"</code> and <code>"9"</code>.</li>
+</ul>
+<p>Use zero-padded IDs such as <code>node01</code>, <code>node02</code> or <code>node10</code> to get the order you expect.</p>
+
+<h2 id="lifecycle">Cluster lifecycle<a class="anchor" href="#lifecycle" aria-label="Link to this section">#</a></h2>
+<h3 id="starting-a-cluster">Starting a cluster<a class="anchor" href="#starting-a-cluster" aria-label="Link to this section">#</a></h3>
+<ol>
+<li>Start the first node <strong>without</strong> <code>cluster.manager.join</code>. It bootstraps as leader.</li>
+<li>Start the other nodes <strong>with</strong> <code>cluster.manager.join</code> pointing to an existing node's manager address.</li>
+<li>Each joining node receives the full peer list and the leader's identity.</li>
+<li>The existing node notifies every other peer about the new node.</li>
+</ol>
+<div class="callout danger"><span class="title">A failed join is not reported</span>
+<p>If the join request fails, for example because the bootstrap node isn't up yet, the node <strong>keeps running without logging an error</strong>. It never learns a leader and has no cluster HTTP server, so it answers every command with <code>exxx000</code> followed by an empty leader ID and doesn't answer <code>/leader</code>. There is no retry: restart the node once the node it joins is reachable.</p></div>
+
+<h3 id="heartbeat-monitoring">Heartbeat monitoring<a class="anchor" href="#heartbeat-monitoring" aria-label="Link to this section">#</a></h3>
+<p>Followers check the leader every <strong>2 seconds</strong> with a <code>GET</code> to its <code>/heartbeat</code> endpoint. A connection error or a non-200 response starts an election. The heartbeat request has a <strong>2-second timeout</strong>, so a leader that is slow to answer also triggers an election.</p>
+
+<h3 id="leader-failover">Leader failover<a class="anchor" href="#leader-failover" aria-label="Link to this section">#</a></h3>
+<ol>
+<li>One or more followers detect the failed heartbeat.</li>
+<li>Each of them starts a bully election and sends election messages to all peers with higher IDs.</li>
+<li>A follower that hears back from a higher-ID peer backs off.</li>
+<li>The highest-ID reachable node declares itself leader and broadcasts a coordinator message.</li>
+<li>Every node updates its leader. The new leader starts with every slot empty.</li>
+</ol>
+
+<h3 id="graceful-shutdown">Graceful shutdown<a class="anchor" href="#graceful-shutdown" aria-label="Link to this section">#</a></h3>
+<p>On shutdown a node marks itself down, so its heartbeat answers <code>503</code>, closes its cluster server and waits for its background work to finish. If the leader shuts down, followers see the failed heartbeat and elect a new leader.</p>
+
+<h2 id="failure-scenarios">Failure scenarios<a class="anchor" href="#failure-scenarios" aria-label="Link to this section">#</a></h2>
+<h3 id="leader-crashes">Leader crashes<a class="anchor" href="#leader-crashes" aria-label="Link to this section">#</a></h3>
+<p>Followers notice within about 2 to 4 seconds (one heartbeat interval plus the request timeout), and the highest-ID surviving node becomes leader. Until then, requests to the crashed leader fail, and followers answer <code>NOT_LEADER</code> with the old, unreachable leader's ID. Afterwards, clients can reconnect to the new leader. All data on the crashed leader is lost.</p>
+
+<h3 id="follower-crashes">Follower crashes<a class="anchor" href="#follower-crashes" aria-label="Link to this section">#</a></h3>
+<p>The cluster keeps working. The leader doesn't monitor followers, it only keeps them in its peer list. Redundancy is reduced: if the leader fails later, fewer nodes can take over. The crashed follower stays in the peer list until it is removed with <code>/remove</code>.</p>
+
+<h3 id="network-partition-full-split">Network partition: full split<a class="anchor" href="#network-partition-full-split" aria-label="Link to this section">#</a></h3>
+<p>No node can reach any other. Every follower sees the heartbeat fail and starts an election. Higher-ID peers are unreachable, so <strong>every node declares itself leader</strong>. This is split-brain: several leaders accept writes independently. When the network heals, the nodes still believe they are leaders until a heartbeat detects the conflict and triggers a new election, or until the cluster is reconfigured. Data written to the leaders that lose is gone.</p>
+
+<h3 id="network-partition-partial-split">Network partition: partial split<a class="anchor" href="#network-partition-partial-split" aria-label="Link to this section">#</a></h3>
+<p>Some nodes can reach each other but not the leader. They elect the highest-ID node of their partition, while the original leader keeps serving whoever can still reach it. Again several leaders can exist at once, and clients in different partitions write to different leaders. Once connectivity returns, the election eventually settles on the highest-ID node, but data written to the losing leader isn't transferred.</p>
+
+<h3 id="clients-reach-all-nodes-nodes-cant-reach-each-other">Clients reach all nodes, nodes can't reach each other<a class="anchor" href="#clients-reach-all-nodes-nodes-cant-reach-each-other" aria-label="Link to this section">#</a></h3>
+<p>The worst case: every follower elects itself, so every node is an independent leader, and clients can write to any of them. When inter-node traffic returns, elections settle on one leader, and the data on the others becomes unreachable. Clients should handle <code>NOT_LEADER</code> by reconnecting to the reported leader once the cluster is stable.</p>
+
+<h3 id="a-node-joins-with-a-higher-id">A node joins with a higher ID<a class="anchor" href="#a-node-joins-with-a-higher-id" aria-label="Link to this section">#</a></h3>
+<p>The new node joins as a follower and accepts the current leader, as told by the join response. It doesn't start an election. If the current leader fails later, the higher-ID node wins the election, as the bully algorithm expects.</p>
+
+<h3 id="a-failed-leader-rejoins">A failed leader rejoins<a class="anchor" href="#a-failed-leader-rejoins" aria-label="Link to this section">#</a></h3>
+<p>A crashed leader that rejoins with the same or a higher ID contacts an existing node through <code>/join</code>, receives the peer list and the current leader, and becomes a follower. It doesn't reclaim leadership because of its ID. If an election happens later, it wins it, and serves requests with an empty state.</p>
+
+<h3 id="all-nodes-restart-at-once">All nodes restart at once<a class="anchor" href="#all-nodes-restart-at-once" aria-label="Link to this section">#</a></h3>
+<p>The node without <code>cluster.manager.join</code> starts as leader. The others try to join through their configured address. If the bootstrap node isn't ready when they try, their join fails and, as described <a href="#lifecycle">above</a>, they keep running without a leader until they are restarted. Start the bootstrap node first. All data is lost.</p>
+
+<h3 id="slow-leader">Slow leader<a class="anchor" href="#slow-leader" aria-label="Link to this section">#</a></h3>
+<p>A leader that takes more than 2 seconds to answer a heartbeat looks dead to the followers, and they start an election. The highest-ID node wins, which may be the slow leader itself. The cluster then returns to the same state after a short period of instability, during which followers can report a stale leader.</p>
+
+<h3 id="credential-mismatch">Credential mismatch<a class="anchor" href="#credential-mismatch" aria-label="Link to this section">#</a></h3>
+<p>A node with a different <code>cluster.user</code> or <code>cluster.pass</code> is rejected with <code>400</code> on its join request and on any election or coordinator messages. It can't take part in the cluster.</p>
+
+<h2 id="limitations">Limitations<a class="anchor" href="#limitations" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>No data replication.</strong> A new leader starts empty. Availability is the goal, not durability.</li>
+<li><strong>No join retry.</strong> A node that can't reach its join address doesn't retry, and keeps running without a leader.</li>
+<li><strong>No split-brain detection.</strong> The bully algorithm doesn't detect or resolve split-brain. Elections converge once partitions heal, but data can be lost.</li>
+<li><strong>String ordering of node IDs.</strong> <code>"node10"</code> sorts below <code>"node2"</code> and <code>"node9"</code>. Use zero-padded IDs.</li>
+<li><strong>No quorum.</strong> A single node can declare itself leader if it can't reach any higher-ID peer. That keeps it available under partitions but exposes it to split-brain.</li>
+<li><strong>Stale peer list.</strong> Crashed nodes stay in the peer list until removed with <code>/remove</code> on the leader, so elections also message unreachable nodes, which makes them slower.</li>
+<li><strong>Fixed timeouts.</strong> The heartbeat interval (2 s), heartbeat timeout (2 s) and election timeout (3 s) are hard-coded.</li>
+<li><strong>No redirects.</strong> Followers answer <code>NOT_LEADER</code> with the leader's ID, and clients must connect to the leader themselves.</li>
+</ul>
+
+<nav class="pager" aria-label="Previous and next page"><a class="prev" href="/docs/operations/"><small>Previous</small>Operations</a><a class="next" href="/docs/reference/errors/"><small>Next</small>Error codes</a></nav>
+<p class="page-meta">Found something out of date? <a href="https://github.com/dankomiocevic/ghoti/issues">Open an issue</a> or <a href="https://github.com/dankomiocevic/ghoti-docsy/blob/main/docs/cluster/index.html">edit this page</a>.</p>
+</main>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ul><li><a href="#why-a-cluster">Why a cluster</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#configuration">Configuration</a></li><li><a href="#routing-traffic-to-the-leader">Routing traffic to the leader</a></li><li><a href="#node-ids">Node IDs and election priority</a></li><li><a href="#lifecycle">Cluster lifecycle</a></li><li><a href="#failure-scenarios">Failure scenarios</a></li><li><a href="#limitations">Limitations</a></li></ul></nav>
+</div>
+<footer class="site-footer">
+  <div class="container">
+    <div class="cols">
+      <div>
+        <a class="brand" href="/"><img src="/assets/img/logo.png" width="28" height="28" alt=""><span>Ghoti</span></a>
+        <p style="max-width:28em;margin:12px 0 0">A single-binary, in-memory server for coordination primitives. All state is volatile by design.</p>
+      </div>
+      <nav aria-label="Footer">
+        <div><b>Docs</b><a href="/docs/getting-started/">Getting started</a><a href="/docs/protocol/">Protocol</a><a href="/docs/configuration/slots/">Slot reference</a><a href="/docs/reference/errors/">Error codes</a></div>
+        <div><b>Project</b><a href="https://github.com/dankomiocevic/ghoti">GitHub</a><a href="https://github.com/dankomiocevic/ghoti/releases">Releases</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/SECURITY.md">Security policy</a></div>
+        <div><b>More</b><a href="/benchmarks/">Benchmarks</a><a href="/blog/">Blog</a><a href="/blog/index.xml">RSS feed</a><a href="/docs/contributing/">Contributing</a></div>
+      </nav>
+    </div>
+    <p class="fine">Ghoti is open source under the <a href="https://github.com/dankomiocevic/ghoti/blob/main/LICENSE">Apache-2.0 license</a>.</p>
+  </div>
+</footer>
+<script src="/assets/js/site.js" defer></script>
+</body>
+</html>
