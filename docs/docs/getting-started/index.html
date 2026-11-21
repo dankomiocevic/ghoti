@@ -3,19 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Getting started · Ghoti</title>
-<meta name="description" content="Install Ghoti from a release archive or with go install, verify the download, and run a first session.">
+<title>Getting started: install and run Ghoti</title>
+<meta name="description" content="Run Ghoti and get your first answers in four commands, then install from a release archive, verify the download, and troubleshoot a first run.">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
 <link rel="canonical" href="https://ghoti.miocevic.com/docs/getting-started/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Ghoti">
-<meta property="og:title" content="Getting started · Ghoti">
-<meta property="og:description" content="Install Ghoti from a release archive or with go install, verify the download, and run a first session.">
+<meta property="og:locale" content="en_US">
+<meta property="og:title" content="Getting started: install and run Ghoti">
+<meta property="og:description" content="Run Ghoti and get your first answers in four commands, then install from a release archive, verify the download, and troubleshoot a first run.">
 <meta property="og:url" content="https://ghoti.miocevic.com/docs/getting-started/">
+<meta property="og:image" content="https://ghoti.miocevic.com/assets/img/og.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Ghoti: coordinate rate limits, counters and signals across your services. 134,000 memory reads per second at 0.60 ms median round trip on a 2-vCPU, 1-GiB AWS instance.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Getting started: install and run Ghoti">
+<meta name="twitter:description" content="Run Ghoti and get your first answers in four commands, then install from a release archive, verify the download, and troubleshoot a first run.">
+<meta name="twitter:image" content="https://ghoti.miocevic.com/assets/img/og.jpg">
+<meta name="twitter:image:alt" content="Ghoti: coordinate rate limits, counters and signals across your services. 134,000 memory reads per second at 0.60 ms median round trip on a 2-vCPU, 1-GiB AWS instance.">
 <meta name="theme-color" content="#07080d">
 <link rel="icon" href="/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="/favicon.png">
 <link rel="alternate" type="application/rss+xml" title="Ghoti blog" href="/blog/index.xml">
+<link rel="sitemap" type="application/xml" href="/sitemap.xml">
 <link rel="stylesheet" href="/assets/css/site.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://ghoti.miocevic.com/"},{"@type":"ListItem","position":2,"name":"Docs","item":"https://ghoti.miocevic.com/docs/"},{"@type":"ListItem","position":3,"name":"Getting started","item":"https://ghoti.miocevic.com/docs/getting-started/"}]}</script>
 <script>(function(){var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("ghoti-theme");if(t==="light")d.setAttribute("data-theme","light");}catch(e){}})();</script>
 </head><body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -36,9 +50,39 @@
 <main id="main" class="prose">
 <div class="crumbs"><a href="/docs/">Docs</a> / Start</div>
 <h1>Getting started</h1>
-<p class="lead">Install the binary, write a three-line configuration, start the server, and talk to it with <code>nc</code>.</p>
+<p class="lead">Four commands to a working server: install, write a configuration, start it, and talk to it with <code>nc</code>. Install options, download verification and troubleshooting come after.</p>
 
-<h2 id="install">Install<a class="anchor" href="#install" aria-label="Link to this section">#</a></h2>
+<h2 id="quick-start">Quick start<a class="anchor" href="#quick-start" aria-label="Link to this section">#</a></h2>
+<p><strong>1. Install.</strong> With Go installed (the version in <a href="https://github.com/dankomiocevic/ghoti/blob/main/go.mod"><code>go.mod</code></a>), this puts <code>ghoti</code> in <code>$(go env GOPATH)/bin</code>. Without Go, use a <a href="#from-a-release-archive">release archive</a>.</p>
+<pre data-lang="shell"><code><span class="p">$ </span>go install github.com/dankomiocevic/ghoti/cmd/ghoti@latest</code></pre>
+<p><strong>2. Declare two slots</strong>, a value and a counter, in a <code>config.yaml</code> in an empty directory:</p>
+<pre data-lang="shell"><code><span class="p">$ </span>mkdir ghoti-demo &amp;&amp; cd ghoti-demo
+<span class="p">$ </span>printf 'slot_000:\n  kind: simple_memory\nslot_001:\n  kind: atomic\n' &gt; config.yaml</code></pre>
+<p><strong>3. Start the server</strong> from that directory. It listens on <code>localhost:9090</code>:</p>
+<pre data-lang="shell"><code><span class="p">$ </span>ghoti run
+time=2026-11-20T06:48:59.858Z level=INFO msg="Starting server..."</code></pre>
+<p><strong>4. Talk to it</strong> from a second terminal. Run <code>nc localhost 9090</code> and type one command per line. Lines starting with <code>&gt;</code> are what you type, and lines starting with <code>&lt;</code> are the server's answers:</p>
+<pre data-lang="transcript"><code><span class="p">&gt; </span><span class="in">w000hello</span>
+<span class="p">&lt; </span><span class="v">v000hello</span>
+<span class="p">&gt; </span><span class="in">r000</span>
+<span class="p">&lt; </span><span class="v">v000hello</span>
+<span class="p">&gt; </span><span class="in">r001</span>
+<span class="p">&lt; </span><span class="v">v0011</span>
+<span class="p">&gt; </span><span class="in">r001</span>
+<span class="p">&lt; </span><span class="v">v0012</span>
+<span class="p">&gt; </span><span class="in">r002</span>
+<span class="p">&lt; </span><span class="e">e002005</span>
+<span class="p">&gt; </span><span class="in">x000</span>
+<span class="p">&lt; </span><span class="e">exxx001</span></code></pre>
+<ul>
+<li><code>w000hello</code> writes <code>hello</code> to slot 000, and the server echoes the stored value.</li>
+<li>Each read of the atomic slot 001 increments it.</li>
+<li>Slot 002 is not configured, so the answer is error <a href="/docs/reference/errors/#error-005"><code>005</code></a> (MISSING_SLOT).</li>
+<li><code>x</code> is not a command, so the answer is <a href="/docs/reference/errors/#error-001"><code>001</code></a> (PARSE_ERROR), with <code>xxx</code> in place of the slot number.</li>
+</ul>
+<p>Send <code>q</code> to close the connection, and stop the server with <kbd>Ctrl</kbd>+<kbd>C</kbd>. Something different? See <a href="#troubleshooting">Troubleshooting</a>.</p>
+
+<h2 id="install">Install options<a class="anchor" href="#install" aria-label="Link to this section">#</a></h2>
 <h3 id="from-a-release-archive">From a release archive<a class="anchor" href="#from-a-release-archive" aria-label="Link to this section">#</a></h3>
 <p>Every release on the <a href="https://github.com/dankomiocevic/ghoti/releases">releases page</a> has one archive per platform. The archive has the <code>ghoti</code> binary at its root, together with the README, the license and the changelog.</p>
 <div class="table-wrap"><div class="table-wrap"><table>
@@ -87,46 +131,24 @@
 <pre data-lang="shell"><code><span class="p">$ </span>gh attestation verify "ghoti_${VERSION}_linux_amd64.tar.gz" --repo dankomiocevic/ghoti</code></pre>
 <p>The SBOM lists the Go modules linked into the binary, for scanners like <a href="https://github.com/anchore/grype">grype</a> or for your own inventory.</p>
 
-<h2 id="first-run">First run<a class="anchor" href="#first-run" aria-label="Link to this section">#</a></h2>
-<p>Ghoti needs a configuration file. It looks for <code>config.yaml</code> in <code>/etc/ghoti</code>, then <code>$HOME/.ghoti</code>, then the current directory. <strong>If it finds none, it exits with an error</strong> rather than starting with defaults:</p>
+<h2 id="troubleshooting">Troubleshooting<a class="anchor" href="#troubleshooting" aria-label="Link to this section">#</a></h2>
+<h3 id="config-not-found">The server exits with <code>Config File "config" Not Found</code><a class="anchor" href="#config-not-found" aria-label="Link to this section">#</a></h3>
+<p>Ghoti needs a configuration file. It looks for <code>config.yaml</code> in <code>/etc/ghoti</code>, then <code>$HOME/.ghoti</code>, then the current directory. <strong>If it finds none, it exits with status 1</strong> rather than starting with defaults:</p>
 <pre data-lang="shell"><code><span class="p">$ </span>cd /tmp/demo &amp;&amp; ghoti run
 2026/11/20 06:49:31 ERROR Error loading config error="failed to load server config: Config File \"config\" Not Found in \"[/etc/ghoti /home/demo/.ghoti /tmp/demo]\""
 <span class="p">$ </span>echo $?
 1</code></pre>
-<p>Create a <code>config.yaml</code> with two slots in an empty directory:</p>
-<pre data-lang="yaml"><code><span class="k">slot_000</span>:
-  <span class="k">kind</span>: <span class="s">simple_memory</span>
-<span class="k">slot_001</span>:
-  <span class="k">kind</span>: <span class="s">atomic</span></code></pre>
-<p>Start the server from the same directory. It listens on <code>localhost:9090</code> by default:</p>
-<pre data-lang="shell"><code><span class="p">$ </span>ghoti run
-time=2026-11-20T06:48:59.858Z level=INFO msg="Starting server..."</code></pre>
-<p>In a second terminal, connect with <code>nc localhost 9090</code> and type commands, one per line. Lines starting with <code>&gt;</code> are what you type, and lines starting with <code>&lt;</code> are the server's answers:</p>
-<pre data-lang="transcript"><code><span class="p">&gt; </span><span class="in">w000hello</span>
-<span class="p">&lt; </span><span class="v">v000hello</span>
-<span class="p">&gt; </span><span class="in">r000</span>
-<span class="p">&lt; </span><span class="v">v000hello</span>
-<span class="p">&gt; </span><span class="in">r001</span>
-<span class="p">&lt; </span><span class="v">v0011</span>
-<span class="p">&gt; </span><span class="in">r001</span>
-<span class="p">&lt; </span><span class="v">v0012</span>
-<span class="p">&gt; </span><span class="in">r002</span>
-<span class="p">&lt; </span><span class="e">e002005</span>
-<span class="p">&gt; </span><span class="in">x000</span>
-<span class="p">&lt; </span><span class="e">exxx001</span></code></pre>
-<ul>
-<li><code>w000hello</code> writes <code>hello</code> to slot 000, and the server echoes the stored value.</li>
-<li>Each read of the atomic slot 001 increments it.</li>
-<li>Slot 002 is not configured, so the answer is error <a href="/docs/reference/errors/#error-005"><code>005</code></a> (MISSING_SLOT).</li>
-<li><code>x</code> is not a command, so the answer is <a href="/docs/reference/errors/#error-001"><code>001</code></a> (PARSE_ERROR), with <code>xxx</code> in place of the slot number.</li>
-</ul>
-<p>Send <code>q</code> to close the connection, and stop the server with <kbd>Ctrl</kbd>+<kbd>C</kbd>.</p>
+<p>Run <code>ghoti run</code> from the directory that holds <code>config.yaml</code>, or put the file in one of the other two locations.</p>
 
-<div class="callout warn"><span class="title">Use <code>nc</code>, not <code>telnet</code>, with the default transport</span>
-<p>The default <code>standard</code> transport ends requests with a bare <code>\n</code>. A telnet client sends <code>\r\n</code>, so reads fail with <code>exxx001</code> and written values keep a trailing <code>\r</code>. To use telnet, set <code>protocol: telnet</code> in the configuration. See <a href="/docs/protocol/transports/">Transports</a>.</p></div>
+<h3 id="every-command-fails">Every command answers <code>exxx001</code><a class="anchor" href="#every-command-fails" aria-label="Link to this section">#</a></h3>
+<p>You are probably connected with <code>telnet</code>. The default <code>standard</code> transport ends requests with a bare <code>\n</code>, but a telnet client sends <code>\r\n</code>, so reads fail with <code>exxx001</code> and written values keep a trailing <code>\r</code>. Use <code>nc</code>, or set <code>protocol: telnet</code> in the configuration. See <a href="/docs/protocol/transports/">Transports</a>.</p>
+
+<h3 id="slot-answers-005">A slot you configured answers <code>e&lt;slot&gt;005</code><a class="anchor" href="#slot-answers-005" aria-label="Link to this section">#</a></h3>
+<p>Its definition is invalid, for example an unknown <code>kind</code> or a missing required option, and the server skipped it without a warning. Check the slot against the <a href="/docs/configuration/slots/">slot reference</a>.</p>
 
 <h2 id="next-steps">Next steps<a class="anchor" href="#next-steps" aria-label="Link to this section">#</a></h2>
 <ul>
+<li><a href="/blog/2025/07/25/implementing-leader-election-with-ghoti/">Walk through coordination with two clients</a>: build leader election on a lease slot.</li>
 <li>Read <a href="/docs/concepts/">Concepts</a> for how slots, connections and ownership behave.</li>
 <li>Pick slot kinds for your problem in the <a href="/docs/configuration/slots/">slot reference</a>.</li>
 <li>Learn the exact rules your client must follow in <a href="/docs/protocol/">Protocol</a>.</li>
@@ -135,7 +157,7 @@ time=2026-11-20T06:48:59.858Z level=INFO msg="Starting server..."</code></pre>
 <nav class="pager" aria-label="Previous and next page"><a class="prev" href="/docs/"><small>Previous</small>Overview</a><a class="next" href="/docs/concepts/"><small>Next</small>Concepts</a></nav>
 <p class="page-meta">Found something out of date? <a href="https://github.com/dankomiocevic/ghoti/issues">Open an issue</a> or <a href="https://github.com/dankomiocevic/ghoti-docsy/blob/main/docs/getting-started/index.html">edit this page</a>.</p>
 </main>
-<nav class="toc" aria-label="On this page"><p>On this page</p><ul><li><a href="#install">Install</a></li><li><a href="#verifying-a-download">Verifying a download</a></li><li><a href="#first-run">First run</a></li><li><a href="#next-steps">Next steps</a></li></ul></nav>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ul><li><a href="#quick-start">Quick start</a></li><li><a href="#install">Install options</a></li><li><a href="#verifying-a-download">Verifying a download</a></li><li><a href="#troubleshooting">Troubleshooting</a></li><li><a href="#next-steps">Next steps</a></li></ul></nav>
 </div>
 <footer class="site-footer">
   <div class="container">
@@ -147,7 +169,7 @@ time=2026-11-20T06:48:59.858Z level=INFO msg="Starting server..."</code></pre>
       <nav aria-label="Footer">
         <div><b>Docs</b><a href="/docs/getting-started/">Getting started</a><a href="/docs/protocol/">Protocol</a><a href="/docs/configuration/slots/">Slot reference</a><a href="/docs/reference/errors/">Error codes</a></div>
         <div><b>Project</b><a href="https://github.com/dankomiocevic/ghoti">GitHub</a><a href="https://github.com/dankomiocevic/ghoti/releases">Releases</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/SECURITY.md">Security policy</a></div>
-        <div><b>More</b><a href="/benchmarks/">Benchmarks</a><a href="/blog/">Blog</a><a href="/blog/index.xml">RSS feed</a><a href="/docs/contributing/">Contributing</a></div>
+        <div><b>More</b><a href="/benchmarks/">Benchmarks</a><a href="/blog/">Blog</a><a href="/blog/index.xml">RSS feed</a><a href="/llms.txt">llms.txt</a><a href="/docs/contributing/">Contributing</a></div>
       </nav>
     </div>
     <p class="fine">Ghoti is open source under the <a href="https://github.com/dankomiocevic/ghoti/blob/main/LICENSE">Apache-2.0 license</a>.</p>

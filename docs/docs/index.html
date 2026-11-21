@@ -3,19 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Overview · Ghoti</title>
-<meta name="description" content="What Ghoti is and is not, and the guarantees it gives at a glance.">
+<title>Ghoti docs: overview and guarantees</title>
+<meta name="description" content="What Ghoti is and isn&#x27;t: slot kinds, transports, durability, ordering and delivery guarantees at a glance, and when it fits your system.">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
 <link rel="canonical" href="https://ghoti.miocevic.com/docs/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Ghoti">
-<meta property="og:title" content="Overview · Ghoti">
-<meta property="og:description" content="What Ghoti is and is not, and the guarantees it gives at a glance.">
+<meta property="og:locale" content="en_US">
+<meta property="og:title" content="Ghoti docs: overview and guarantees">
+<meta property="og:description" content="What Ghoti is and isn&#x27;t: slot kinds, transports, durability, ordering and delivery guarantees at a glance, and when it fits your system.">
 <meta property="og:url" content="https://ghoti.miocevic.com/docs/">
+<meta property="og:image" content="https://ghoti.miocevic.com/assets/img/og.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Ghoti: coordinate rate limits, counters and signals across your services. 134,000 memory reads per second at 0.60 ms median round trip on a 2-vCPU, 1-GiB AWS instance.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Ghoti docs: overview and guarantees">
+<meta name="twitter:description" content="What Ghoti is and isn&#x27;t: slot kinds, transports, durability, ordering and delivery guarantees at a glance, and when it fits your system.">
+<meta name="twitter:image" content="https://ghoti.miocevic.com/assets/img/og.jpg">
+<meta name="twitter:image:alt" content="Ghoti: coordinate rate limits, counters and signals across your services. 134,000 memory reads per second at 0.60 ms median round trip on a 2-vCPU, 1-GiB AWS instance.">
 <meta name="theme-color" content="#07080d">
 <link rel="icon" href="/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="/favicon.png">
 <link rel="alternate" type="application/rss+xml" title="Ghoti blog" href="/blog/index.xml">
+<link rel="sitemap" type="application/xml" href="/sitemap.xml">
 <link rel="stylesheet" href="/assets/css/site.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://ghoti.miocevic.com/"},{"@type":"ListItem","position":2,"name":"Docs","item":"https://ghoti.miocevic.com/docs/"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Does Ghoti persist data?","acceptedAnswer":{"@type":"Answer","text":"No. All state is in memory and nothing is written to disk. A restart empties every slot, and a newly elected cluster leader starts empty. Use Ghoti for state that is cheap to lose and expensive to coordinate."}},{"@type":"Question","name":"Is Ghoti a replacement for Redis?","acceptedAnswer":{"@type":"Answer","text":"Not as a general-purpose store. Ghoti has a fixed set of slot kinds, values of at most 36 bytes, no persistence and no data structures to query. It covers coordination primitives (rate limits, leases, counters and fan-out signals) with a one-line text protocol and a single binary."}},{"@type":"Question","name":"Does Ghoti support TLS?","acceptedAnswer":{"@type":"Answer","text":"No. No listener implements TLS, and the login password and HTTP Basic Auth credentials travel in cleartext. Terminate TLS in a load balancer or reverse proxy in front of Ghoti, or keep the traffic on a trusted network."}},{"@type":"Question","name":"What happens to a lease when the client disconnects or the server restarts?","acceptedAnswer":{"@type":"Answer","text":"A lease on a timeout_memory slot belongs to the TCP connection. If the client disconnects, the lease stays held until its timeout expires, and a reconnecting client is a new owner that gets error 007 until then. If Ghoti restarts, the lease is forgotten and the first connection to write takes it, so two clients can briefly both believe they hold it."}},{"@type":"Question","name":"Are broadcast and multicast messages guaranteed to arrive?","acceptedAnswer":{"@type":"Answer","text":"No. Delivery is at most once: one attempt per client, no retries and no replay for clients that were not connected. The writer receives a received/sent/errors count for each message."}},{"@type":"Question","name":"Which languages and clients can use Ghoti?","acceptedAnswer":{"@type":"Answer","text":"Any language that can open a TCP socket and send a line of text. There is no client library to install. Over the HTTP transport, slots are read and written with GET and POST, and browsers can receive broadcast events with Server-Sent Events. For manual testing, nc is enough."}},{"@type":"Question","name":"How fast is Ghoti?","acceptedAnswer":{"@type":"Answer","text":"In the v0.3.0 benchmark on a 2-vCPU, 1-GiB AWS t4g.micro, Ghoti served 134,343 memory reads per second at a 0.60 ms median round trip with 100 connections, and answered in 0.29 ms at the median with one connection, network included. The method and every result are on the Benchmarks page."}},{"@type":"Question","name":"Can Ghoti run as a cluster?","acceptedAnswer":{"@type":"Answer","text":"Experimentally. Nodes elect a leader with the bully algorithm, but there is no replication and no quorum, and split-brain is possible under network partitions. Followers answer with a NOT_LEADER error naming the leader instead of redirecting the client."}},{"@type":"Question","name":"How many slots are there, and how large can values be?","acceptedAnswer":{"@type":"Answer","text":"There are 1,000 slots, numbered 000 to 999, each defined in config.yaml. A value is an opaque byte string of at most 36 bytes, and a request is 4 to 40 bytes long."}}]}</script>
 <script>(function(){var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("ghoti-theme");if(t==="light")d.setAttribute("data-theme","light");}catch(e){}})();</script>
 </head><body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -98,10 +113,40 @@
 <h2 id="when-it-fits">When it fits<a class="anchor" href="#when-it-fits" aria-label="Link to this section">#</a></h2>
 <p>Ghoti fits state that is cheap to lose and expensive to coordinate: a fleet-wide rate limit, a lease that picks one active worker, a counter for distinct numbers, or a push signal such as "reload the configuration". If the overall system must keep working when Ghoti is down, possibly degraded, Ghoti is a good fit. If losing the data is not acceptable, use a durable store instead.</p>
 
+<h2 id="faq">Frequently asked questions<a class="anchor" href="#faq" aria-label="Link to this section">#</a></h2>
+<div class="faq">
+<h3 id="faq-persistence">Does Ghoti persist data?<a class="anchor" href="#faq-persistence" aria-label="Link to this section">#</a></h3>
+<p>No. All state is in memory and nothing is written to disk. A restart empties every slot, and a newly elected cluster leader starts empty. Use Ghoti for state that is cheap to lose and expensive to coordinate.</p>
+
+<h3 id="faq-redis">Is Ghoti a replacement for Redis?<a class="anchor" href="#faq-redis" aria-label="Link to this section">#</a></h3>
+<p>Not as a general-purpose store. Ghoti has a fixed set of slot kinds, values of at most 36 bytes, no persistence and no data structures to query. It covers coordination primitives (rate limits, leases, counters and fan-out signals) with a one-line text protocol and a single binary.</p>
+
+<h3 id="faq-tls">Does Ghoti support TLS?<a class="anchor" href="#faq-tls" aria-label="Link to this section">#</a></h3>
+<p>No. No listener implements TLS, and the login password and HTTP Basic Auth credentials travel in cleartext. Terminate TLS in a load balancer or reverse proxy in front of Ghoti, or keep the traffic on a trusted network.</p>
+
+<h3 id="faq-lease">What happens to a lease when the client disconnects or the server restarts?<a class="anchor" href="#faq-lease" aria-label="Link to this section">#</a></h3>
+<p>A lease on a <code>timeout_memory</code> slot belongs to the TCP connection. If the client disconnects, the lease stays held until its timeout expires, and a reconnecting client is a new owner that gets error 007 until then. If Ghoti restarts, the lease is forgotten and the first connection to write takes it, so two clients can briefly both believe they hold it.</p>
+
+<h3 id="faq-delivery">Are broadcast and multicast messages guaranteed to arrive?<a class="anchor" href="#faq-delivery" aria-label="Link to this section">#</a></h3>
+<p>No. Delivery is at most once: one attempt per client, no retries and no replay for clients that were not connected. The writer receives a received/sent/errors count for each message.</p>
+
+<h3 id="faq-clients">Which languages and clients can use Ghoti?<a class="anchor" href="#faq-clients" aria-label="Link to this section">#</a></h3>
+<p>Any language that can open a TCP socket and send a line of text. There is no client library to install. Over the HTTP transport, slots are read and written with GET and POST, and browsers can receive broadcast events with Server-Sent Events. For manual testing, nc is enough.</p>
+
+<h3 id="faq-performance">How fast is Ghoti?<a class="anchor" href="#faq-performance" aria-label="Link to this section">#</a></h3>
+<p>In the v0.3.0 benchmark on a 2-vCPU, 1-GiB AWS t4g.micro, Ghoti served 134,343 memory reads per second at a 0.60 ms median round trip with 100 connections, and answered in 0.29 ms at the median with one connection, network included. The method and every result are on the <a href="/benchmarks/">Benchmarks</a> page.</p>
+
+<h3 id="faq-cluster">Can Ghoti run as a cluster?<a class="anchor" href="#faq-cluster" aria-label="Link to this section">#</a></h3>
+<p>Experimentally. Nodes elect a leader with the bully algorithm, but there is no replication and no quorum, and split-brain is possible under network partitions. Followers answer with a NOT_LEADER error naming the leader instead of redirecting the client.</p>
+
+<h3 id="faq-limits">How many slots are there, and how large can values be?<a class="anchor" href="#faq-limits" aria-label="Link to this section">#</a></h3>
+<p>There are 1,000 slots, numbered 000 to 999, each defined in config.yaml. A value is an opaque byte string of at most 36 bytes, and a request is 4 to 40 bytes long.</p>
+</div>
+
 <nav class="pager" aria-label="Previous and next page"><a class="next" href="/docs/getting-started/"><small>Next</small>Getting started</a></nav>
 <p class="page-meta">Found something out of date? <a href="https://github.com/dankomiocevic/ghoti/issues">Open an issue</a> or <a href="https://github.com/dankomiocevic/ghoti-docsy/blob/main/docs/index.html">edit this page</a>.</p>
 </main>
-<nav class="toc" aria-label="On this page"><p>On this page</p><ul><li><a href="#what-ghoti-is">What Ghoti is</a></li><li><a href="#what-ghoti-is-not">What Ghoti is not</a></li><li><a href="#guarantees">Guarantees at a glance</a></li><li><a href="#performance">Performance</a></li><li><a href="#when-it-fits">When it fits</a></li></ul></nav>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ul><li><a href="#what-ghoti-is">What Ghoti is</a></li><li><a href="#what-ghoti-is-not">What Ghoti is not</a></li><li><a href="#guarantees">Guarantees at a glance</a></li><li><a href="#performance">Performance</a></li><li><a href="#when-it-fits">When it fits</a></li><li><a href="#faq">Frequently asked questions</a></li></ul></nav>
 </div>
 <footer class="site-footer">
   <div class="container">
@@ -113,7 +158,7 @@
       <nav aria-label="Footer">
         <div><b>Docs</b><a href="/docs/getting-started/">Getting started</a><a href="/docs/protocol/">Protocol</a><a href="/docs/configuration/slots/">Slot reference</a><a href="/docs/reference/errors/">Error codes</a></div>
         <div><b>Project</b><a href="https://github.com/dankomiocevic/ghoti">GitHub</a><a href="https://github.com/dankomiocevic/ghoti/releases">Releases</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/SECURITY.md">Security policy</a></div>
-        <div><b>More</b><a href="/benchmarks/">Benchmarks</a><a href="/blog/">Blog</a><a href="/blog/index.xml">RSS feed</a><a href="/docs/contributing/">Contributing</a></div>
+        <div><b>More</b><a href="/benchmarks/">Benchmarks</a><a href="/blog/">Blog</a><a href="/blog/index.xml">RSS feed</a><a href="/llms.txt">llms.txt</a><a href="/docs/contributing/">Contributing</a></div>
       </nav>
     </div>
     <p class="fine">Ghoti is open source under the <a href="https://github.com/dankomiocevic/ghoti/blob/main/LICENSE">Apache-2.0 license</a>.</p>

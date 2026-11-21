@@ -3,19 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Transports · Ghoti</title>
+<title>Transports: TCP, telnet, HTTP and SSE · Ghoti</title>
 <meta name="description" content="The standard, telnet and http transports, line endings, HTTP status mapping, timeouts, SSE heartbeats and backpressure.">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
 <link rel="canonical" href="https://ghoti.miocevic.com/docs/protocol/transports/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Ghoti">
-<meta property="og:title" content="Transports · Ghoti">
+<meta property="og:locale" content="en_US">
+<meta property="og:title" content="Transports: TCP, telnet, HTTP and SSE · Ghoti">
 <meta property="og:description" content="The standard, telnet and http transports, line endings, HTTP status mapping, timeouts, SSE heartbeats and backpressure.">
 <meta property="og:url" content="https://ghoti.miocevic.com/docs/protocol/transports/">
+<meta property="og:image" content="https://ghoti.miocevic.com/assets/img/og.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Ghoti: coordinate rate limits, counters and signals across your services. 134,000 memory reads per second at 0.60 ms median round trip on a 2-vCPU, 1-GiB AWS instance.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Transports: TCP, telnet, HTTP and SSE · Ghoti">
+<meta name="twitter:description" content="The standard, telnet and http transports, line endings, HTTP status mapping, timeouts, SSE heartbeats and backpressure.">
+<meta name="twitter:image" content="https://ghoti.miocevic.com/assets/img/og.jpg">
+<meta name="twitter:image:alt" content="Ghoti: coordinate rate limits, counters and signals across your services. 134,000 memory reads per second at 0.60 ms median round trip on a 2-vCPU, 1-GiB AWS instance.">
 <meta name="theme-color" content="#07080d">
 <link rel="icon" href="/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="/favicon.png">
 <link rel="alternate" type="application/rss+xml" title="Ghoti blog" href="/blog/index.xml">
+<link rel="sitemap" type="application/xml" href="/sitemap.xml">
 <link rel="stylesheet" href="/assets/css/site.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://ghoti.miocevic.com/"},{"@type":"ListItem","position":2,"name":"Docs","item":"https://ghoti.miocevic.com/docs/"},{"@type":"ListItem","position":3,"name":"Transports","item":"https://ghoti.miocevic.com/docs/protocol/transports/"}]}</script>
 <script>(function(){var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("ghoti-theme");if(t==="light")d.setAttribute("data-theme","light");}catch(e){}})();</script>
 </head><body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -119,7 +133,7 @@ data: a001deploy-42</code></pre>
 1/1/0</code></pre>
 <p>The stream is sent with <code>Access-Control-Allow-Origin: *</code>, so a page on another origin can subscribe with the browser's <code>EventSource</code>:</p>
 <pre data-lang="text"><code>const events = new EventSource("http://localhost:9090/001");
-events.onmessage = (e) =&amp;gt; console.log(e.data); // "a001deploy-42"</code></pre>
+events.onmessage = (e) =&gt; console.log(e.data); // "a001deploy-42"</code></pre>
 <p>The SSE data is the async event line, so it starts with <code>a</code> and the slot number. A stream opened on one broadcast slot receives the events of every broadcast slot, so check the slot number in the data.</p>
 
 <h3 id="timeouts">Timeouts<a class="anchor" href="#timeouts" aria-label="Link to this section">#</a></h3>
@@ -157,7 +171,7 @@ events.onmessage = (e) =&amp;gt; console.log(e.data); // "a001deploy-42"</code><
       <nav aria-label="Footer">
         <div><b>Docs</b><a href="/docs/getting-started/">Getting started</a><a href="/docs/protocol/">Protocol</a><a href="/docs/configuration/slots/">Slot reference</a><a href="/docs/reference/errors/">Error codes</a></div>
         <div><b>Project</b><a href="https://github.com/dankomiocevic/ghoti">GitHub</a><a href="https://github.com/dankomiocevic/ghoti/releases">Releases</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/dankomiocevic/ghoti/blob/main/SECURITY.md">Security policy</a></div>
-        <div><b>More</b><a href="/benchmarks/">Benchmarks</a><a href="/blog/">Blog</a><a href="/blog/index.xml">RSS feed</a><a href="/docs/contributing/">Contributing</a></div>
+        <div><b>More</b><a href="/benchmarks/">Benchmarks</a><a href="/blog/">Blog</a><a href="/blog/index.xml">RSS feed</a><a href="/llms.txt">llms.txt</a><a href="/docs/contributing/">Contributing</a></div>
       </nav>
     </div>
     <p class="fine">Ghoti is open source under the <a href="https://github.com/dankomiocevic/ghoti/blob/main/LICENSE">Apache-2.0 license</a>.</p>

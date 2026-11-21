@@ -1,0 +1,1955 @@
+# Ghoti: full documentation
+
+> Ghoti is a single-binary, in-memory server for coordination primitives. It gives a fleet of services up to 1,000 configurable slots (token-bucket and leaky-bucket rate limiters, timeout-memory leases, atomic counters, tickers, simple memory, broadcast and multicast channels) over a plain-text TCP protocol (`standard` or `telnet`) or HTTP with Server-Sent Events. No client library is required.
+
+Key facts:
+
+- All state is in memory. A restart empties every slot; nothing is persisted.
+- Values are opaque byte strings of at most 36 bytes; requests are 4 to 40 bytes; one request in flight per connection.
+- Commands: `r<slot>` read, `w<slot><value>` write, `s<slot>`/`d<slot>` subscribe/leave (multicast), `u`/`p` login, `q` quit. Responses start with `v` (value), `e` (error, `e<slot><code>`) or `a` (async event).
+- Start the server with `ghoti run`; it reads `config.yaml` from `/etc/ghoti`, `$HOME/.ghoti` or the current directory and exits if none is found. Default address `localhost:9090`.
+- No TLS on any listener. Broadcast/multicast delivery is at most once. Clustering (leader election, no replication) is experimental.
+- Latest release: v0.3.0. License: Apache-2.0. Source: https://github.com/dankomiocevic/ghoti
+
+Generated from https://ghoti.miocevic.com/ on 2026-11-21. Each section below is one page of the site; its URL is given under the title.
+
+
+---
+
+# Overview
+
+URL: https://ghoti.miocevic.com/docs/
+
+Ghoti is a single-binary, in-memory server for small pieces of shared state that a fleet of services needs to agree on: a rate limit, a lease, a counter, a signal.  [**Getting started →**Install, verify, first run.](https://ghoti.miocevic.com/docs/getting-started/) [**Protocol →**Commands, framing, retries.](https://ghoti.miocevic.com/docs/protocol/) [**Slot reference →**Every slot kind and its options.](https://ghoti.miocevic.com/docs/configuration/slots/) [**Error codes →**What each `e` response means.](https://ghoti.miocevic.com/docs/reference/errors/)
+
+## What Ghoti is
+
+A Ghoti server exposes 1000 numbered **slots**, `000` to `999`. You decide in `config.yaml` which slots exist and what kind each one is. Clients read and write slots with a plain-text protocol over TCP, or over HTTP. Each slot kind has a fixed behaviour:
+
+| Kind | What it does | Status |
+|---|---|---|
+| [`simple_memory`](https://ghoti.miocevic.com/docs/configuration/slots/#simple-memory) | Holds a value of up to 36 bytes. | Implemented |
+| [`timeout_memory`](https://ghoti.miocevic.com/docs/configuration/slots/#timeout-memory) | A value with an owner: only the connection that last wrote it can write again, until the owner's timeout expires. | Implemented |
+| [`token_bucket`](https://ghoti.miocevic.com/docs/configuration/slots/#token-bucket) | Hands out tokens refilled every period. | Implemented |
+| [`leaky_bucket`](https://ghoti.miocevic.com/docs/configuration/slots/#leaky-bucket) | Accepts a request if the bucket has room, leaking one token every `refresh_rate` ms. | Implemented |
+| [`ticker`](https://ghoti.miocevic.com/docs/configuration/slots/#ticker) | An integer that counts down by one every `refresh_rate` ms until it reaches zero. | Implemented |
+| [`atomic`](https://ghoti.miocevic.com/docs/configuration/slots/#atomic) | A counter that increments on every read. | Implemented |
+| [`broadcast`](https://ghoti.miocevic.com/docs/configuration/slots/#broadcast) | A write is pushed to every connected client. | Implemented |
+| [`multicast`](https://ghoti.miocevic.com/docs/configuration/slots/#multicast) | A write is pushed to the clients that subscribed to the slot. | Implemented |
+| Random signal propagation | A write delivered to one subscriber chosen at random. | Planned |
+
+Around the slots Ghoti has:
+
+- Three transports: `standard` TCP (the default), `telnet`, and `http` with Server-Sent Events for broadcast slots. See [Transports](https://ghoti.miocevic.com/docs/protocol/transports/).
+- Optional users with per-slot read and write permissions. See [Authentication](https://ghoti.miocevic.com/docs/authentication/).
+- An optional Prometheus endpoint and a connection cap. See [Operations](https://ghoti.miocevic.com/docs/operations/).
+- Leader election between several nodes, without replication. Experimental See [Cluster](https://ghoti.miocevic.com/docs/cluster/).
+
+## What Ghoti is not
+
+- **Not a database or a durable store.** Nothing is written to disk. A restart empties every slot, and a newly elected cluster leader starts empty.
+- **Not a message queue.** Broadcast and multicast deliver at most once, with no retries and no backlog for clients that were not connected.
+- **Not encrypted.** No listener supports TLS, and the `p` login command sends the password in cleartext. Terminate TLS in a load balancer or reverse proxy, or keep traffic on a trusted network. See [SECURITY.md](https://github.com/dankomiocevic/ghoti/blob/main/SECURITY.md).
+- **Not a consensus system.** Clustering elects a leader with the bully algorithm. There is no quorum and no replication, and split-brain is possible under network partitions.
+
+## Guarantees at a glance
+
+| Topic | What Ghoti does |
+|---|---|
+| Durability | None. All state is in memory and is lost on restart. |
+| Ordering on one connection | Responses come back in the order the commands were sent. Async events never appear in the middle of a response. |
+| Ordering across connections | No guarantee. |
+| Requests in flight | One per connection. Send a command, wait for its response, then send the next. |
+| Event delivery | At most once. One attempt per client and no retries. The writer receives a `received/sent/errors` summary. |
+| Lease ownership | Tied to the TCP connection. It survives a dropped connection until the timeout expires and is forgotten on restart. |
+| Values | Opaque byte strings of at most 36 bytes, returned exactly as written. |
+| Transport security | None built in. Bring your own TLS termination. |
+| High availability | Experimental Leader election only. Followers answer `NOT_LEADER` and do not redirect. |
+
+## Performance
+
+On a 2-core, 1 GiB AWS t4g.micro, Ghoti v0.3.0 answered with a 0.29 ms median round trip on one connection, served over 127,000 requests per second with 100 connections, and spent 7.6 µs on average inside the server per memory read. See [Benchmarks](https://ghoti.miocevic.com/benchmarks/) for the method, every result and how to reproduce them.
+
+## When it fits
+
+Ghoti fits state that is cheap to lose and expensive to coordinate: a fleet-wide rate limit, a lease that picks one active worker, a counter for distinct numbers, or a push signal such as "reload the configuration". If the overall system must keep working when Ghoti is down, possibly degraded, Ghoti is a good fit. If losing the data is not acceptable, use a durable store instead.
+
+## Frequently asked questions
+
+### Does Ghoti persist data?
+
+No. All state is in memory and nothing is written to disk. A restart empties every slot, and a newly elected cluster leader starts empty. Use Ghoti for state that is cheap to lose and expensive to coordinate.
+
+### Is Ghoti a replacement for Redis?
+
+Not as a general-purpose store. Ghoti has a fixed set of slot kinds, values of at most 36 bytes, no persistence and no data structures to query. It covers coordination primitives (rate limits, leases, counters and fan-out signals) with a one-line text protocol and a single binary.
+
+### Does Ghoti support TLS?
+
+No. No listener implements TLS, and the login password and HTTP Basic Auth credentials travel in cleartext. Terminate TLS in a load balancer or reverse proxy in front of Ghoti, or keep the traffic on a trusted network.
+
+### What happens to a lease when the client disconnects or the server restarts?
+
+A lease on a `timeout_memory` slot belongs to the TCP connection. If the client disconnects, the lease stays held until its timeout expires, and a reconnecting client is a new owner that gets error 007 until then. If Ghoti restarts, the lease is forgotten and the first connection to write takes it, so two clients can briefly both believe they hold it.
+
+### Are broadcast and multicast messages guaranteed to arrive?
+
+No. Delivery is at most once: one attempt per client, no retries and no replay for clients that were not connected. The writer receives a received/sent/errors count for each message.
+
+### Which languages and clients can use Ghoti?
+
+Any language that can open a TCP socket and send a line of text. There is no client library to install. Over the HTTP transport, slots are read and written with GET and POST, and browsers can receive broadcast events with Server-Sent Events. For manual testing, nc is enough.
+
+### How fast is Ghoti?
+
+In the v0.3.0 benchmark on a 2-vCPU, 1-GiB AWS t4g.micro, Ghoti served 134,343 memory reads per second at a 0.60 ms median round trip with 100 connections, and answered in 0.29 ms at the median with one connection, network included. The method and every result are on the [Benchmarks](https://ghoti.miocevic.com/benchmarks/) page.
+
+### Can Ghoti run as a cluster?
+
+Experimentally. Nodes elect a leader with the bully algorithm, but there is no replication and no quorum, and split-brain is possible under network partitions. Followers answer with a NOT_LEADER error naming the leader instead of redirecting the client.
+
+### How many slots are there, and how large can values be?
+
+There are 1,000 slots, numbered 000 to 999, each defined in config.yaml. A value is an opaque byte string of at most 36 bytes, and a request is 4 to 40 bytes long.
+
+
+---
+
+# Getting started
+
+URL: https://ghoti.miocevic.com/docs/getting-started/
+
+Four commands to a working server: install, write a configuration, start it, and talk to it with `nc`. Install options, download verification and troubleshooting come after.
+
+## Quick start
+
+**1. Install.** With Go installed (the version in [`go.mod`](https://github.com/dankomiocevic/ghoti/blob/main/go.mod)), this puts `ghoti` in `$(go env GOPATH)/bin`. Without Go, use a [release archive](https://ghoti.miocevic.com/docs/getting-started/#from-a-release-archive).
+
+```sh
+$ go install github.com/dankomiocevic/ghoti/cmd/ghoti@latest
+```
+
+**2. Declare two slots**, a value and a counter, in a `config.yaml` in an empty directory:
+
+```sh
+$ mkdir ghoti-demo && cd ghoti-demo
+$ printf 'slot_000:\n  kind: simple_memory\nslot_001:\n  kind: atomic\n' > config.yaml
+```
+
+**3. Start the server** from that directory. It listens on `localhost:9090`:
+
+```sh
+$ ghoti run
+time=2026-11-20T06:48:59.858Z level=INFO msg="Starting server..."
+```
+
+**4. Talk to it** from a second terminal. Run `nc localhost 9090` and type one command per line. Lines starting with `>` are what you type, and lines starting with `<` are the server's answers:
+
+```text
+> w000hello
+< v000hello
+> r000
+< v000hello
+> r001
+< v0011
+> r001
+< v0012
+> r002
+< e002005
+> x000
+< exxx001
+```
+
+- `w000hello` writes `hello` to slot 000, and the server echoes the stored value.
+- Each read of the atomic slot 001 increments it.
+- Slot 002 is not configured, so the answer is error [`005`](https://ghoti.miocevic.com/docs/reference/errors/#error-005) (MISSING_SLOT).
+- `x` is not a command, so the answer is [`001`](https://ghoti.miocevic.com/docs/reference/errors/#error-001) (PARSE_ERROR), with `xxx` in place of the slot number.
+
+Send `q` to close the connection, and stop the server with `Ctrl`+`C`. Something different? See [Troubleshooting](https://ghoti.miocevic.com/docs/getting-started/#troubleshooting).
+
+## Install options
+
+### From a release archive
+
+Every release on the [releases page](https://github.com/dankomiocevic/ghoti/releases) has one archive per platform. The archive has the `ghoti` binary at its root, together with the README, the license and the changelog.
+
+| Platform | Archive |
+|---|---|
+| Linux (`amd64`, `arm64`, `386`) | `ghoti_<version>_linux_<arch>.tar.gz` |
+| macOS (`amd64`, `arm64`) | `ghoti_<version>_darwin_<arch>.tar.gz` |
+| Windows (`amd64`, `386`) | `ghoti_<version>_windows_<arch>.zip` |
+
+Set `VERSION` to the release you want, without the leading `v`. The latest release is 0.3.0.
+
+```sh
+$ VERSION=0.3.0
+$ curl -LO "https://github.com/dankomiocevic/ghoti/releases/download/v${VERSION}/ghoti_${VERSION}_linux_amd64.tar.gz"
+$ tar -xzf "ghoti_${VERSION}_linux_amd64.tar.gz"
+$ ./ghoti version
+```
+
+### With `go install`
+
+Building from source needs the Go version listed in [`go.mod`](https://github.com/dankomiocevic/ghoti/blob/main/go.mod). The binary is installed into `$(go env GOPATH)/bin`, which must be on your `PATH`.
+
+```sh
+$ go install github.com/dankomiocevic/ghoti/cmd/ghoti@latest
+```
+
+## Verifying a download
+
+Each release also ships:
+
+- A `checksums.txt` file with the SHA-256 of every archive.
+- A Sigstore signature of the checksums file, `checksums.txt.sigstore.json`.
+- An SPDX SBOM next to every archive, `<archive>.sbom.json`.
+- A build provenance attestation for every archive.
+
+Together they let you check that what you downloaded is what the Release workflow built from the tag.
+
+### Checksum
+
+The checksum catches a corrupted or tampered download:
+
+```sh
+$ curl -LO "https://github.com/dankomiocevic/ghoti/releases/download/v${VERSION}/checksums.txt"
+$ sha256sum --ignore-missing -c checksums.txt
+```
+
+### Signature
+
+The signature proves that `checksums.txt` itself was produced by this repository's Release workflow. It is a keyless [Sigstore](https://www.sigstore.dev/) signature, so you check it against the workflow identity rather than against a key you have to trust. The signature, the certificate and the transparency log entry come together in one bundle file. The check needs [cosign](https://github.com/sigstore/cosign) v3:
+
+```sh
+$ curl -LO "https://github.com/dankomiocevic/ghoti/releases/download/v${VERSION}/checksums.txt.sigstore.json"
+$ cosign verify-blob \
+    --bundle checksums.txt.sigstore.json \
+    --certificate-identity-regexp '^https://github.com/dankomiocevic/ghoti/\.github/workflows/release\.yml@refs/tags/v' \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+    checksums.txt
+```
+
+### Provenance
+
+The provenance attestation ties an archive to the exact commit and workflow run that built it. You check it with the [GitHub CLI](https://cli.github.com/), and it doesn't need any other file:
+
+```sh
+$ gh attestation verify "ghoti_${VERSION}_linux_amd64.tar.gz" --repo dankomiocevic/ghoti
+```
+
+The SBOM lists the Go modules linked into the binary, for scanners like [grype](https://github.com/anchore/grype) or for your own inventory.
+
+## Troubleshooting
+
+### The server exits with `Config File "config" Not Found`
+
+Ghoti needs a configuration file. It looks for `config.yaml` in `/etc/ghoti`, then `$HOME/.ghoti`, then the current directory. **If it finds none, it exits with status 1** rather than starting with defaults:
+
+```sh
+$ cd /tmp/demo && ghoti run
+2026/11/20 06:49:31 ERROR Error loading config error="failed to load server config: Config File \"config\" Not Found in \"[/etc/ghoti /home/demo/.ghoti /tmp/demo]\""
+$ echo $?
+1
+```
+
+Run `ghoti run` from the directory that holds `config.yaml`, or put the file in one of the other two locations.
+
+### Every command answers `exxx001`
+
+You are probably connected with `telnet`. The default `standard` transport ends requests with a bare `\n`, but a telnet client sends `\r\n`, so reads fail with `exxx001` and written values keep a trailing `\r`. Use `nc`, or set `protocol: telnet` in the configuration. See [Transports](https://ghoti.miocevic.com/docs/protocol/transports/).
+
+### A slot you configured answers `e<slot>005`
+
+Its definition is invalid, for example an unknown `kind` or a missing required option, and the server skipped it without a warning. Check the slot against the [slot reference](https://ghoti.miocevic.com/docs/configuration/slots/).
+
+## Next steps
+
+- [Walk through coordination with two clients](https://ghoti.miocevic.com/blog/2025/07/25/implementing-leader-election-with-ghoti/): build leader election on a lease slot.
+- Read [Concepts](https://ghoti.miocevic.com/docs/concepts/) for how slots, connections and ownership behave.
+- Pick slot kinds for your problem in the [slot reference](https://ghoti.miocevic.com/docs/configuration/slots/).
+- Learn the exact rules your client must follow in [Protocol](https://ghoti.miocevic.com/docs/protocol/).
+
+
+---
+
+# Concepts
+
+URL: https://ghoti.miocevic.com/docs/concepts/
+
+Four ideas explain almost every behaviour in Ghoti: slots, volatile state, connections as identities, and one request in flight per connection.
+
+## Slots
+
+A Ghoti server has 1000 slots, numbered `000` to `999`. A slot exists only if the configuration defines it, as `slot_000` to `slot_999` with a `kind`. A command that addresses an undefined slot gets error [`005`](https://ghoti.miocevic.com/docs/reference/errors/#error-005) (MISSING_SLOT).
+
+The kind decides what reads and writes do. On a `simple_memory` slot a read is free of side effects. On `atomic`, `token_bucket`, `leaky_bucket` and `ticker` slots **every read changes the state**. On `broadcast` and `multicast` slots every write sends events to other clients. The [slot reference](https://ghoti.miocevic.com/docs/configuration/slots/) covers each kind.
+
+Clients must know the configuration beforehand: the protocol has no command to list slots or ask for a slot's kind. If a slot's configuration changes, Ghoti can't keep the data consistent until every server runs the new configuration.
+
+Values are opaque byte strings of at most **36 bytes**. Ghoti never validates, normalises or transcodes them, so binary data is allowed, and a read returns exactly the bytes that were written.
+
+> **An invalid slot definition is ignored silently**
+>
+> If a slot's definition is invalid, for example an unknown `kind` or a `ticker` without `refresh_rate`, the server still starts and logs nothing about it. That slot behaves as if it was never defined and answers `e<slot>005`. After changing the configuration, read each slot once to confirm it exists.
+
+## Volatile state
+
+Ghoti keeps everything in memory and writes nothing to disk. When the process stops, every value, counter, bucket, subscription and lease owner is gone. When it starts again, every slot is back at its initial state.
+
+The same applies to a cluster: [clustering](https://ghoti.miocevic.com/docs/cluster/) elects a leader but doesn't replicate data, so a newly elected leader starts empty.
+
+Design the system so that losing Ghoti's state costs performance or a short degradation, never correctness. If a slot is a cache, the system must still work when it is empty. If it holds a lease, the system must tolerate two holders around a restart.
+
+## Connections and ownership
+
+On the `standard` and `telnet` transports, a client is a TCP connection. Ghoti tracks two things per connection:
+
+- **The logged-in user**, set by the `u` and `p` commands. See [Authentication](https://ghoti.miocevic.com/docs/authentication/).
+- **Identity for ownership and subscriptions.** A `timeout_memory` slot is owned by the connection that wrote it, and a `multicast` subscription belongs to the connection that sent `s`.
+
+Ownership is tied to the connection, not to the user or the host. Two connections from the same process, or logged in as the same user, are two different owners. This has consequences:
+
+- **A dropped connection does not release a lease.** The owner stays the owner until its timeout expires. A client that reconnects right after a drop is a new connection, so its writes fail with `007` until the old timeout runs out.
+- **A restart forgets the owner.** After Ghoti restarts the slot has no owner, and the first connection to write takes it, even if a client still believes it holds the lease.
+- **Over HTTP every request is its own connection.** No HTTP client can own a `timeout_memory` slot across two writes, and HTTP clients cannot subscribe to multicast slots.
+
+## One request in flight
+
+A client must send a command and wait for its response before it sends the next one. Ghoti handles a connection's commands one at a time and finishes writing each response before it reads the next command. That gives a strict one-request, one-response relation, and it is the only supported way to use a connection. Pipelining (sending more commands before the response arrives) is not supported, and Ghoti may reject it in the future.
+
+To run commands in parallel, open more connections. Keep in mind that leases and subscriptions belong to the connection that created them.
+
+## Async events
+
+Besides answers to its own commands, a connection can receive **async events**: lines that start with `a`, produced by another client's write to a broadcast slot or to a multicast slot this connection subscribed to. They can arrive at any moment, before or after any response but never in the middle of one, so a client has to split the stream on `\n` and route lines by their first byte. The [protocol page](https://ghoti.miocevic.com/docs/protocol/#ordering) has the exact rules.
+
+
+---
+
+# Protocol
+
+URL: https://ghoti.miocevic.com/docs/protocol/
+
+Every message is plain text: one command byte, a three-digit slot number, and an optional value. This page is the exact contract a client has to follow. Transport differences are on the [Transports](https://ghoti.miocevic.com/docs/protocol/transports/) page.
+
+## Framing and limits
+
+These rules are exact and apply to every command below.
+
+| Rule | Value |
+|---|---|
+| Request size | At least 4 bytes and at most 40 bytes, not counting the terminator. The only exception is `q`, which is exactly one byte. |
+| Slot value size | At most 36 bytes. |
+| Slot number | Exactly three ASCII digits, `000` to `999`. Signs, spaces and padding are rejected with `exxx001`, so `r-01`, `r+01` and `r 01` are all errors. |
+| Trailing bytes | Only `w` takes bytes after the slot number. For `r`, `s` and `d` the request ends at the third digit, and anything after it is rejected with `exxx001`. |
+| Unit of measurement | **Bytes, not characters or Unicode code points.** 36 ASCII characters fit, 18 two-byte characters (`é`) fit, and 9 four-byte emoji fit, but 36 two-byte characters are rejected with `001`. |
+| Encoding | The value is an opaque byte string. Ghoti never validates, normalises or transcodes it, and returns exactly the bytes it received. |
+| Request terminator | A single `\n` on `standard`, `\r\n` on `telnet`. The `http` transport has no terminator: one command is one HTTP request. |
+| Response terminator | Always a single `\n`, on every transport, including `telnet`. |
+| Requests in flight | **One.** Send a command, wait for its response, then send the next one. |
+
+### Framing requests
+
+TCP is a byte stream and doesn't preserve write boundaries, so Ghoti doesn't assume that one read holds exactly one request. A request is the bytes up to and including its terminator, wherever the segment boundaries fall:
+
+- **A command may arrive in pieces.** Ghoti keeps the bytes received before the terminator until the rest of the request arrives, so a command split across several segments is reassembled and answered once. A fragment on its own gets no answer until its terminator arrives.
+- **Over-long lines are rejected.** A request longer than the limit is answered with `exxx001`, and the rest of that line is discarded up to its terminator, so the next request on the connection is read cleanly.
+
+### Framing responses
+
+Ghoti batches pending responses and async events, so a single read on the client can return several messages at once. Clients must split the incoming stream on `\n` and never assume that one read yields one message. For example, a write to a broadcast slot can arrive as a single segment holding both the async event and the confirmation, one per line:
+
+```text
+< a004HelloWorld
+< v0042/2/0
+```
+
+## Commands
+
+| Command | Form | Answered with |
+|---|---|---|
+| `r` read | `r` + 3-digit slot | `v` + slot + value, or `e` |
+| `w` write | `w` + 3-digit slot + value (up to 36 bytes) | `v` + slot + value, or `e` |
+| `s` subscribe | `s` + 3-digit slot | `v` + slot + `1`, or `e` |
+| `d` deregister | `d` + 3-digit slot | `v` + slot + `0`, or `e` |
+| `u` user | `u` + username | `v` + username, or `e` |
+| `p` password | `p` + password | `v` + username, or `e` |
+| `q` quit | `q` | Nothing. The connection is closed. |
+
+Any other command byte is rejected with `exxx001`, and so is a slot number that is not exactly three ASCII digits. Only `w` takes bytes after the slot number, so `r000JUNK` is rejected with `exxx001` rather than read as `r000`.
+
+> **Current behaviour: `j` is accepted but never answered**
+>
+> The parser accepts `j` followed by a three-digit slot number, but the server has no handler for it and sends no response. A client that sends it waits forever for an answer. Don't send it.
+
+### Read: `r`
+
+Send `r` and a three-digit slot number. The response is `v`, the slot number, and the value:
+
+```text
+> r000
+< v0006396A64C-1C2C-4BFC-B8F1-034758018CAC
+```
+
+What a read returns, and whether it changes the slot, depends on the slot kind. See the [slot reference](https://ghoti.miocevic.com/docs/configuration/slots/).
+
+### Write: `w`
+
+Send `w`, the slot number and the value. Everything after the third digit, up to the terminator, is the value. On most slots the response echoes what was stored:
+
+```text
+> w000HelloWorld
+< v000HelloWorld
+```
+
+`w000` with nothing after it writes an empty value. Broadcast and multicast slots answer a write with a `received/sent/errors` summary instead of the value.
+
+### Subscribe and deregister: `s`, `d`
+
+Multicast slots deliver events only to the connections in their group. `s` joins the group and `d` leaves it. The value in the response tells you whether the connection is now a member:
+
+```text
+> s005
+< v0051
+> d005
+< v0050
+```
+
+Sending `s` or `d` to a slot that doesn't manage a group returns error [`010`](https://ghoti.miocevic.com/docs/reference/errors/#error-010) (UNSUPPORTED_COMMAND). Both commands need read permission on the slot.
+
+### Login: `u`, `p`
+
+`u` sets the username on the connection and `p` checks the password. The exact rules are on the [Authentication](https://ghoti.miocevic.com/docs/authentication/) page.
+
+### Quit: `q`
+
+`q` closes the connection cleanly. It takes no slot number and no arguments, so the request is exactly one byte, and anything after it is rejected with `exxx001`. The server doesn't answer it.
+
+## Responses
+
+The first byte of every message identifies its type:
+
+| Type | Form | Example |
+|---|---|---|
+| `v` value | `v` + slot + value | `v000HelloWorld` |
+| `e` error | `e` + slot (or `xxx`) + 3-digit code, optionally followed by an argument | `e000008`, `exxx003`, `exxx000node1` |
+| `a` async event | `a` + slot + data | `a234HelloWorld` |
+
+The answers to `u` and `p` are the exception: `v` followed directly by the username, with no slot number.
+
+Errors that are not about a slot, such as a parse error or a login failure, use `xxx` in place of the slot number. Every code is listed in [Error codes](https://ghoti.miocevic.com/docs/reference/errors/).
+
+Treat any other leading byte as unknown: discard the message up to the next `\n` and keep reading rather than closing the connection. That keeps clients working if new response types are added.
+
+## Ordering
+
+- Responses to commands sent on the same connection come back **in the order the commands were sent**. Ghoti handles a connection's commands one at a time and finishes writing each response before it reads the next command.
+- Async events (`a`) come from other connections' writes. They can appear before or after any response, but never in the middle of one.
+- There is **no ordering guarantee across different connections**.
+
+## Retries and idempotency
+
+A command can be retried safely only if it is idempotent, and this table is the authority on which commands are:
+
+| Command and slot | Safe to retry |
+|---|---|
+| `r` on simple memory, timeout memory, broadcast, multicast | Yes |
+| `r` on atomic counter | **No**, every read increments the counter |
+| `r` on token bucket, leaky bucket | **No**, every read consumes from the bucket |
+| `r` on ticker | Yes. A read applies the ticks that have elapsed since the last read, so its value depends on time, not on how many reads were sent |
+| `w` on simple memory, timeout memory, atomic counter, ticker | Yes, the value is absolute |
+| `w` on broadcast, multicast | **No**, every write sends the event again |
+| `s`, `d` | Yes, both are idempotent |
+| `u`, `p` | A failed `p` closes the connection, so a retry means opening a new connection and starting the login again |
+
+A lost response can't be told apart from a command that was never executed. A client that needs at-most-once semantics for the non-idempotent commands has to reconcile the state itself, for example by reading the slot back where the slot kind allows it.
+
+
+---
+
+# Transports
+
+URL: https://ghoti.miocevic.com/docs/protocol/transports/
+
+The protocol is the same on every transport. The transport only changes how requests are framed and how responses reach the client. Pick one with the top-level `protocol` key.
+
+```yaml
+protocol: standard   # standard (default), telnet or http
+```
+
+| Transport | Use it for |
+|---|---|
+| `standard` | The default. Plain TCP, one command per line ending in `\n`. Use this from application code and with `nc`. |
+| `telnet` | Same as `standard`, but requests end in `\r\n` as a telnet client sends them. |
+| `http` | Read and write slots with `GET` and `POST`, and receive broadcast events in a browser or any client over Server-Sent Events. |
+
+A server runs one transport at a time, on `addr`.
+
+## Line endings
+
+Line endings are strict and differ per transport:
+
+| Transport | Request terminator | Response terminator |
+|---|---|---|
+| `standard` | `\n` only. The `\r` of a `\r\n` ending is kept as part of the request, so `w000abc\r\n` stores `abc\r`, and `r000\r\n` is rejected with `exxx001` as a read with trailing bytes. Always send a bare `\n`. | `\n` |
+| `telnet` | `\r\n` only. A request ending in a bare `\n` is rejected with `exxx001`. | `\n`, **not** `\r\n` |
+| `http` | Not applicable: one command per request. | Not applicable |
+
+> **Connecting with telnet**
+>
+> A telnet client sends `\r\n`. Against the default `standard` transport, reads fail with `exxx001` and written values keep a trailing `\r`. If you want to use telnet, set `protocol: telnet`. Otherwise use `nc` or another client that sends a bare `\n`.
+
+## standard and telnet
+
+Both transports are a long-lived TCP connection carrying the commands described in [Protocol](https://ghoti.miocevic.com/docs/protocol/). The connection is the client's identity: it holds the logged-in user, `timeout_memory` ownership and multicast subscriptions, and it receives async events from broadcast and multicast slots.
+
+Events are written to each connection with a 200 ms deadline. A connection that stops reading until its socket buffers fill up misses events, and those count as errors in the writer's `received/sent/errors` summary.
+
+## http
+
+```yaml
+protocol: http
+```
+
+Slots are addressed by path, where `<id>` is exactly three ASCII digits:
+
+| Request | Equivalent command |
+|---|---|
+| `GET /<id>` | `r<id>`, or an SSE stream on a broadcast slot (below) |
+| `POST /<id>` with the value as the body | `w<id><value>` |
+
+- Any other path shape, including `/+00`, `/-01` and `/1`, is rejected with `400`.
+- A trailing `\n` or `\r\n` in a `POST` body is stripped. A body longer than 36 bytes is rejected with `400`.
+- Methods other than `GET` and `POST` get `405`.
+- Authentication uses HTTP Basic Auth on every request, instead of `u` and `p`. A request without credentials is anonymous.
+- `s`, `d`, `u`, `p` and `q` have no HTTP equivalent, so **multicast groups can't be joined over HTTP**.
+- Every request is its own connection, so **no HTTP client can own a `timeout_memory` slot** across two writes. Use `standard` or `telnet` for leases.
+
+Captured against the configuration shown, with `slot_000` a `simple_memory` slot open to everyone and `slot_002` restricted to `my_service`:
+
+```sh
+$ curl -s -X POST --data 'hello' localhost:9090/000
+hello
+$ curl -s localhost:9090/000
+hello
+$ curl -s localhost:9090/002
+forbidden
+$ curl -s localhost:9090/999
+slot not configured
+$ curl -s localhost:9090/1
+slot must be a 3-digit number (e.g. GET /000)
+```
+
+### HTTP status mapping
+
+The protocol response is translated into a status code. On `200` the body is the value, without the `v` and slot prefix.
+
+| Status | When |
+|---|---|
+| `200` | Success, with the value as the body. |
+| `400` | A path that is not three digits, a body over 36 bytes, or any protocol error not listed below (for example `007` WRITE_FAILED). The body is `error: <code>`. |
+| `401` | Basic Auth credentials were sent but don't match a configured user. |
+| `403` | Permission error: `006` WRITE_PERMISSION or `008` READ_PERMISSION. |
+| `404` | The slot is not configured (`005` MISSING_SLOT). |
+| `405` | A method other than `GET` or `POST`. |
+| `503` | The node is not the cluster leader (`000` NOT_LEADER). |
+| `504` | The server didn't produce a response within 500 ms. |
+
+### Server-Sent Events on broadcast slots
+
+A `GET` on a **broadcast** slot doesn't return the current value. It opens a persistent [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) stream, and every later write to *any* broadcast slot is pushed to it as a `data:` line carrying the full async event. The server decides which slots stream from the configuration at startup.
+
+```sh
+$ curl -sN localhost:9090/001
+data: a001deploy-42
+```
+
+That event came from a write in another terminal. Over HTTP, broadcast events go to the open SSE streams only, so the writer itself isn't counted:
+
+```sh
+$ curl -s -X POST --data 'deploy-42' localhost:9090/001
+1/1/0
+```
+
+The stream is sent with `Access-Control-Allow-Origin: *`, so a page on another origin can subscribe with the browser's `EventSource`:
+
+```text
+const events = new EventSource("http://localhost:9090/001");
+events.onmessage = (e) => console.log(e.data); // "a001deploy-42"
+```
+
+The SSE data is the async event line, so it starts with `a` and the slot number. A stream opened on one broadcast slot receives the events of every broadcast slot, so check the slot number in the data.
+
+### Timeouts
+
+The HTTP server is bounded so that a slow or idle client can't hold resources for long:
+
+| Limit | Value |
+|---|---|
+| Time to send the request headers | 5 seconds |
+| Time for the whole request | 10 seconds |
+| Time to write a response | 10 seconds |
+| Idle keep-alive connection | Closed after 60 seconds |
+| Request headers | At most 8 KiB |
+
+Every command is a single short request, so well-behaved clients never hit these limits.
+
+### Heartbeats
+
+SSE streams are the deliberate exception to the timeouts: a stream stays open for as long as the client keeps reading it, with no read or write timeout. When nothing has been written to a stream for 15 seconds, the server sends an SSE comment line, `: keepalive`, which SSE clients ignore. The check runs every 15 seconds, so a quiet stream carries a comment at least every 30 seconds and a busy one carries none. This stops proxies from closing an idle stream and lets the server notice a client that went away without closing the connection.
+
+### Backpressure
+
+A subscriber must keep reading. Each event is written with a 200 ms deadline, the same as on the `standard` transport. Once a subscriber's socket buffers are full because it stopped reading, the next event or heartbeat fails and the subscriber is disconnected. The event it missed counts as an error in the writer's `received/sent/errors` response, exactly like a stalled TCP subscriber.
+
+Each SSE stream holds a connection for as long as it is open, so it counts against [`max_connections`](https://ghoti.miocevic.com/docs/operations/#connection-limits).
+
+
+---
+
+# Configuration
+
+URL: https://ghoti.miocevic.com/docs/configuration/
+
+Ghoti reads one YAML file, `config.yaml`. Any key in it can be overridden with an environment variable, and the listen address with a command-line flag.
+
+## File locations
+
+`ghoti run` looks for a file named `config.yaml` in these directories, in this order, and uses the first one it finds:
+
+1. `/etc/ghoti`
+2. `$HOME/.ghoti`
+3. The current working directory
+
+> **A configuration file is required**
+>
+> If no `config.yaml` is found, the server logs `Config File "config" Not Found` and exits with status 1. It does not start with defaults.
+
+## Environment variables
+
+Any key can be set through an environment variable named `GHOTI_` plus the key in upper case, with `.` (and `-`) replaced by `_`:
+
+| Key | Environment variable |
+|---|---|
+| `addr` | `GHOTI_ADDR` |
+| `protocol` | `GHOTI_PROTOCOL` |
+| `log.level` | `GHOTI_LOG_LEVEL` |
+| `cluster.pass` | `GHOTI_CLUSTER_PASS` |
+
+An environment variable overrides the file, and the `--addr` flag overrides both. Use environment variables to inject secrets such as `cluster.pass` at runtime instead of committing them to a file. The file is still required, even if every key you need comes from the environment.
+
+One exception: the `users` block is read as a map, and its entries can't be injected from the environment. Per-user passwords have to come from the file.
+
+## Server settings
+
+| Key | Default | Description |
+|---|---|---|
+| `addr` | `localhost:9090` | `host:port` the server listens on, for every transport. Also settable with `ghoti run --addr host:port`. |
+| `protocol` | `standard` | `standard`, `telnet` or `http`. Any other value stops the server with `protocol not supported`. See [Transports](https://ghoti.miocevic.com/docs/protocol/transports/). |
+| `max_connections` | `0` (no cap) | How many client connections may be open at once. A negative value stops the server. See [Connection limits](https://ghoti.miocevic.com/docs/operations/#connection-limits). |
+| `log.level` | `info` | `debug`, `info`, `warn` or `error`. Any other value stops the server. |
+| `log.format` | `text` | `text` or `json`. Logs go to standard output. |
+
+The default address binds to loopback, so a fresh server is not reachable from other hosts. Before binding to a routable address, read the [TLS notes](https://ghoti.miocevic.com/docs/operations/#tls): Ghoti doesn't encrypt any traffic.
+
+## Other sections
+
+| Key | Documented in |
+|---|---|
+| `slot_000` … `slot_999` | [Slot reference](https://ghoti.miocevic.com/docs/configuration/slots/) |
+| `users` and per-slot `users` | [Authentication](https://ghoti.miocevic.com/docs/authentication/) |
+| `metrics` | [Operations](https://ghoti.miocevic.com/docs/operations/#prometheus-metrics) |
+| `cluster` | [Cluster](https://ghoti.miocevic.com/docs/cluster/#configuration) Experimental |
+
+## What is validated at startup
+
+The server refuses to start, and logs the reason, when:
+
+- No configuration file is found.
+- `protocol`, `log.level` or `log.format` has an unsupported value, or `max_connections` is negative.
+- A user in `users` has a name or password that breaks the [login rules](https://ghoti.miocevic.com/docs/authentication/#login-rules).
+- The `cluster` section is missing `node`, `user`, `pass` or `manager.type`, or `node` is longer than 20 characters.
+- `metrics.enabled` is true without `metrics.addr`, or the `metrics` section still has a key from the removed file-based writer (`output_dir`, `rotation`, `retain`, `interval`).
+- The address can't be bound.
+
+> **Slot definitions are not validated at startup**
+>
+> An invalid slot (an unknown `kind`, a missing required option or an out-of-range value) is **ignored silently**. The server starts without a warning, and that slot answers `e<slot>005` (MISSING_SLOT) as if it was never defined. Read every slot once after a configuration change.
+
+## Annotated example
+
+This is the example [`config.yaml`](https://github.com/dankomiocevic/ghoti/blob/main/config.yaml) from the repository:
+
+```yaml
+# Example config file for Ghoti
+
+log:
+  level: debug
+  format: text
+
+# Metrics are disabled by default. Uncomment and configure to enable.
+#metrics:
+#  enabled: true
+#  addr: "127.0.0.1:9100"       # host:port where GET /metrics is served for Prometheus
+
+# Cluster mode is disabled by default. Uncomment and configure to enable.
+#cluster:
+#  node: node1                  # unique node ID, decides election priority
+#  user: cluster_user           # inter-node credentials (min 4 characters)
+#  pass: cluster_pass
+#  manager:
+#    type: join_server
+#    addr: "0.0.0.0:2222"       # where this node's cluster server listens
+#    join: "10.0.0.2:2222"      # existing member to join; omit to bootstrap
+#  leader:
+#    enabled: true              # serve GET /leader for load balancer health
+#                               # checks: 200 on the leader, 503 on followers
+
+slot_000:
+  kind: broadcast
+
+slot_001:
+  kind: simple_memory
+
+slot_002:
+  kind: simple_memory
+
+slot_003:
+  kind: timeout_memory
+  timeout: 60
+```
+
+
+---
+
+# Slot reference
+
+URL: https://ghoti.miocevic.com/docs/configuration/slots/
+
+A slot is defined as `slot_NNN` with a `kind` and that kind's options. This page describes what reads and writes do for each kind.
+
+```yaml
+slot_002:            # slot number 002
+  kind: token_bucket # one of the kinds below
+  bucket_size: 100   # options of that kind
+  period: second
+```
+
+| Kind | Read | Write | `s` / `d` |
+|---|---|---|---|
+| [`simple_memory`](https://ghoti.miocevic.com/docs/configuration/slots/#simple-memory) | Value | Stores value | `010` |
+| [`timeout_memory`](https://ghoti.miocevic.com/docs/configuration/slots/#timeout-memory) | Value | Stores value if owner or no owner, else `007` | `010` |
+| [`token_bucket`](https://ghoti.miocevic.com/docs/configuration/slots/#token-bucket) | Takes tokens, returns how many | `006` | `010` |
+| [`leaky_bucket`](https://ghoti.miocevic.com/docs/configuration/slots/#leaky-bucket) | `1` accepted / `0` rejected | `006` | `010` |
+| [`ticker`](https://ghoti.miocevic.com/docs/configuration/slots/#ticker) | Current countdown | Restarts the countdown | `010` |
+| [`atomic`](https://ghoti.miocevic.com/docs/configuration/slots/#atomic) | Increments, returns new value | Sets the counter | `010` |
+| [`broadcast`](https://ghoti.miocevic.com/docs/configuration/slots/#broadcast) | Last value written | Sends event to every client | `010` |
+| [`multicast`](https://ghoti.miocevic.com/docs/configuration/slots/#multicast) | Last value written | Sends event to subscribers | Join / leave |
+
+Every kind also accepts a `users` map with per-user permissions. See [Authentication](https://ghoti.miocevic.com/docs/authentication/#slot-permissions).
+
+> **Invalid definitions are ignored silently**
+>
+> An unknown `kind`, a missing required option or an out-of-range value makes the server skip that slot without any warning. The slot then answers `e<slot>005` (MISSING_SLOT). Read each slot once after a configuration change to make sure it exists.
+
+## Simple memory
+
+`kind: simple_memory`. The most basic slot: a value of up to 36 bytes that anyone with permission can read and write. It has no options.
+
+```yaml
+slot_000:
+  kind: simple_memory
+```
+
+- A read returns the current value. A slot that was never written returns an empty value (`v000`).
+- A write replaces the value and echoes it back. `w000` with no value empties the slot.
+
+## Timeout memory
+
+`kind: timeout_memory`. A memory slot with an owner. Only the connection that last wrote the slot can write it again, until it goes `timeout` seconds without writing. Use it as a lease to pick a single active worker or leader.
+
+| Option | Required | Description |
+|---|---|---|
+| `timeout` | Yes | Ownership timeout in **seconds**. Must be at least 1. |
+
+```yaml
+slot_001:
+  kind: timeout_memory
+  timeout: 10
+```
+
+- If the slot has no owner, or the owner's timeout has expired, a write succeeds and the writer becomes the owner.
+- A write by the owner succeeds and restarts its timeout.
+- A write by any other connection fails with [`007`](https://ghoti.miocevic.com/docs/reference/errors/#error-007) (WRITE_FAILED).
+- Anyone with read permission can read the value. Reads don't extend ownership. The value stays readable after ownership expires.
+
+Captured with two `nc` sessions, A and B, against `timeout: 10`:
+
+```text
+# A takes the lease
+> w001node-a
+< v001node-a
+# B tries and is refused, but can read the owner
+> w001node-b
+< e001007
+> r001
+< v001node-a
+# A closes its connection; B is still refused
+> w001node-b
+< e001007
+# 10 seconds later
+> w001node-b
+< v001node-b
+```
+
+### Ownership caveats
+
+- **The owner is the TCP connection**, not the user or the host. Two connections from the same process or the same user are two different owners.
+- **A lost connection doesn't release the slot.** Only the timeout does. A client that reconnects right after a drop is a new owner, and its writes fail with `007` for the rest of the timeout. The timeout is effectively the recovery time after a crash, so pick it with that in mind.
+- **There is no release command.** An owner that wants to hand over can only stop writing and let the timeout expire.
+- **A Ghoti restart forgets the owner.** State is in memory only, so after a restart the first connection to write becomes the owner, even if another client still believes it holds the lease.
+- **There is no fencing token.** An old owner that was paused (for example by a long GC pause) and has not noticed that its lease expired can still act on its old belief.
+- **Over HTTP every request is its own connection**, so no HTTP client can own the slot across two writes. Use the `standard` or `telnet` transport.
+
+## Token bucket
+
+`kind: token_bucket`. A classic token bucket for rate limiting. A fleet of API servers can share one bucket to enforce a single limit on calls to an upstream.
+
+| Option | Required | Description |
+|---|---|---|
+| `bucket_size` | Yes | Maximum number of tokens the bucket holds. At least 1. |
+| `period` | Yes | Refill period: `second`, `minute` or `hour`. |
+| `refresh_rate` | No, default 1 | Tokens added every period. Between 1 and `bucket_size`. |
+| `tokens_per_req` | No, default 1 | Most tokens handed out by one read. Between 1 and `bucket_size`. A client can take several tokens per call and use them locally, which cuts the number of requests. |
+
+```yaml
+slot_002:
+  kind: token_bucket
+  bucket_size: 200   # allow bursts of up to 2x
+  period: second
+  refresh_rate: 100  # 100 tokens per second
+```
+
+- A read takes `tokens_per_req` tokens, or as many as are left if fewer, and returns how many it took. `0` means the bucket is empty.
+- The bucket starts with `refresh_rate` tokens (one period's worth), not full.
+- `refresh_rate` tokens are credited for every period that has passed, up to `bucket_size`, so tokens accumulate while the bucket is idle. Periods are aligned to the clock: they start at the beginning of each second, minute or hour, not at the time of the first read.
+- Writes are not allowed. Every write is rejected with [`006`](https://ghoti.miocevic.com/docs/reference/errors/#error-006) (WRITE_PERMISSION), or `403` over HTTP.
+- Every read consumes tokens, so a read is [not safe to retry](https://ghoti.miocevic.com/docs/protocol/#retries-and-idempotency).
+
+## Leaky bucket
+
+`kind: leaky_bucket`. A bucket that leaks one token every `refresh_rate` milliseconds. Each read tries to add a token: if there is room, the request is accepted. Once the bucket is full, requests are rejected until a token leaks out. The bucket size allows bursts, after which requests are accepted at the constant leak rate. Set `bucket_size: 1` to allow no burst.
+
+| Option | Required | Description |
+|---|---|---|
+| `bucket_size` | Yes | Capacity of the bucket. At least 1. |
+| `refresh_rate` | No, default 1000 | Milliseconds between leaked tokens. At least 1. |
+
+```yaml
+slot_003:
+  kind: leaky_bucket
+  bucket_size: 100
+  refresh_rate: 1000
+```
+
+- A read returns `1` if the request was accepted and `0` if it was rejected.
+- Writes are rejected with `006` (WRITE_PERMISSION).
+- Every accepted read fills the bucket, so a read is not safe to retry.
+
+## Ticker
+
+`kind: ticker`. A watchdog countdown, as in embedded circuits and microcontrollers. The slot holds a non-negative integer that goes down by one every `refresh_rate` milliseconds until it reaches zero. Writing a value restarts the countdown from that value.
+
+| Option | Required | Description |
+|---|---|---|
+| `initial_value` | Yes | Starting value. Must not be negative. |
+| `refresh_rate` | Yes | Milliseconds per tick. At least 1. |
+
+Both options are required. A ticker without either one is ignored and answers `005`, like any invalid slot.
+
+```yaml
+slot_004:
+  kind: ticker
+  initial_value: 600
+  refresh_rate: 1000
+```
+
+- With `refresh_rate: 1000`, writing `600` and reading 9 minutes later returns about `60`. One minute after that it returns `0`.
+- The countdown is evaluated lazily: a read applies all the ticks that elapsed since the previous read. Reading more often doesn't make it go faster.
+- Ticks are aligned to multiples of `refresh_rate` on the clock, so the first tick after a write can come sooner than `refresh_rate`.
+- A write must be a non-negative decimal integer. Anything else is rejected with `007`.
+
+## Atomic counter
+
+`kind: atomic`. An integer counter that only goes up. Use it to hand out distinct numbers to concurrent workers. It has no options.
+
+```yaml
+slot_005:
+  kind: atomic
+```
+
+- **A read increments the counter and returns the new value.** A new slot returns `1` on the first read, `2` on the second, and so on. The counter never decrements.
+- A write sets the counter to a non-negative decimal integer, so after a write of `5` the next read returns `6`. A negative value or anything that isn't an integer is rejected with `007`.
+- When the counter reaches the largest signed 64-bit integer, the next read wraps it back to `0`.
+- Every read has a side effect, so a read must never be retried blindly.
+- The counter is in memory: a restart resets it to 0. Don't use it where numbers must stay unique across restarts.
+
+```text
+> r005
+< v0051
+> r005
+< v0052
+> w00541
+< v00541
+> r005
+< v00542
+> w005-1
+< e005007
+```
+
+## Broadcast
+
+`kind: broadcast`. A write is sent as an async event to **every connected client, including the one that wrote it**. No subscription is needed. Use it to push a signal, such as an ID or a "reload configuration" notice, to every instance. It has no options apart from `users`.
+
+```yaml
+slot_006:
+  kind: broadcast
+```
+
+The event is `a`, the slot number and the value. The writer gets its own event too, before the confirmation:
+
+```text
+> w006deploy-42
+< a006deploy-42
+< v0062/2/0
+```
+
+The confirmation is `received/sent/errors`:
+
+- `received`: how many clients confirmed the event.
+- `sent`: how many clients it was dispatched to. On TCP this is every connection open at that moment, including the writer.
+- `errors`: deliveries that failed, or that weren't confirmed within 200 ms. `received + errors` always equals `sent`.
+
+Ghoti only answers the write once every delivery is confirmed or the 200 ms wait is over, so many clients, or slow ones, delay the confirmation.
+
+- **At most once.** One attempt per client and no retries. A client that is slow, disconnecting or whose queue is full misses the event. Like Redis Pub/Sub or Core NATS, it is not a durable queue.
+- A read returns the last value written.
+- Every write sends the event again, so a write is not safe to retry.
+- Events reach every connection, whatever the slot's read permissions are. The `users` map controls who can read and write the slot, not who receives its events.
+- Over the `http` transport, a `GET` on a broadcast slot opens a [Server-Sent Events](https://ghoti.miocevic.com/docs/protocol/transports/#server-sent-events) stream, and events go to the open streams only.
+
+## Multicast
+
+`kind: multicast`. Like broadcast, but the event only goes to the clients that joined the slot's group with `s`. A client leaves the group with `d`.
+
+| Option | Required | Description |
+|---|---|---|
+| `timeout` | No, default 200 | Milliseconds to wait for subscribers to confirm an event. At least 1. Note that this is milliseconds, unlike `timeout_memory`'s seconds. |
+| `dereg_tries` | No, default 3 | Consecutive failed deliveries after which a subscriber is removed from the group. At least 1. |
+
+```yaml
+slot_007:
+  kind: multicast
+  timeout: 200
+  dereg_tries: 3
+```
+
+Captured with a subscriber X and a writer B:
+
+```text
+# X joins
+> s007
+< v0071
+# B writes; only X receives the event
+> w007cache-flush
+< v0071/1/0
+# B joins too, then writes again
+> s007
+< v0071
+> w007hi
+< a007hi
+< v0072/2/0
+```
+
+- `s` answers `1` and `d` answers `0`: whether the connection is a member now. Both are idempotent and need read permission.
+- A write answers `received/sent/errors`, counting group members only. With no members, the answer is `0/0/0`.
+- A member that fails `dereg_tries` deliveries in a row, for example because it disconnected without `d`, is removed from the group.
+- Delivery is at most once, with no retries, exactly as for broadcast.
+- A read returns the last value written.
+- Groups can't be joined over the `http` transport.
+
+## Planned: random signal propagation
+
+Planned A slot kind that delivers each write to one subscriber chosen at random, instead of to all of them. **It is not implemented**, and a slot configured with an unknown kind is ignored.
+
+
+---
+
+# Authentication
+
+URL: https://ghoti.miocevic.com/docs/authentication/
+
+Define users in the configuration, give each slot a list of users and permissions, and have clients log in with `u` and `p`.
+
+> **The password travels in cleartext**
+>
+> No Ghoti listener implements TLS, so the `p` command, and the HTTP Basic Auth header on the `http` transport, carry the password in the clear. Anyone who can observe the traffic can read it. Terminate TLS in a reverse proxy or load balancer in front of the server, or keep the traffic on loopback or an equivalent trusted network. See [SECURITY.md](https://github.com/dankomiocevic/ghoti/blob/main/SECURITY.md) for the full security model.
+
+## Users
+
+Define users and passwords in a top-level `users` map:
+
+```yaml
+users:
+  my_service: "my_password"
+  other_service: "another_password"
+  upstream: "123456"
+```
+
+Usernames and passwords follow the [login rules](https://ghoti.miocevic.com/docs/authentication/#login-rules) below. A user that breaks them stops the server at startup.
+
+The `users` block is read as a map, and map entries **can't** be injected from `GHOTI_` environment variables, so user passwords have to come from the configuration file. Keep that file outside the repository, owned by the service user and readable only by it. See SECURITY.md.
+
+## Slot permissions
+
+Each slot can have its own `users` map, giving each user one of three permissions:
+
+| Value | Permission |
+|---|---|
+| `r` | Read only |
+| `w` | Write only |
+| `a` | All: read and write |
+
+```yaml
+slot_001:
+  kind: simple_memory
+  users:
+    my_service: "r"
+    other_service: "w"
+    upstream: "a"
+
+slot_002:
+  kind: simple_memory
+  users:
+    my_service: "a"
+
+slot_003:
+  kind: simple_memory
+```
+
+With this configuration `my_service` can read slots 001 and 002 but only write slot 002.
+
+> **A slot without a `users` map is open to everyone**
+>
+> Slot 003 above has no users, so anyone can read and write it, logged in or not. As soon as a slot has a `users` map, anonymous connections and unlisted users can't use it.
+
+- A read without read permission fails with [`008`](https://ghoti.miocevic.com/docs/reference/errors/#error-008) (READ_PERMISSION), and a write without write permission with [`006`](https://ghoti.miocevic.com/docs/reference/errors/#error-006) (WRITE_PERMISSION). Over HTTP both are `403`.
+- `s` and `d` need read permission.
+- Broadcast events reach every connection, and every SSE stream, regardless of the slot's permissions. Permissions control who can read and write a broadcast slot, not who receives its events. Don't put anything in a broadcast slot that every connected client must not see.
+
+## Logging in
+
+On `standard` and `telnet`, a client logs in with `u` followed by the username, then `p` followed by the password. Both answer `v` and the username:
+
+```text
+> umy_service
+< vmy_service
+> pmy_password
+< vmy_service
+> w000secret
+< v000secret
+```
+
+Every later command on that connection runs as the logged-in user. On the `http` transport there is no login exchange: send the credentials as an HTTP Basic Auth header on every request. A request without the header is anonymous, and a request with wrong credentials gets `401`.
+
+## Login rules
+
+A client has to follow these rules exactly:
+
+- **Send both commands, in order.** `u` only records the name on the connection. It doesn't check the name against the configured users, so `u` with an unknown name still answers `v` and that name. Credentials are only verified when `p` arrives. A connection that sends `u` and never sends `p` stays anonymous.
+- **Username and password must each be at least 4 bytes long**, and at most 39, the limit of a 40-byte request. The username must also match `^[a-zA-Z][a-zA-Z0-9_]*$`: it starts with a letter and continues with letters, digits or underscores.
+- **Any login failure closes the connection.** The server writes the error and disconnects, so the client has to open a new connection to try again. This applies to a malformed username ([`002`](https://ghoti.miocevic.com/docs/reference/errors/#error-002)), a password that is too short ([`003`](https://ghoti.miocevic.com/docs/reference/errors/#error-003)), and a username and password that don't match the configuration ([`004`](https://ghoti.miocevic.com/docs/reference/errors/#error-004)).
+- A `p` request shorter than the 4-byte protocol minimum, such as `pab`, is a parse error (`exxx001`) rather than `003`, and the connection stays open.
+- Sending `u` again on an authenticated connection **drops the authentication**: the connection is anonymous until a matching `p` is accepted.
+
+Captured failures, each on a new connection:
+
+```text
+> umy_service
+< vmy_service
+> pwrong_pass
+< exxx004
+# connection closed
+
+> u1bad
+< exxx002
+# connection closed
+```
+
+
+---
+
+# Operations
+
+URL: https://ghoti.miocevic.com/docs/operations/
+
+What you need to run Ghoti somewhere other than your laptop: metrics, connection limits, process lifecycle and TLS.
+
+## Prometheus metrics
+
+Ghoti can expose runtime metrics for [Prometheus](https://prometheus.io/). When enabled, a dedicated HTTP listener serves `GET /metrics` in the Prometheus text exposition format. It is disabled by default.
+
+```yaml
+metrics:
+  enabled: true
+  addr: "127.0.0.1:9100"   # host:port where GET /metrics is served
+```
+
+| Key | Description |
+|---|---|
+| `metrics.enabled` | Enables metrics collection and the `/metrics` endpoint. Default `false`. |
+| `metrics.addr` | `host:port` of the metrics listener. Required when enabled. |
+
+The endpoint is unauthenticated, so bind it to a private interface or firewall it as you would any Prometheus target. Scrape it with a standard job:
+
+```yaml
+scrape_configs:
+  - job_name: ghoti
+    static_configs:
+      - targets: ["127.0.0.1:9100"]
+```
+
+Besides the standard Go runtime (`go_*`) and process (`process_*`) collectors, Ghoti exposes:
+
+| Metric | Type | Description |
+|---|---|---|
+| `ghoti_connected_clients` | gauge | Number of currently connected clients. |
+| `ghoti_requests_total` | counter | Total number of requests processed. Use `rate()` for requests per second. |
+| `ghoti_request_duration_seconds` | histogram | Request processing time in seconds, with buckets from 50 µs to 1 s. Use `histogram_quantile()` for tail latency. |
+
+For example, requests per second and p99 processing time over the last five minutes:
+
+```text
+rate(ghoti_requests_total[5m])
+histogram_quantile(0.99, rate(ghoti_request_duration_seconds_bucket[5m]))
+```
+
+Before version 0.2, metrics were written to files. The old keys (`output_dir`, `rotation`, `retain`, `interval`) are now rejected at startup so the change isn't missed.
+
+## Connection limits
+
+By default Ghoti accepts as many client connections as the operating system allows. `max_connections` caps how many can be open at once, on every transport:
+
+```yaml
+max_connections: 1000
+```
+
+- When the cap is reached, new connections are **not refused**. They complete the TCP handshake and wait in the kernel's accept queue until a connection closes, so a client sees a connect that succeeds and a first response that is delayed.
+- Over `http` the cap also counts SSE subscribers, because each stream holds a connection for as long as it is open.
+- `0`, the default, means no cap. A negative value stops the server at startup.
+
+## Deployment
+
+- **One process, one binary.** Download a [release archive](https://ghoti.miocevic.com/docs/getting-started/#install), put `config.yaml` in `/etc/ghoti`, and start `ghoti run` under your process supervisor. Logs go to standard output, in `text` or `json` format.
+- **Bind deliberately.** The default `addr` is `localhost:9090`, reachable from the same host only. Prefer a specific private interface over `0.0.0.0` when other hosts need access, and put TLS in front of it (below).
+- **Plan for restarts.** A restart empties every slot, drops every subscription and forgets every `timeout_memory` owner. Clients must reconnect, log in again and subscribe again.
+- **Shutdown.** `SIGINT` or `SIGTERM` stops the server. It logs `Shutting down server` and closes the listeners and connections.
+- **Single point of failure.** A standalone server is one. The [experimental cluster mode](https://ghoti.miocevic.com/docs/cluster/) adds failover, but the new leader starts empty.
+
+When `ghoti run` fails to start, the exit status tells you which step failed:
+
+| Exit status | Cause |
+|---|---|
+| `1` | The configuration couldn't be loaded or is invalid. |
+| `3` | The cluster couldn't be created: an unsupported `cluster.manager.type`, or `cluster.user` or `cluster.pass` shorter than 4 characters. A failed join does *not* stop the server; see [Cluster](https://ghoti.miocevic.com/docs/cluster/#lifecycle). |
+| `4` | The server couldn't start listening on `addr`. |
+| `5` | The metrics listener couldn't start. |
+
+## TLS
+
+**Ghoti has no TLS on any listener**: not the protocol port, not the HTTP and SSE transport, not the cluster manager, and not the metrics endpoint. On these connections, the `p` command, the HTTP Basic Auth header and the cluster credentials all travel in cleartext.
+
+For any deployment that isn't entirely local:
+
+- Terminate TLS in external infrastructure, such as a load balancer, a reverse proxy or a service mesh sidecar, in front of every listener, and keep the plaintext hop between the proxy and Ghoti on loopback.
+- For cluster traffic between nodes, use mutual TLS, a VPN or another encrypted transport. The cluster credentials are shared by every node, so a single observed request compromises the whole cluster.
+- Otherwise keep all traffic on a trusted network, and never expose a plaintext listener to an untrusted one.
+
+The full security model, and how to report a vulnerability, are in [SECURITY.md](https://github.com/dankomiocevic/ghoti/blob/main/SECURITY.md).
+
+
+---
+
+# Cluster Experimental
+
+URL: https://ghoti.miocevic.com/docs/cluster/
+
+A Ghoti cluster elects one leader among several nodes, so a client can fail over to another node. It does **not** replicate data: when a node takes over as leader, it starts with every slot empty.
+
+> **Clustering is experimental**
+>
+> - Leader election uses the bully algorithm. There is **no replication and no quorum**.
+> - **Split-brain is possible** under network partitions: several nodes can act as leader at once.
+> - Heartbeat and election timeouts are fixed and can't be configured.
+> - A node that fails to join doesn't retry.
+
+## Why a cluster
+
+A cluster exists for availability, not durability. Ghoti doesn't persist data, so there is no data worth replicating, and replication would cost performance. When the leader fails, another node takes its place with a clean state.
+
+Two nodes is the suggested default, for two reasons:
+
+- **Deployments with minimal downtime.** Replace one node, let it become leader, then replace the other.
+- **Failover.** If one node has a problem, the other can take over.
+
+If something goes really wrong, for example a failed deployment, the impact is a longer downtime. If the time it takes to bring up a replacement node is too long, add a third node.
+
+## Architecture
+
+### Bully election
+
+Ghoti uses a [bully election](https://en.wikipedia.org/wiki/Bully_algorithm). The core rule: **the reachable node with the highest node ID, compared as strings, wins**.
+
+1. When a follower sees that the leader is unreachable (a failed heartbeat), it starts an election.
+2. It sends an election message to every peer with a **higher** ID.
+3. If any higher-ID peer responds, the node backs off and waits for that peer to declare itself leader.
+4. If no higher-ID peer responds, the node declares itself leader and sends a coordinator message to all peers.
+5. A node that receives a coordinator message accepts the sender as the new leader.
+6. A node that receives an election message from a lower-ID peer responds OK and starts its own election.
+
+### Components
+
+- **`Cluster` interface**: `Start`, `Join`, `Remove`, `IsLeader`, `GetLeader`, `Shutdown`.
+- **`BullyCluster`**: the implementation, with election logic, peer tracking, heartbeat monitoring and election coordination.
+- **`MembershipManager`**: the abstraction for cluster membership. The only implementation is `joinServer`.
+- **`joinServer`**: an HTTP server on each node that handles join requests, node removal, election messages, coordinator announcements and heartbeats.
+- **`EmptyCluster`**: a no-op used when clustering is disabled. It always reports itself as leader, so a standalone server serves every request.
+
+### Inter-node communication
+
+Nodes talk over HTTP. Each node's `joinServer` listens on `cluster.manager.addr` and exposes:
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/join` | POST | Register a new node in the cluster |
+| `/remove` | POST | Remove a node from the cluster (leader only) |
+| `/election` | POST | Bully election message: "I am starting an election" |
+| `/coordinator` | POST | Leader announcement: "I am the new leader" |
+| `/heartbeat` | GET | Health check used by followers to verify the leader is up |
+| `/leader` | GET | Leader check for external load balancers (opt-in) |
+
+Every endpoint except `/heartbeat` and `/leader` requires HTTP Basic Auth with the cluster credentials. Any other path returns `404`. This traffic is not encrypted: see [TLS](https://ghoti.miocevic.com/docs/operations/#tls).
+
+## Configuration
+
+The `cluster` section is optional. Without it, the server runs standalone.
+
+| Key | Required | Description |
+|---|---|---|
+| `cluster.node` | Yes | Unique node ID, at most 20 characters. Decides election priority. |
+| `cluster.user` | Yes | Username for inter-node authentication, at least 4 characters. |
+| `cluster.pass` | Yes | Password for inter-node authentication, at least 4 characters. Set it with `GHOTI_CLUSTER_PASS` to keep it out of the file. |
+| `cluster.manager.type` | Yes | Membership manager. Only `join_server` is supported. |
+| `cluster.manager.addr` | Yes | Address this node's cluster HTTP server listens on. |
+| `cluster.manager.join` | No | Manager address of an existing node to join. Leave it empty to bootstrap a new cluster. |
+| `cluster.leader.enabled` | No | Serve `GET /leader` for load balancers. Default `false`. |
+| `cluster.bind` | No | **Parsed but not used by the server.** It has no effect. Clients connect to each node's top-level `addr`. |
+
+Each node serves clients on its own top-level `addr`, like a standalone server.
+
+### Bootstrap node
+
+```yaml
+addr: localhost:9091
+cluster:
+  node: node1
+  user: cluster_user
+  pass: cluster_pass
+  manager:
+    type: join_server
+    addr: localhost:2222
+```
+
+Without `cluster.manager.join`, the node bootstraps as leader of a new single-node cluster.
+
+### Joining node
+
+```yaml
+addr: localhost:9092
+cluster:
+  node: node2
+  user: cluster_user
+  pass: cluster_pass
+  manager:
+    type: join_server
+    addr: localhost:2223
+    join: localhost:2222
+```
+
+`join` points to the manager address of any existing member. On startup, the joining node sends a `/join` request and receives the current peer list and the leader's identity.
+
+## Routing traffic to the leader
+
+Only the leader serves client requests. **Followers don't redirect or proxy.** They answer every command with error `000` (NOT_LEADER), followed by the leader's node ID. The client has to connect to the leader itself:
+
+```text
+# connected to node2 (follower)
+> w000x
+< exxx000node1
+```
+
+Over the `http` transport, a follower answers `503`. The node ID is a name, not an address, so clients need their own mapping from node IDs to addresses.
+
+### Leader endpoint for load balancers
+
+To put a load balancer in front of the cluster, enable the leader endpoint on every node:
+
+```yaml
+cluster:
+  node: node1
+  user: cluster_user
+  pass: cluster_pass
+  manager:
+    type: join_server
+    addr: "0.0.0.0:2222"
+  leader:
+    enabled: true
+```
+
+It serves `GET /leader` on `cluster.manager.addr`:
+
+| Node state | Status | Body |
+|---|---|---|
+| Leader | `200` | `leader` |
+| Follower | `503` | `not leader: <node ID>` |
+| Flag not set | `404` | Empty |
+
+```sh
+$ curl -s localhost:2222/leader
+leader
+$ curl -s localhost:2223/leader
+not leader: node1
+```
+
+Point the load balancer's health check at `/leader`. Every follower fails the check and drops out of rotation, so traffic converges on the leader and follows it after a failover.
+
+- The endpoint is **unauthenticated**, because health checks can't send credentials. It only reveals which node is the leader, but it is served on the inter-node port, so the load balancer needs network access to that port. Make that port reachable from the load balancer only.
+- It only exists on nodes with a `cluster` section. A standalone node never answers it.
+
+## Node IDs and election priority
+
+Node IDs are compared **as strings**, and the highest wins:
+
+- `"node3"` beats `"node2"`, which beats `"node1"`.
+- `"z"` beats `"a"`.
+- `"node10"` beats `"node1"`, but **loses** to `"node9"` and to `"node2"`, because the comparison stops at the first different character and `"1"` sorts before `"2"` and `"9"`.
+
+Use zero-padded IDs such as `node01`, `node02` or `node10` to get the order you expect.
+
+## Cluster lifecycle
+
+### Starting a cluster
+
+1. Start the first node **without** `cluster.manager.join`. It bootstraps as leader.
+2. Start the other nodes **with** `cluster.manager.join` pointing to an existing node's manager address.
+3. Each joining node receives the full peer list and the leader's identity.
+4. The existing node notifies every other peer about the new node.
+
+> **A failed join is not reported**
+>
+> If the join request fails, for example because the bootstrap node isn't up yet, the node **keeps running without logging an error**. It never learns a leader and has no cluster HTTP server, so it answers every command with `exxx000` followed by an empty leader ID and doesn't answer `/leader`. There is no retry: restart the node once the node it joins is reachable.
+
+### Heartbeat monitoring
+
+Followers check the leader every **2 seconds** with a `GET` to its `/heartbeat` endpoint. A connection error or a non-200 response starts an election. The heartbeat request has a **2-second timeout**, so a leader that is slow to answer also triggers an election.
+
+### Leader failover
+
+1. One or more followers detect the failed heartbeat.
+2. Each of them starts a bully election and sends election messages to all peers with higher IDs.
+3. A follower that hears back from a higher-ID peer backs off.
+4. The highest-ID reachable node declares itself leader and broadcasts a coordinator message.
+5. Every node updates its leader. The new leader starts with every slot empty.
+
+### Graceful shutdown
+
+On shutdown a node marks itself down, so its heartbeat answers `503`, closes its cluster server and waits for its background work to finish. If the leader shuts down, followers see the failed heartbeat and elect a new leader.
+
+## Failure scenarios
+
+### Leader crashes
+
+Followers notice within about 2 to 4 seconds (one heartbeat interval plus the request timeout), and the highest-ID surviving node becomes leader. Until then, requests to the crashed leader fail, and followers answer `NOT_LEADER` with the old, unreachable leader's ID. Afterwards, clients can reconnect to the new leader. All data on the crashed leader is lost.
+
+### Follower crashes
+
+The cluster keeps working. The leader doesn't monitor followers, it only keeps them in its peer list. Redundancy is reduced: if the leader fails later, fewer nodes can take over. The crashed follower stays in the peer list until it is removed with `/remove`.
+
+### Network partition: full split
+
+No node can reach any other. Every follower sees the heartbeat fail and starts an election. Higher-ID peers are unreachable, so **every node declares itself leader**. This is split-brain: several leaders accept writes independently. When the network heals, the nodes still believe they are leaders until a heartbeat detects the conflict and triggers a new election, or until the cluster is reconfigured. Data written to the leaders that lose is gone.
+
+### Network partition: partial split
+
+Some nodes can reach each other but not the leader. They elect the highest-ID node of their partition, while the original leader keeps serving whoever can still reach it. Again several leaders can exist at once, and clients in different partitions write to different leaders. Once connectivity returns, the election eventually settles on the highest-ID node, but data written to the losing leader isn't transferred.
+
+### Clients reach all nodes, nodes can't reach each other
+
+The worst case: every follower elects itself, so every node is an independent leader, and clients can write to any of them. When inter-node traffic returns, elections settle on one leader, and the data on the others becomes unreachable. Clients should handle `NOT_LEADER` by reconnecting to the reported leader once the cluster is stable.
+
+### A node joins with a higher ID
+
+The new node joins as a follower and accepts the current leader, as told by the join response. It doesn't start an election. If the current leader fails later, the higher-ID node wins the election, as the bully algorithm expects.
+
+### A failed leader rejoins
+
+A crashed leader that rejoins with the same or a higher ID contacts an existing node through `/join`, receives the peer list and the current leader, and becomes a follower. It doesn't reclaim leadership because of its ID. If an election happens later, it wins it, and serves requests with an empty state.
+
+### All nodes restart at once
+
+The node without `cluster.manager.join` starts as leader. The others try to join through their configured address. If the bootstrap node isn't ready when they try, their join fails and, as described [above](https://ghoti.miocevic.com/docs/cluster/#lifecycle), they keep running without a leader until they are restarted. Start the bootstrap node first. All data is lost.
+
+### Slow leader
+
+A leader that takes more than 2 seconds to answer a heartbeat looks dead to the followers, and they start an election. The highest-ID node wins, which may be the slow leader itself. The cluster then returns to the same state after a short period of instability, during which followers can report a stale leader.
+
+### Credential mismatch
+
+A node with a different `cluster.user` or `cluster.pass` is rejected with `400` on its join request and on any election or coordinator messages. It can't take part in the cluster.
+
+## Limitations
+
+- **No data replication.** A new leader starts empty. Availability is the goal, not durability.
+- **No join retry.** A node that can't reach its join address doesn't retry, and keeps running without a leader.
+- **No split-brain detection.** The bully algorithm doesn't detect or resolve split-brain. Elections converge once partitions heal, but data can be lost.
+- **String ordering of node IDs.** `"node10"` sorts below `"node2"` and `"node9"`. Use zero-padded IDs.
+- **No quorum.** A single node can declare itself leader if it can't reach any higher-ID peer. That keeps it available under partitions but exposes it to split-brain.
+- **Stale peer list.** Crashed nodes stay in the peer list until removed with `/remove` on the leader, so elections also message unreachable nodes, which makes them slower.
+- **Fixed timeouts.** The heartbeat interval (2 s), heartbeat timeout (2 s) and election timeout (3 s) are hard-coded.
+- **No redirects.** Followers answer `NOT_LEADER` with the leader's ID, and clients must connect to the leader themselves.
+
+
+---
+
+# Error codes
+
+URL: https://ghoti.miocevic.com/docs/reference/errors/
+
+Ghoti answers a failed command with a short code instead of a message, which keeps every response small.
+
+> **Source of truth**
+>
+> The authoritative list is [`internal/errs/README.md`](https://github.com/dankomiocevic/ghoti/blob/main/internal/errs/README.md). The server embeds that file at compile time and reads its codes from it, so the code and the list can't drift apart. This page is a copy of it. If they ever disagree, the file in the repository wins.
+
+## Format
+
+An error is `e`, three characters for the slot, and three digits for the code. For slot 135 and error 006:
+
+```text
+< e135006
+```
+
+Errors that aren't about a specific slot, such as a parse error, use `xxx` as the slot:
+
+```text
+< exxx001
+```
+
+An error can carry an argument after the code. In a cluster, a follower answers with `000` followed by the leader's node ID, so the client knows which node to contact:
+
+```text
+< exxx000node1
+```
+
+## Summary
+
+| Code | Name | Closes connection | HTTP status |
+|---|---|---|---|
+| [`000`](https://ghoti.miocevic.com/docs/reference/errors/#error-000) | NOT_LEADER | No | `503` |
+| [`001`](https://ghoti.miocevic.com/docs/reference/errors/#error-001) | PARSE_ERROR | No | `400` |
+| [`002`](https://ghoti.miocevic.com/docs/reference/errors/#error-002) | WRONG_USER | Yes | Not applicable |
+| [`003`](https://ghoti.miocevic.com/docs/reference/errors/#error-003) | WRONG_PASS | Yes | Not applicable |
+| [`004`](https://ghoti.miocevic.com/docs/reference/errors/#error-004) | WRONG_LOGIN | Yes | Not applicable (`401` for bad Basic Auth) |
+| [`005`](https://ghoti.miocevic.com/docs/reference/errors/#error-005) | MISSING_SLOT | No | `404` |
+| [`006`](https://ghoti.miocevic.com/docs/reference/errors/#error-006) | WRITE_PERMISSION | No | `403` |
+| [`007`](https://ghoti.miocevic.com/docs/reference/errors/#error-007) | WRITE_FAILED | No | `400` |
+| [`008`](https://ghoti.miocevic.com/docs/reference/errors/#error-008) | READ_PERMISSION | No | `403` |
+| [`009`](https://ghoti.miocevic.com/docs/reference/errors/#error-009) | WRONG_FORMAT | Reserved, not returned | Not applicable |
+| [`010`](https://ghoti.miocevic.com/docs/reference/errors/#error-010) | UNSUPPORTED_COMMAND | No | Not applicable |
+
+## 000: NOT_LEADER
+
+This node is not the leader. Send the command to the leader node.
+
+In cluster mode only the leader can be used to read and write. A follower answers every command with this error, followed by the name of the leader node:
+
+```text
+< exxx000nodeA
+```
+
+Here `nodeA` is the node to contact. How the client maps that name to an address depends on how the cluster and the client were set up. See [Routing traffic to the leader](https://ghoti.miocevic.com/docs/cluster/#routing-traffic-to-the-leader).
+
+## 001: PARSE_ERROR
+
+The message couldn't be parsed: it doesn't follow the [protocol](https://ghoti.miocevic.com/docs/protocol/). The cases that produce it are:
+
+- The message is not terminated correctly for the transport in use: a missing `\n` on `standard`, or a missing `\r\n` on `telnet`.
+- The message is shorter than 4 bytes (`q` excepted).
+- The message is longer than 40 bytes, not counting the terminator. This is measured in **bytes**, so a value with multi-byte characters reaches the limit sooner than its character count suggests.
+- The command byte is not a supported command.
+- For commands that address a slot, the three bytes after the command are not a decimal number.
+
+This error is never tied to a slot, so it is always `exxx001`.
+
+## 002: WRONG_USER
+
+The username is too short or contains invalid characters: it is shorter than 4 bytes, or doesn't match `^[a-zA-Z][a-zA-Z0-9_]*$` (a letter, then letters, numbers or underscores).
+
+The connection is closed after this error.
+
+## 003: WRONG_PASS
+
+The password is too short: it is shorter than 4 bytes, or the username set before it was invalid.
+
+The connection is closed after this error.
+
+## 004: WRONG_LOGIN
+
+No configured user matches the username and password sent.
+
+The connection is closed after this error.
+
+## 005: MISSING_SLOT
+
+The slot addressed by the command is not configured. The slot number is valid and in range, but no slot with that number is defined in the configuration. Unlike the login errors, this response carries the requested slot number rather than `xxx`, for example `e999005`.
+
+A slot whose definition is invalid is ignored at startup, so it also answers `005`. See [Slot reference](https://ghoti.miocevic.com/docs/configuration/slots/).
+
+## 006: WRITE_PERMISSION
+
+The logged-in user doesn't have permission to write this slot. If no user is logged in, the slot doesn't allow anonymous writes.
+
+Token bucket and leaky bucket slots can't be written at all, so every write to them gets this error.
+
+## 007: WRITE_FAILED
+
+The write was allowed, but the slot rejected it. Currently this happens when:
+
+- On a `timeout_memory` slot, the writing connection is not the owner and the owner's timeout hasn't expired yet.
+- On an `atomic` or `ticker` slot, the value written is not a non-negative decimal integer.
+
+This is not a permission error: `006` means the user may not write the slot at all, while `007` means the write was allowed but the slot rejected it.
+
+## 008: READ_PERMISSION
+
+The logged-in user doesn't have permission to read this slot. If no user is logged in, the slot doesn't allow anonymous reads. `s` and `d` need read permission too.
+
+## 009: WRONG_FORMAT
+
+The message doesn't have the right format.
+
+This code is **reserved and not returned** by the server: malformed messages are reported as `001`. It is kept so the code stays stable if the two cases are ever separated.
+
+## 010: UNSUPPORTED_COMMAND
+
+The command is not supported by this slot. `s` (subscribe) and `d` (deregister) only work on slots that manage a group of clients, such as multicast slots. Sending them to any other kind of slot returns this error.
+
+
+---
+
+# Contributing
+
+URL: https://ghoti.miocevic.com/docs/contributing/
+
+Ghoti is open source under the Apache-2.0 license, and development happens on [GitHub](https://github.com/dankomiocevic/ghoti). Issues and pull requests are welcome.
+
+## Build
+
+You need the Go version listed in [`go.mod`](https://github.com/dankomiocevic/ghoti/blob/main/go.mod). Every common task has a `make` target. Run `make help` to list them.
+
+```sh
+$ git clone https://github.com/dankomiocevic/ghoti.git
+$ cd ghoti
+$ make build        # binary in ./dist/ghoti, override with BUILD_DIR=...
+$ make install      # into $(go env GOPATH)/bin
+```
+
+To build without `make`:
+
+```sh
+$ go build ./cmd/ghoti
+$ ./ghoti run
+```
+
+## Test
+
+| Command | What it does |
+|---|---|
+| `make test` | All tests with the race detector and coverage. `FILTER="TestName"` runs matching tests only, and `SHORT=1` skips the integration tests. |
+| `make test-race` | Runs the tests several times under the race detector to observe more interleavings. Override `RACE_COUNT`, `RACE_PACKAGES` or `FILTER`. |
+| `make test-bench` | Runs the Go benchmark tests. |
+| `make lint` | Runs `golangci-lint` with the repository's `.golangci.yaml`. |
+
+Load tests and benchmark tooling live in a separate repository, [ghoti-bench](https://github.com/dankomiocevic/ghoti-bench). Its results are on the [Benchmarks](https://ghoti.miocevic.com/benchmarks/) page.
+
+## Continuous integration
+
+Every pull request runs the `Pull Request` workflow: `golangci-lint`, then `make test` with coverage uploaded to Codecov. The Release workflow runs the same checks on the tagged commit.
+
+## Releases
+
+Releases are built by GoReleaser in the Release workflow when a `v*` tag is pushed. The body of each release comes from its section in [`CHANGELOG.md`](https://github.com/dankomiocevic/ghoti/blob/main/CHANGELOG.md), so that section has to exist before the tag is pushed. To check the setup locally without publishing anything:
+
+```sh
+$ make release-check                 # validate .goreleaser.yaml
+$ make release-snapshot              # build every artefact into dist/
+$ make release-notes VERSION=v0.3.0  # print the changelog section for a version
+```
+
+## Documentation and this website
+
+This site is plain HTML and CSS in the [ghoti-docsy](https://github.com/dankomiocevic/ghoti-docsy) repository, with no build step. Each page is an `index.html` in the directory that matches its URL. Pushing to that repository's `main` branch publishes it to GitHub Pages.
+
+When a change affects behaviour, update the matching page too. The error codes are the exception: change [`internal/errs/README.md`](https://github.com/dankomiocevic/ghoti/blob/main/internal/errs/README.md) in this repository, which the server embeds as its source of truth, and copy the change into [Error codes](https://ghoti.miocevic.com/docs/reference/errors/).
+
+## Security issues
+
+Don't open a public issue for a vulnerability. Follow the reporting process in [SECURITY.md](https://github.com/dankomiocevic/ghoti/blob/main/SECURITY.md).
+
+
+---
+
+# Sub-millisecond answers from a 2-core, 1 GiB server.
+
+URL: https://ghoti.miocevic.com/benchmarks/
+
+Ghoti ran alone on an AWS **t4g.micro**, a small burstable Graviton instance, and a separate, bigger machine sent the load over the network. Every request was checked, and every number below can be reproduced with [ghoti-bench](https://github.com/dankomiocevic/ghoti-bench).
+
+0.29 ms
+
+Median round trip with one connection, network included
+
+memory-read, p50. p99.9 under 0.75 ms in every tested scenario.
+
+134,343 req/s
+
+Memory reads with 100 connections, on 2 cores
+
+Median of 3 runs of 5 minutes, with a 0.60 ms median round trip.
+
+7.6 µs
+
+Average time inside Ghoti per memory read
+
+Over 247,423,099 requests; 99.83% took under 50 µs.
+
+0 errors
+
+Over 255,244,437 requests in 21 runs
+
+Every value, counter and token bucket gave the answer it had to.
+
+Setup
+
+## A small server, a big load generator.
+
+Both instances run in the same subnet of one availability zone in AWS us-west-2. The generator is much bigger than the server, so the numbers measure Ghoti, not the benchmark.
+
+Load generator
+
+### c7g.xlarge
+
+4 Graviton3 cores, running ghoti-bench. A run only counts if the generator stayed under 80% CPU.
+
+Server
+
+### t4g.micro
+
+2 Graviton2 cores, 1 GiB of memory, unlimited CPU credits. The released v0.3.0 linux/arm64 binary, checked against the release checksums.
+
+- **One request in flight per connection.** Each connection sends a request, waits for the whole answer, checks it, and only then sends the next. That's the [only way Ghoti supports](https://ghoti.miocevic.com/docs/concepts/#one-request-in-flight).
+- **All connections opened first** and kept open for the whole run. A warm-up runs before every measurement and isn't counted.
+- **Two clocks.** The generator times every round trip, network included. Ghoti's own Prometheus histogram times each request inside the server.
+- **Strict validity.** A run counts only if no connection dropped, there were no errors, and the correctness checks passed.
+
+Latency with one connection
+
+## The fastest a client can get an answer.
+
+Measured on the client, so each time includes the network round trip between the two instances. Every tested scenario answers in about the same time, including atomic counters and token buckets that every connection shares.
+
+### Median round trip (p50)
+
+1 connection, milliseconds
+
+### Slowest 1 in 1,000 (p99.9)
+
+1 connection, milliseconds
+
+| Scenario | p50 ms | p90 ms | p99 ms | p99.9 ms |
+|---|---|---|---|---|
+| memory-read | 0.290 | 0.322 | 0.372 | 0.597 |
+| counter-hot | 0.282 | 0.309 | 0.368 | 0.747 |
+| counter-spread | 0.294 | 0.321 | 0.369 | 0.552 |
+| token-bucket-hot | 0.242 | 0.274 | 0.332 | 0.681 |
+| token-bucket-spread | 0.242 | 0.286 | 0.368 | 0.719 |
+
+`memory-read` reads a 36-byte value from a [simple memory](https://ghoti.miocevic.com/docs/configuration/slots/#simple-memory) slot.
+
+`counter-hot` increments one [atomic counter](https://ghoti.miocevic.com/docs/configuration/slots/#atomic) shared by every connection; `counter-spread` one of 100, chosen at random.
+
+`token-bucket-hot` takes a token from one shared [token bucket](https://ghoti.miocevic.com/docs/configuration/slots/#token-bucket) refilled at 1,000 per second; `token-bucket-spread` from one of 100 buckets at 10 per second each.
+
+Latency under load
+
+## Over 127,000 requests per second, still under a millisecond at the median.
+
+With 100 connections sending at full speed, every tested scenario served between 127,594 and 139,552 requests per second on the 2-core server, and half of the requests came back in about 0.6 ms. The slowest requests take a few milliseconds, because some requests wait for others to be answered first.
+
+### Median round trip (p50)
+
+100 connections, milliseconds
+
+### Requests per second
+
+100 connections
+
+| Scenario | Requests/s | p50 ms | p90 ms | p99 ms | p99.9 ms | Server CPU |
+|---|---|---|---|---|---|---|
+| memory-read | 134,343 | 0.600 | 1.101 | 3.541 | 7.123 | 82% |
+| counter-hot | 127,594 | 0.628 | 1.168 | 4.053 | 8.864 | 78% |
+| counter-spread | 134,746 | 0.602 | 1.092 | 3.494 | 7.881 | 83% |
+| token-bucket-hot | 139,552 | 0.588 | 1.075 | 3.379 | 7.803 | 86% |
+| token-bucket-spread | 139,188 | 0.591 | 1.081 | 3.238 | 7.520 | 86% |
+
+memory-read is the median of three runs; the other slot types are one run each, so differences of a few percent between them are within what one run can show.
+
+Time inside Ghoti
+
+## A few microseconds per request.
+
+Ghoti's own metrics time each request from the moment the complete request arrives until the answer is written to the connection. Almost all of a sub-millisecond round trip is the network, the operating systems and the client.
+
+These cover every request of each session, warm-ups and all connection counts included. The histogram's smallest bucket is 50 µs, so the shares below are bucket boundaries.
+
+| Session | Requests | Average | Under 50 µs | Under 1 ms |
+|---|---|---|---|---|
+| Memory reads | 247,423,099 | 7.6 µs | 99.83% | 99.97% |
+| Counters | 17,275,413 | 11.6 µs | 99.64% | 99.91% |
+| Token buckets | 17,976,490 | 11.2 µs | 99.65% | 99.92% |
+
+1,000 connections
+
+## Throughput holds; requests wait their turn.
+
+With 1,000 connections the server still served over 110,000 requests per second, using 88 to 90% of its 2 cores. The median round trip rises to about 8.4 ms. Ghoti isn't slower per request; 1,000 clients that each keep one request waiting share the same rate, so each waits about 1,000 / 112,647 ≈ 8.9 ms for its turn, which matches the measured average.
+
+### Requests per second
+
+1,000 connections
+
+### Median round trip (p50)
+
+1,000 connections, milliseconds
+
+Correctness
+
+## Fast only counts if it's right.
+
+Every memory read was compared byte by byte with the value the slot holds. Counters and token buckets change on every request, so they were checked after each run.
+
+### Atomic counters
+
+Read back after each run, every counter held exactly the number of increments the benchmark sent: nothing lost, nothing applied twice. That held in all 6 runs, up to 4,716,734 increments with 100 connections.
+
+### Token buckets
+
+Under constant load, each bucket handed out every token it refilled and never more than it can hold plus its refills. For example, the shared bucket at 1,000 tokens per second gave out exactly 30,000 tokens in the 30-second window with 100 and 1,000 connections.
+
+### Zero errors
+
+All 21 runs finished with 0 errors over 255,244,437 requests, and every connection stayed open for the whole run.
+
+Reading these numbers
+
+## What they do and don't tell you.
+
+- **Your network decides the round trip.** Both instances sat in one availability zone, the shortest network EC2 offers. Expect a different round trip from yours. The time inside Ghoti doesn't depend on the network.
+- **This is version 0.3.0** on one instance type, with the plain-text `standard` transport over TCP and no TLS. The `http` transport, broadcast and multicast slots, and clustering weren't measured.
+- **One run for most scenarios.** Only memory-read has three repetitions; counters and token buckets ran once for 30 seconds each.
+- **Maximums are higher.** The slowest single round trip of any run ranged from 5.7 ms with one connection to 255 ms with 1,000. They are in the [full table](https://ghoti.miocevic.com/benchmarks/#all-results).
+
+## Reproduce it.
+
+With AWS credentials, Go, ssh and curl, one script creates both instances, runs the benchmark, downloads the results and deletes everything it created, even when it fails. The memory session takes about an hour.
+
+```sh
+$ git clone https://github.com/dankomiocevic/ghoti-bench.git && cd ghoti-bench
+$ AWS_REGION=us-west-2 GHOTI_REF=v0.3.0 scripts/ec2-bench.sh
+```
+  [Read the full report ](https://github.com/dankomiocevic/ghoti-bench/blob/main/RESULTS.md) [ghoti-bench on GitHub](https://github.com/dankomiocevic/ghoti-bench)
+
+All results
+
+## Every case, in one table.
+
+Ghoti v0.3.0 on a t4g.micro: the median of the valid runs for every case. Max is the slowest round trip of any run.
+
+| Scenario | Conns | Runs | Requests/s | p50 ms | p90 ms | p99 ms | p99.9 ms | max ms | CPU | Errors |
+|---|---|---|---|---|---|---|---|---|---|---|
+| memory-read | 1 | 3 | 3,359 | 0.290 | 0.322 | 0.372 | 0.597 | 16.829 | 6% | 0 |
+| memory-read | 100 | 3 | 134,343 | 0.600 | 1.101 | 3.541 | 7.123 | 57.185 | 82% | 0 |
+| memory-read | 1,000 | 3 | 112,647 | 8.376 | 11.190 | 18.694 | 26.231 | 255.356 | 89% | 0 |
+| counter-hot | 1 | 1 | 3,453 | 0.282 | 0.309 | 0.368 | 0.747 | 9.754 | 6% | 0 |
+| counter-hot | 100 | 1 | 127,594 | 0.628 | 1.168 | 4.053 | 8.864 | 74.566 | 78% | 0 |
+| counter-hot | 1,000 | 1 | 110,026 | 8.552 | 11.502 | 19.300 | 36.078 | 71.779 | 88% | 0 |
+| counter-spread | 1 | 1 | 3,320 | 0.294 | 0.321 | 0.369 | 0.552 | 5.697 | 6% | 0 |
+| counter-spread | 100 | 1 | 134,746 | 0.602 | 1.092 | 3.494 | 7.881 | 51.752 | 83% | 0 |
+| counter-spread | 1,000 | 1 | 112,955 | 8.385 | 11.133 | 17.990 | 24.789 | 32.151 | 90% | 0 |
+| token-bucket-hot | 1 | 1 | 3,996 | 0.242 | 0.274 | 0.332 | 0.681 | 10.764 | 7% | 0 |
+| token-bucket-hot | 100 | 1 | 139,552 | 0.588 | 1.075 | 3.379 | 7.803 | 65.059 | 86% | 0 |
+| token-bucket-hot | 1,000 | 1 | 113,173 | 8.339 | 11.174 | 18.711 | 26.329 | 223.583 | 89% | 0 |
+| token-bucket-spread | 1 | 1 | 3,957 | 0.242 | 0.286 | 0.368 | 0.719 | 8.952 | 7% | 0 |
+| token-bucket-spread | 100 | 1 | 139,188 | 0.591 | 1.081 | 3.238 | 7.520 | 27.378 | 86% | 0 |
+| token-bucket-spread | 1,000 | 1 | 113,062 | 8.397 | 11.035 | 17.842 | 25.068 | 222.237 | 90% | 0 |
+
+Source: [ghoti-bench RESULTS.md](https://github.com/dankomiocevic/ghoti-bench/blob/main/RESULTS.md), Ghoti v0.3.0 benchmark report of 2026-11-19.
+
+
+---
+
+# Implementing leader election with Ghoti
+
+URL: https://ghoti.miocevic.com/blog/2025/07/25/implementing-leader-election-with-ghoti/
+
+Many distributed systems need one node to be "in charge": running a scheduled job, owning a shared resource, or coordinating the others. Consensus protocols like Raft or Paxos solve this properly, but they are a lot of machinery when all you need is "one worker at a time, most of the time".
+
+This post shows how to build simple leader election on a Ghoti `timeout_memory` slot, and, just as importantly, the cases where it is not safe.
+
+> **Updated for Ghoti 0.3**
+>
+> The first version of this post used the `type:` configuration key, the wrong error code, port 8080 and telnet against the default transport. It also claimed guarantees that a lease on a volatile server can't give. This version fixes all of that, and every transcript below was captured from a running server.
+
+## The building block: a lease
+
+A [`timeout_memory`](https://ghoti.miocevic.com/docs/configuration/slots/#timeout-memory) slot holds a value and remembers who wrote it:
+
+- **Ownership.** The connection that writes the slot becomes its owner. While it owns the slot, writes from any other connection fail with error `007`.
+- **Expiry.** If the owner doesn't write again within `timeout` seconds, ownership expires and the next writer takes over.
+- **Visibility.** Anyone can read the slot to see the current value.
+
+Store your node's ID as the value, and the owner of the slot is your leader.
+
+## Configuration
+
+```yaml
+slot_001:
+  kind: timeout_memory
+  timeout: 10   # seconds
+```
+
+Start the server with `ghoti run` from the directory that holds this `config.yaml`. It listens on `localhost:9090`.
+
+## The algorithm
+
+Every node runs the same loop on one long-lived connection:
+
+1. **Try to take the lease**: write your ID, `w001<your-id>`. If the answer is `v001<your-id>`, you are the leader.
+2. **If you got `e001007`**, someone else holds it. Read `r001` to see who, and try again later.
+3. **While you are leader, renew**: write your ID again well before the timeout, for example every third of it. Each successful write restarts the timeout.
+4. **If a renewal fails, or you can't reach Ghoti**, stop acting as leader immediately.
+
+## Try it with two terminals
+
+Use `nc`, which ends each line with a bare `\n` as the default `standard` transport expects. A telnet client sends `\r\n`, so it only works if you set `protocol: telnet` in the configuration.
+
+```sh
+$ nc localhost 9090
+```
+
+Node A takes the lease:
+
+```text
+> w001node-a
+< v001node-a
+```
+
+Node B, on its own connection, tries and is refused, but can see who the leader is:
+
+```text
+> w001node-b
+< e001007
+> r001
+< v001node-a
+```
+
+Node A renews its lease:
+
+```text
+> w001node-a
+< v001node-a
+```
+
+Now close node A's `nc` with `Ctrl`+`C`. Closing the connection does **not** release the lease, so B is still refused:
+
+```text
+> w001node-b
+< e001007
+```
+
+About 10 seconds after A's last write, B takes over:
+
+```text
+> w001node-b
+< v001node-b
+> r001
+< v001node-b
+```
+
+## Handing over
+
+There is no release command. A leader that shuts down gracefully stops renewing, and another node takes over once the timeout expires. Plan for a gap of up to one `timeout` in which nobody is leader.
+
+You can still publish your intent: the leader can write a value such as `w001leaving:node-a` so that other nodes reading the slot know a handover is coming. Ownership doesn't change until the timeout expires.
+
+## Where this approach stops being safe
+
+A lease on a volatile, single server is simple, but it isn't a consensus protocol. Know these limits before you rely on it.
+
+### A Ghoti restart forgets the owner
+
+Ghoti keeps everything in memory. If the server restarts, slot 001 comes back empty with no owner, and the first node to write becomes leader, while the old leader may still believe it holds the lease until its next renewal fails. **Around a restart, two nodes can both believe they are leader.** The same applies when a [Ghoti cluster](https://ghoti.miocevic.com/docs/cluster/) fails over, because the new leader starts empty.
+
+### There is no fencing token
+
+A leader that is paused, by a long garbage-collection pause, a stalled VM or a network hiccup, can wake up after its lease has expired and keep acting as leader until it tries to renew. Ghoti doesn't hand out a monotonically increasing token that downstream systems could use to reject the stale leader's work. If two leaders acting at the same time would corrupt data, this approach isn't enough on its own.
+
+### A crashed client waits out its own lease
+
+Ownership belongs to the TCP connection. A leader that crashes and reconnects comes back as a *new* connection, so its writes fail with `007` until its old lease expires. The timeout is effectively your recovery time: shorter means faster failover, but more risk of losing the lease during a pause.
+
+### Ghoti itself is a single point of failure
+
+While Ghoti is unreachable, nobody can take or renew the lease. Followers must treat "can't reach Ghoti" as "not leader".
+
+### Other details
+
+- Leases don't work over the `http` transport, where every request is a new connection.
+- Pick a timeout that is much longer than your renewal interval plus the worst network delay you expect.
+- The traffic isn't encrypted. Keep it on a trusted network or put TLS in front of Ghoti.
+
+## When to use it
+
+This pattern fits when an occasional overlap or gap in leadership is acceptable:
+
+- Running a periodic job on one node instead of all of them, where an occasional double run is harmless.
+- Picking one node to refresh a cache or push configuration updates.
+- Reducing duplicate work, rather than preventing it absolutely.
+
+Use a consensus system such as etcd or ZooKeeper, with fencing tokens, when two leaders at the same time would be a correctness bug, or when leadership must survive a restart of the coordinator.
+
+## Learn more
+
+- [Timeout memory reference](https://ghoti.miocevic.com/docs/configuration/slots/#timeout-memory), including all the ownership caveats.
+- [Protocol](https://ghoti.miocevic.com/docs/protocol/), for the exact framing, ordering and retry rules your client must follow.
+- [Volatile state](https://ghoti.miocevic.com/docs/concepts/#volatile-state), for what a restart means for every slot kind.

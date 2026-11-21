@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://ghoti.miocevic.com/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/benchmarks/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/blog/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/blog/2025/07/25/implementing-leader-election-with-ghoti/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/docs/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/docs/authentication/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/docs/cluster/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/docs/concepts/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/docs/configuration/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/docs/configuration/slots/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/docs/contributing/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/docs/getting-started/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/docs/operations/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/docs/protocol/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/docs/protocol/transports/</loc></url>
-  <url><loc>https://ghoti.miocevic.com/docs/reference/errors/</loc></url>
+  <url><loc>https://ghoti.miocevic.com/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/benchmarks/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/blog/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/blog/2025/07/25/implementing-leader-election-with-ghoti/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/docs/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/docs/authentication/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/docs/cluster/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/docs/concepts/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/docs/configuration/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/docs/configuration/slots/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/docs/contributing/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/docs/getting-started/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/docs/operations/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/docs/protocol/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/docs/protocol/transports/</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://ghoti.miocevic.com/docs/reference/errors/</loc><lastmod>2026-11-21</lastmod></url>
 </urlset>
