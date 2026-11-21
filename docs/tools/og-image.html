@@ -1,0 +1,24 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0}
+body{width:1200px;height:630px;overflow:hidden;background:#07080d;color:#eceef4;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;position:relative}
+.bg{position:absolute;inset:0;background:radial-gradient(45% 60% at 15% 20%,rgba(45,212,191,.28),transparent 70%),radial-gradient(40% 55% at 90% 15%,rgba(139,92,246,.30),transparent 70%),radial-gradient(35% 45% at 70% 100%,rgba(45,212,191,.14),transparent 70%)}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:60px 60px;-webkit-mask-image:radial-gradient(80% 80% at 40% 30%,#000 30%,transparent 80%)}
+.wrap{position:relative;padding:64px 72px;height:100%;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:16px;font-size:34px;font-weight:700;letter-spacing:-.02em}
+.brand img{width:64px;height:64px}
+.brand span{font:500 18px ui-monospace,Menlo,monospace;color:#7d8497;border:1px solid rgba(255,255,255,.16);padding:4px 12px;border-radius:99px}
+h1{margin-top:40px;font-size:62px;line-height:1.05;letter-spacing:-.045em;font-weight:750;max-width:1000px}
+h1 em{font-style:normal;background:linear-gradient(120deg,#5eead4,#2dd4bf 45%,#a78bfa);-webkit-background-clip:text;color:transparent}
+.tag{margin-top:20px;font-size:27px;color:#a3aabb;font-weight:500}
+.ev{margin-top:auto;display:flex;align-items:center;gap:24px;padding:20px 26px;border-radius:20px;border:1px solid rgba(45,212,191,.4);background:linear-gradient(90deg,rgba(45,212,191,.14),rgba(14,17,25,.9) 70%)}
+.fig{font-size:44px;font-weight:750;letter-spacing:-.03em;white-space:nowrap}
+.fig small{font-size:20px;color:#5eead4;font-weight:600;letter-spacing:0}
+.txt{font-size:20px;line-height:1.4;color:#a3aabb}.txt b{color:#eceef4;font-weight:600}
+.url{position:absolute;right:72px;top:76px;font:500 20px ui-monospace,Menlo,monospace;color:#7d8497}
+</style></head><body><div class="bg"></div><div class="grid"></div><div class="wrap">
+<div class="brand"><img src="../assets/img/logo.png" alt="">Ghoti<span>v0.3.0</span></div>
+<div class="url">ghoti.miocevic.com</div>
+<h1>Coordinate <em>rate limits, counters and signals</em> across your services.</h1>
+<p class="tag">One small server. A simple protocol. No client library required.</p>
+<div class="ev"><div class="fig">134,000 <small>memory reads/s</small></div><div class="txt">at <b>0.60 ms</b> median round trip with 100 connections,<br>on a <b>2-vCPU, 1-GiB</b> AWS t4g.micro · Ghoti v0.3.0 benchmark</div></div>
+</div></body></html>
