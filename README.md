@@ -5,13 +5,9 @@
 [![Codecov](https://img.shields.io/codecov/c/github/dankomiocevic/ghoti)](https://app.codecov.io/gh/dankomiocevic/ghoti)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dankomiocevic/ghoti/badge)](https://securityscorecards.dev/viewer/?uri=github.com/dankomiocevic/ghoti)
 
-**Your distributed system has a few problems that shouldn't be distributed.**
+**How much of your code exists only to make your servers agree with each other?**
 
-A rate limit that every instance has to respect. One worker that must be the only one doing the job. A counter everyone agrees on. A "deploy now" signal that has to reach every running process. Spreading these across a fleet usually means consensus protocols, locks and coordination code that is hard to get right and harder to test.
-
-Ghoti takes the other path: it keeps those few pieces of state in one small, fast place. It is a single binary with 1000 slots, each configured as a rate limiter, lease, counter or signal, and you talk to it over a plain-text protocol you can type into `nc`. On a 2-core AWS t4g.micro it serves over 134,000 reads per second, and spends about 8 microseconds on each one.
-
-The catch is deliberate: Ghoti forgets everything when it restarts. That keeps it fast and simple, and it makes you answer an honest question about your design: if this state disappeared, would your system survive?
+Shared rate limits, a single active worker, counters, "deploy now" signals: Ghoti keeps that state in one small server you can talk to with `nc`. It serves over 134,000 reads per second on a 2-core t4g.micro, and forgets everything on restart, by design.
 
 ## What you can use it for
 
