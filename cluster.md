@@ -1,8 +1,23 @@
 # Cluster Implementation
 
-Ghoti clusters provide high availability through leader election. Only the leader node processes client commands; follower nodes reject requests and redirect clients to the current leader. Ghoti does **not** replicate data between nodes — when a node takes over as leader, it starts with a clean state.
+Ghoti clusters provide high availability through leader election. Only the leader node processes client commands; follower nodes answer every command with a `NOT_LEADER` error that names the current leader, so clients can reconnect to it. Ghoti does **not** replicate data between nodes — when a node takes over as leader, it starts with a clean state. Cluster mode is **experimental**.
 
 This document describes the cluster architecture, configuration, and behavior under failure scenarios.
+
+## Why Leader Election and No Replication
+
+Ghoti clusters exist to increase availability, not durability. Ghoti does not persist data, so there is nothing a replica would need to recover, and replicating every write would cost performance. When a node fails, another node takes its place with a clean state.
+
+That is why Ghoti uses a bully election instead of a consensus protocol such as Raft: it only needs to agree on which node serves traffic. Log replication, the main feature that consensus protocols provide, is something Ghoti does not need.
+
+### Cluster Size
+
+A 2-node cluster is the suggested default configuration, for two reasons:
+
+- **Deployments with minimal downtime.** Replace one node, make it the leader, then replace the other one.
+- **Failover.** If one node has an issue, the other one can take over.
+
+If something goes really wrong, for example a failure during a deployment, the impact is a longer downtime. If the time needed to bring up a replacement node is too long, add a third node.
 
 ## Architecture Overview
 
@@ -57,7 +72,7 @@ Cluster configuration is provided via the Ghoti config file (YAML). The cluster 
 | Field                  | Required | Description                                                                 |
 |------------------------|----------|-----------------------------------------------------------------------------|
 | `cluster.node`         | Yes      | Unique node identifier (max 20 characters). Used for election comparison.   |
-| `cluster.bind`         | No       | Bind address for the Ghoti data server. Defaults to `localhost:25873`.       |
+| `cluster.bind`         | No       | Parsed but **currently unused**. The data server listens on the top-level `addr` (default `localhost:9090`), see [Server settings](reference/configuration.md#server-settings). |
 | `cluster.user`         | Yes      | Username for inter-node authentication (min 4 characters).                  |
 | `cluster.pass`         | Yes      | Password for inter-node authentication (min 4 characters).                  |
 | `cluster.manager.type` | Yes      | Membership manager type. Currently only `join_server` is supported.         |
@@ -68,9 +83,9 @@ Cluster configuration is provided via the Ghoti config file (YAML). The cluster 
 ### Example: Bootstrap Node (First Node)
 
 ```yaml
+addr: "localhost:9090"
 cluster:
   node: "node1"
-  bind: "localhost:25873"
   user: "cluster_user"
   pass: "cluster_pass"
   manager:
@@ -83,9 +98,9 @@ When `cluster.manager.join` is not set, the node bootstraps as leader of a new s
 ### Example: Joining Node
 
 ```yaml
+addr: "localhost:9091"
 cluster:
   node: "node2"
-  bind: "localhost:25874"
   user: "cluster_user"
   pass: "cluster_pass"
   manager:
@@ -93,6 +108,8 @@ cluster:
     addr: "localhost:2223"
     join: "localhost:2222"
 ```
+
+Both examples can run on one host: each node needs its own data `addr` and its own `cluster.manager.addr`. A client that sends a command to `node2` receives `exxx000node1`.
 
 The `join` field points to the manager address of any existing cluster member. On startup, the joining node sends a `/join` request and receives the current peer list and leader identity.
 
@@ -132,7 +149,7 @@ The node ID (`cluster.node`) directly determines election outcomes. Node IDs are
 
 - `"node3"` beats `"node2"` beats `"node1"`
 - `"z"` beats `"a"`
-- `"node10"` beats `"node1"` (but also beats `"node9"` — be careful with numeric suffixes and lexicographic ordering)
+- `"node10"` beats `"node1"`, but `"node9"` beats `"node10"`, because the strings are compared character by character and `"9"` is greater than `"1"`. Use zero-padded IDs such as `"node09"` and `"node10"`.
 
 Choose node IDs deliberately if you want predictable failover behavior.
 
