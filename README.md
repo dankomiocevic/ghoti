@@ -5,7 +5,13 @@
 [![Codecov](https://img.shields.io/codecov/c/github/dankomiocevic/ghoti)](https://app.codecov.io/gh/dankomiocevic/ghoti)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dankomiocevic/ghoti/badge)](https://securityscorecards.dev/viewer/?uri=github.com/dankomiocevic/ghoti)
 
-Ghoti is a single-binary, in-memory server that gives a fleet of services a few shared primitives: rate limiters, counters, leases and signals. You configure up to 1000 numbered slots in a YAML file, give each one a behaviour, and talk to them over a plain-text protocol that any language, or `nc`, can speak. All state lives in memory and is lost on restart, by design.
+**Your distributed system has a few problems that shouldn't be distributed.**
+
+A rate limit that every instance has to respect. One worker that must be the only one doing the job. A counter everyone agrees on. A "deploy now" signal that has to reach every running process. Spreading these across a fleet usually means consensus protocols, locks and coordination code that is hard to get right and harder to test.
+
+Ghoti takes the other path: it keeps those few pieces of state in one small, fast place. It is a single binary with 1000 slots, each configured as a rate limiter, lease, counter or signal, and you talk to it over a plain-text protocol you can type into `nc`. On a 2-core AWS t4g.micro it serves over 134,000 reads per second, and spends about 8 microseconds on each one.
+
+The catch is deliberate: Ghoti forgets everything when it restarts. That keeps it fast and simple, and it makes you answer an honest question about your design: if this state disappeared, would your system survive?
 
 ## What you can use it for
 
