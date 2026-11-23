@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://ghoti.miocevic.com/sitemap.xml
