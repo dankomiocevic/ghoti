@@ -9,6 +9,8 @@
 
 Shared rate limits, a single active worker, counters, "deploy now" signals: Ghoti keeps that state in one small server you can talk to with `nc`. It serves over 134,000 reads per second on a 2-core t4g.micro, and forgets everything on restart, by design.
 
+Examples and the full documentation are at [ghoti.miocevic.com](https://ghoti.miocevic.com).
+
 ## What you can use it for
 
 - **One rate limit shared by many instances.** Every API server takes tokens from the same [token bucket](reference/configuration.md#token-bucket-limiter) or [leaky bucket](reference/configuration.md#leaky-bucket-limiter) slot, so the limit holds no matter how many instances are running.
@@ -110,7 +112,7 @@ Plan for these properties before depending on Ghoti:
 
 ## Documentation
 
-The reference documentation lives in [`reference/`](reference/):
+The website at [ghoti.miocevic.com](https://ghoti.miocevic.com) has examples and the documentation in one place. The same reference documentation also lives in this repository, in [`reference/`](reference/):
 
 - <a name="protocol"></a><a name="framing-and-limits"></a><a name="commands"></a><a name="command-summary"></a><a name="protocol-variants"></a>**[Protocol](reference/protocol.md):** [framing and limits](reference/protocol.md#framing-and-limits), which commands are [safe to retry](reference/protocol.md#framing-and-limits), [commands](reference/protocol.md#commands), the [command summary](reference/protocol.md#command-summary) and the [transports](reference/protocol.md#protocol-variants): `standard`, `telnet` and `http` with Server-Sent Events.
 - <a name="configuration"></a><a name="server-settings"></a><a name="simple-memory-slot"></a><a name="timeout-memory-slot"></a><a name="token-bucket-limiter"></a><a name="leaky-bucket-limiter"></a><a name="broadcast-signal-propagation"></a><a name="multicast-signal-propagation"></a><a name="ticker-watchdog"></a><a name="atomic-counter-slot"></a><a name="connection-limits"></a>**[Configuration](reference/configuration.md):** [server settings](reference/configuration.md#server-settings) and environment variables, every slot kind ([simple memory](reference/configuration.md#simple-memory-slot), [timeout memory](reference/configuration.md#timeout-memory-slot), [token bucket](reference/configuration.md#token-bucket-limiter), [leaky bucket](reference/configuration.md#leaky-bucket-limiter), [broadcast](reference/configuration.md#broadcast-signal-propagation), [multicast](reference/configuration.md#multicast-signal-propagation), [ticker](reference/configuration.md#ticker-watchdog), [atomic counter](reference/configuration.md#atomic-counter-slot)) and [connection limits](reference/configuration.md#connection-limits).
