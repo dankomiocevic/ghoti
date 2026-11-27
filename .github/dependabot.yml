@@ -1,0 +1,20 @@
+# Dependabot keeps the Go modules and the GitHub Actions used by the
+# workflows up to date. Updates are grouped per ecosystem so each weekly
+# run opens at most one PR for Go and one for Actions.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      go-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
