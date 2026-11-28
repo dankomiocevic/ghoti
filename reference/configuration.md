@@ -11,7 +11,7 @@ This way the applications can use a single server to solve more than one problem
 
 ## Server settings
 
-The configuration is a YAML file named `config.yaml`, looked up in `/etc/ghoti`, then `$HOME/.ghoti`, then the current directory. If no file is found, the server exits with an error, it does not start with defaults. The file is only read at start-up, so a change needs a restart, which also clears every slot.
+The configuration is a YAML file named `config.yaml`, looked up in `/etc/ghoti`, then `$HOME/.ghoti`, then the current directory. If no file is found, the server exits with an error, it does not start with defaults. To use a file somewhere else, pass its path with `ghoti run --config /path/to/file.yaml`. When `--config` is set, the default locations are not searched, so a wrong path makes the server exit instead of picking up another `config.yaml` by accident. The file is read as YAML whatever its extension is. The file is only read at start-up, so a change needs a restart, which also clears every slot.
 
 |Config|Description|
 |------|-----------|

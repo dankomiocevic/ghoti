@@ -48,7 +48,7 @@ curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.3.0/ghoti_0
 tar -xzf ghoti_0.3.0_linux_amd64.tar.gz
 ```
 
-Ghoti needs a `config.yaml` in the current directory, in `$HOME/.ghoti` or in `/etc/ghoti`. Create one with four slots:
+Ghoti needs a `config.yaml` in the current directory, in `$HOME/.ghoti` or in `/etc/ghoti`, or a file passed with `--config`. Create one with four slots:
 
 ```sh
 cat > config.yaml <<'EOF'
