@@ -102,13 +102,7 @@ To see a signal, open a third terminal with `nc localhost 9090` and leave it idl
 |Random signal propagation slot|Planned|
 |Docker image|Planned|
 
-Plan for these properties before depending on Ghoti:
-
-- **State is volatile.** Slot values, counters, bucket levels, lease ownership and multicast subscriptions exist only in memory. They are lost when the server restarts, and a node that becomes cluster leader starts empty. Use Ghoti for state your system can rebuild or do without. If Ghoti is unavailable, your system should degrade, not fail.
-- **No TLS.** No listener encrypts traffic, including logins. Terminate TLS in a load balancer or reverse proxy in front of Ghoti, or keep the traffic on a trusted network. See [SECURITY.md](SECURITY.md).
-- **Signals are at most once.** Broadcast and multicast make one delivery attempt per client and never retry. They are not a queue.
-- **Clustering adds failover, not durability.** Only the leader serves requests, there is no quorum, and split-brain is possible during a network partition. See [cluster.md](cluster.md).
-- **Configuration is read at start-up.** Changing slots requires a restart, which also clears their state. Clients must know the slot layout in advance.
+More info in [Ghoti overview])(https://ghoti.miocevic.com/docs/)
 
 ## Documentation
 
@@ -139,35 +133,7 @@ Building from source needs the Go version listed in `go.mod`:
 go install github.com/dankomiocevic/ghoti/cmd/ghoti@latest
 ```
 
-### Verifying a download
-
-Each release also ships with a `checksums.txt`, an SPDX SBOM next to every archive (`<archive>.sbom.json`), a Sigstore signature of the checksums file and a build provenance attestation for every archive. They let you check that what you downloaded is what the Release workflow built from the tag.
-
-The checksum catches a corrupted or tampered download:
-
-```sh
-curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.3.0/checksums.txt
-sha256sum --ignore-missing -c checksums.txt
-```
-
-The signature proves that `checksums.txt` itself was produced by the Release workflow of this repository. It is a keyless [Sigstore](https://www.sigstore.dev/) signature, so the check is against the workflow identity rather than a key you have to trust. The signature, the certificate and the transparency log entry come together in one bundle file. It needs [cosign](https://github.com/sigstore/cosign) v3:
-
-```sh
-curl -LO https://github.com/dankomiocevic/ghoti/releases/download/v0.3.0/checksums.txt.sigstore.json
-cosign verify-blob \
-  --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp '^https://github.com/dankomiocevic/ghoti/\.github/workflows/release\.yml@refs/tags/v' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  checksums.txt
-```
-
-The provenance attestation ties an archive to the exact commit and workflow run that built it. It is checked with the [GitHub CLI](https://cli.github.com/) and does not need any other file:
-
-```sh
-gh attestation verify ghoti_0.3.0_linux_amd64.tar.gz --repo dankomiocevic/ghoti
-```
-
-The SBOM lists the Go modules linked into the binary, for scanners like [grype](https://github.com/anchore/grype) or for your own inventory.
+More info on [Getting started](https://ghoti.miocevic.com/docs/getting-started/).
 
 ## Contributing
 
