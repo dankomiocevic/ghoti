@@ -102,7 +102,7 @@ To see a signal, open a third terminal with `nc localhost 9090` and leave it idl
 |Random signal propagation slot|Planned|
 |Docker image|Planned|
 
-More info in [Ghoti overview])(https://ghoti.miocevic.com/docs/)
+More info in [Ghoti overview](https://ghoti.miocevic.com/docs/)
 
 ## Documentation
 
