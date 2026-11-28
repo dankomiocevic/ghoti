@@ -27,11 +27,24 @@ func NewRootCommand() *cobra.Command {
 		viper.AddConfigPath(path)
 	}
 
-	return &cobra.Command{
+	var configFile string
+
+	cmd := &cobra.Command{
 		Use:   "ghoti",
 		Short: "A simple server to do simple things, but fast!",
 		Long: `Ghoti is a server that performs simple tasks in a reliable and fast way.
 
 Distributed systems are complicated, sometimes is good to have a centralized way to perform some tasks to simplify the overall architecture.`,
+		// The flag value is only known after parsing, so the config file has
+		// to be set here and not when the command is created.
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			if configFile != "" {
+				viper.SetConfigFile(configFile)
+			}
+		},
 	}
+
+	cmd.PersistentFlags().StringVar(&configFile, "config", "", "path to the configuration file, replaces the default search paths (/etc/ghoti, $HOME/.ghoti and the current directory)")
+
+	return cmd
 }

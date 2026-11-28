@@ -7,6 +7,15 @@ follow [Semantic Versioning](https://semver.org/).
 The section for a version is used as the body of its GitHub release, so it has
 to exist before the tag is pushed. The Release workflow fails otherwise.
 
+## [Unreleased]
+
+### Added
+
+- A `--config` flag to set the path of the configuration file, for example
+  `ghoti run --config /srv/ghoti/prod.yaml`. When it is set, the default
+  locations (`/etc/ghoti`, `$HOME/.ghoti` and the current directory) are not
+  searched, so a wrong path fails at start-up instead of loading another file.
+
 ## [0.3.0] - 2026-10-04
 
 ### Fixed
